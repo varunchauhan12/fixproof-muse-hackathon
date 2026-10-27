@@ -175,3 +175,22 @@ To implement a truly authentic geographic location system in FixProof:
 > 4. Direct navigation to synchronized video timeline playback in Incident Response.
 
 If sports leagues require venue tracking in future phases, FixProof should implement an authentic **Official Asset Venue Registry**, where official broadcasts are tagged with their sanctioned stadium/venue coordinates at ingest time, rather than guessing pirate uploader locations.
+
+---
+
+## 5. Phase 3.4 Location Audit Decision & Future Direction
+
+### Formal Decision: No Map Implementation
+Following the completed audit of MediaGuardSports' location subsystem, **FixProof will not implement a map or display geographic pins based on random country assignments, guessed locations, or unverified channel metadata**. 
+
+Displaying speculative or synthetic coordinates on an evidence dashboard compromises forensic admissibility and misleads investigators regarding the physical origin of unauthorized digital media.
+
+### Potential Future Direction: Evidence-Backed Source Provenance
+If geographic or network visualization is introduced in future architectural phases, it must adhere to strict forensic evidentiary boundaries:
+1. **Source Provenance & Repost Tracking:**
+   - Clearly distinguish between an **observed platform appearance** (e.g., a post indexed on YouTube or TikTok at a specific timestamp) and a **verified propagation relationship** (e.g., an authenticated direct download-and-reupload lineage).
+   - Provenance relationships must be grounded in empirical data (cryptographic watermarks, matching compression artifacts, or verified platform API repost metadata), never speculative inferences.
+2. **Reliable Geographic Data Requirements:**
+   - Any future map visualization must require a **defined, reliable geographic data source** (such as sanctioned stadium coordinates from an authenticated venue registry, or network infrastructure points verified through direct subpoena/server logs).
+   - The UI must display an **explicit statement of what each location represents** (e.g., "Sanctioned Match Venue" vs. "Uploader-Declared Account Region" vs. "Content Delivery Edge Node"), avoiding ambiguity between physical camera capture, broadcast transmission, and user residence.
+
