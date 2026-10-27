@@ -90,6 +90,8 @@ class ReferenceVault:
 
         if mode is not None:
             self.mode = mode.lower()
+        elif vault_dir is not None:
+            self.mode = "local"
         else:
             try:
                 self.mode = get_db_config().mode.value

@@ -365,6 +365,42 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
             if len(candidate_urls) >= 5:
                 break
 
+    # Discover storyboard sprite-sheet formats if available
+    storyboard_specs: List[Dict[str, Any]] = []
+    formats = info.get("formats") or []
+    if isinstance(formats, list):
+        sb_formats = [
+            f for f in formats
+            if isinstance(f, dict) and ('sb' in f.get('format_id', '') or 'storyboard' in f.get('format_note', '').lower())
+        ]
+        for sbf in sb_formats:
+            rows = int(sbf.get("rows") or 5)
+            cols = int(sbf.get("columns") or 5)
+            frags = sbf.get("fragments") or []
+            frag_urls = []
+            if isinstance(frags, list) and frags:
+                for fr in frags[:3]:
+                    fu = fr.get("url")
+                    if fu and isinstance(fu, str) and fu.startswith("http"):
+                        frag_urls.append({
+                            "url": fu,
+                            "duration": float(fr.get("duration") or 0.0),
+                        })
+            elif sbf.get("url") and isinstance(sbf["url"], str) and sbf["url"].startswith("http"):
+                u = sbf["url"]
+                if "$M" in u:
+                    frag_urls.append({"url": u.replace("$M", "0"), "duration": 0.0})
+                else:
+                    frag_urls.append({"url": u, "duration": 0.0})
+
+            if frag_urls:
+                storyboard_specs.append({
+                    "format_id": sbf.get("format_id"),
+                    "rows": rows,
+                    "columns": cols,
+                    "fragments": frag_urls,
+                })
+
     platform = detect_platform_from_info(info, url)
 
     metadata = {
@@ -381,6 +417,7 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
         "thumbnail_url": thumbnail_url,
         "candidate_thumbnail_urls": candidate_urls,
         "candidate_count": len(candidate_urls),
+        "storyboards": storyboard_specs,
     }
 
     return metadata
@@ -390,11 +427,12 @@ def screen_video_url(
     url: str,
     vault: Optional[ReferenceVault] = None,
     run_vision_verification: bool = True,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Orchestrates URL-based preliminary video screening.
-    Evaluates discovered candidate preview images against the reference FAISS vault
-    and executes bounded Nemotron vision verification on top candidate matches.
+    Evaluates discovered candidate preview images and storyboard sprite sheet keyframes
+    against the reference FAISS vault and executes bounded Nemotron vision verification.
     """
     if vault is None:
         vault = default_vault
@@ -414,35 +452,136 @@ def screen_video_url(
             "Screening cannot proceed without a thumbnail."
         )
 
-    screening_mode = "MULTI_FRAME_PREVIEW_SCREENING" if len(candidate_urls) > 1 else "SINGLE_FRAME_PRELIMINARY"
+    # Step 2: Discover candidate frames (preferring timeline storyboard sprite sheet tiles if available)
+    candidate_items: List[Dict[str, Any]] = []
+    screening_mode = "SINGLE_FRAME_PRELIMINARY"
+    raw_bytes_primary = b""
+
+    # Attempt Storyboard extraction
+    storyboard_specs = metadata.get("storyboards") or []
+    if storyboard_specs:
+        try:
+            best_spec = storyboard_specs[0]
+            rows = best_spec["rows"]
+            cols = best_spec["columns"]
+            total_tiles = rows * cols
+
+            for frag_idx, frag in enumerate(best_spec["fragments"][:2]):
+                frag_url = frag["url"]
+                frag_duration = frag.get("duration") or (metadata.get("duration_seconds", 0.0) / max(1, len(best_spec["fragments"])))
+                sprite_pil, sprite_bytes = fetch_suspect_thumbnail_image(frag_url)
+
+                if not raw_bytes_primary:
+                    raw_bytes_primary = sprite_bytes
+
+                sw, sh = sprite_pil.size
+                tile_w = max(1, sw // cols)
+                tile_h = max(1, sh // rows)
+
+                sample_indices = [
+                    0,
+                    total_tiles // 4,
+                    total_tiles // 2,
+                    (3 * total_tiles) // 4,
+                ]
+                for s_idx in sample_indices:
+                    if s_idx >= total_tiles:
+                        continue
+                    r = s_idx // cols
+                    c = s_idx % cols
+                    left = c * tile_w
+                    top = r * tile_h
+                    right = min(sw, left + tile_w)
+                    bottom = min(sh, top + tile_h)
+
+                    tile_img = sprite_pil.crop((left, top, right, bottom))
+                    if compute_image_entropy(tile_img) < MIN_IMAGE_ENTROPY:
+                        continue
+
+                    time_in_frag = (s_idx / float(max(1, total_tiles))) * frag_duration
+                    cum_time = (frag_idx * frag_duration) + time_in_frag
+
+                    buf = io.BytesIO()
+                    tile_img.save(buf, format="JPEG", quality=85)
+                    tile_bytes = buf.getvalue()
+
+                    candidate_items.append({
+                        "pil_img": tile_img,
+                        "raw_bytes": tile_bytes,
+                        "timestamp_sec": round(cum_time, 1),
+                        "source": f"storyboard_frag{frag_idx}_tile{s_idx}",
+                    })
+                    if len(candidate_items) >= 5:
+                        break
+                if len(candidate_items) >= 5:
+                    break
+
+            if candidate_items:
+                screening_mode = "STORYBOARD_TIMELINE_SCREENING"
+        except Exception as sb_err:
+            logger.warning(f"[URL Screener] Storyboard extraction fell back to standard preview: {sb_err}")
+
+    # Fallback to standard thumbnail preview candidates if storyboard yielded nothing
+    if not candidate_items:
+        screening_mode = "MULTI_FRAME_PREVIEW_SCREENING" if len(candidate_urls) > 1 else "SINGLE_FRAME_PRELIMINARY"
+        for c_idx, c_url in enumerate(candidate_urls[:5]):
+            try:
+                pil_img, raw_bytes = fetch_suspect_thumbnail_image(c_url)
+                if not raw_bytes_primary:
+                    raw_bytes_primary = raw_bytes
+                candidate_items.append({
+                    "pil_img": pil_img,
+                    "raw_bytes": raw_bytes,
+                    "timestamp_sec": c_idx * 5,
+                    "source": f"preview_thumb_{c_idx}",
+                })
+            except Exception as e:
+                logger.warning(f"[URL Screener] Error fetching candidate preview {c_idx} ({c_url}): {e}")
+
+    if not candidate_items:
+        raise MetadataExtractionError("Could not retrieve or process any candidate preview or storyboard images.")
+
+    # Always ensure primary thumbnail is saved for UI preview
+    if raw_bytes_primary:
+        (SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg").write_bytes(raw_bytes_primary)
+
+    # Cloud Storage Upload for thumbnail
+    thumbnail_storage_path = None
+    try:
+        from app.registry import is_cloud_mode
+        if is_cloud_mode() and raw_bytes_primary:
+            from app.storage import SupabaseStorageClient
+            storage_client = SupabaseStorageClient()
+            storage_client.upload_file(
+                bucket="suspect-frames",
+                storage_path=f"thumbnails/{incident_id}.jpg",
+                data_or_file=raw_bytes_primary,
+                content_type="image/jpeg",
+                upsert=True,
+            )
+            thumbnail_storage_path = f"suspect-frames/thumbnails/{incident_id}.jpg"
+    except Exception as up_err:
+        logger.warning(f"[URL Screener] Failed to upload thumbnail to Supabase Storage: {up_err}")
 
     frame_matches = []
     highest_confidence = 0.0
     lowest_l2_distance = None
     candidate_matches_found = 0
     matched_asset_ids = set()
-    raw_bytes_primary = b""
-
-    # Candidate pairs shortlisted for second-stage Nemotron vision verification
     candidate_pairs_to_verify: List[Dict[str, Any]] = []
 
-    for c_idx, c_url in enumerate(candidate_urls[:5]):
+    for item_idx, item in enumerate(candidate_items):
         try:
-            pil_img, raw_bytes = fetch_suspect_thumbnail_image(c_url)
-            if c_idx == 0:
-                raw_bytes_primary = raw_bytes
+            pil_img = item["pil_img"]
+            raw_bytes = item["raw_bytes"]
+            ts = item["timestamp_sec"]
 
-            # Cache preview image locally in suspects directory
-            cached_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}_{c_idx}.jpg"
-            if c_idx == 0:
-                # Also save standard {incident_id}.jpg for legacy endpoints
-                (SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg").write_bytes(raw_bytes)
+            cached_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}_{item_idx}.jpg"
             cached_path.write_bytes(raw_bytes)
 
             entropy_val = compute_image_entropy(pil_img)
             is_low_entropy = bool(entropy_val < MIN_IMAGE_ENTROPY)
 
-            # Match against FAISS vault
             match_result = match_single_frame(
                 suspect_img=pil_img,
                 submitted_asset_id=incident_id,
@@ -454,12 +593,13 @@ def screen_video_url(
             top_candidates = match_result.get("top_candidates", []) if match_result else []
 
             frame_info = {
-                "frame_index": c_idx,
-                "timestamp_sec": c_idx * 5,  # Heuristic preview offset
-                "filename": f"preview_{incident_id[:8]}_{c_idx}.jpg",
+                "frame_index": item_idx,
+                "timestamp_sec": ts,
+                "filename": f"preview_{incident_id[:8]}_{item_idx}.jpg",
                 "frame_path": str(cached_path),
                 "entropy": entropy_val,
                 "low_entropy_flag": is_low_entropy,
+                "source": item.get("source", "preview"),
             }
 
             if best_match:
@@ -490,6 +630,7 @@ def screen_video_url(
                         "suspect_pil": pil_img,
                         "best_match": best_match,
                         "composite_rank": comp_rank,
+                        "suspect_timestamp_sec": ts,
                     })
 
                 frame_matches.append({
@@ -503,9 +644,8 @@ def screen_video_url(
                     "best_match": None,
                     "top_candidates": [],
                 })
-
         except Exception as e:
-            logger.warning(f"[URL Screener] Error screening candidate preview {c_idx} ({c_url}): {e}")
+            logger.warning(f"[URL Screener] Error screening candidate frame {item_idx}: {e}")
             continue
 
     if not frame_matches:
@@ -524,7 +664,7 @@ def screen_video_url(
                     v_res = verify_candidate_pair(
                         suspect_img=cand["suspect_pil"],
                         ref_img=ref_pil,
-                        suspect_timestamp_sec=0.0,
+                        suspect_timestamp_sec=float(cand.get("suspect_timestamp_sec", 0.0)),
                         reference_timestamp_sec=float(best.get("source_timestamp_sec", 0.0)),
                         source_asset_id=str(best.get("source_asset_id", "")),
                         candidate_pair_index=pair_idx,
@@ -540,8 +680,9 @@ def screen_video_url(
         status_message = "Reference library is empty. No reference videos are currently indexed for comparison."
     elif candidate_matches_found > 0:
         overall_status = "CANDIDATE_MATCH"
+        matched_str = list(matched_asset_ids)[0] if matched_asset_ids else "reference asset"
         status_message = (
-            f"Preliminary visual match detected on preview thumbnail against reference asset '{list(matched_asset_ids)[0]}'. "
+            f"Preliminary visual match detected on preview thumbnail against reference asset '{matched_str}'. "
             "Thumbnail match is preliminary; authorized full video review is required for definitive assessment."
         )
     elif lowest_l2_distance is not None and lowest_l2_distance < SUSPECT_THRESHOLD:
@@ -570,6 +711,7 @@ def screen_video_url(
         "metadata": metadata,
         "thumbnail_url": metadata.get("thumbnail_url"),
         "suspect_thumbnail_preview_url": f"/api/threats/suspect-thumbnail/{incident_id}",
+        "thumbnail_storage_path": thumbnail_storage_path,
         "file_size": len(raw_bytes_primary),
         "duration_seconds": metadata.get("duration_seconds", 0.0),
         "total_frames_analyzed": len(frame_matches),
@@ -588,10 +730,11 @@ def screen_video_url(
         "disclaimer": PRELIMINARY_SCREENING_DISCLAIMER,
         "limitations": SCREENING_LIMITATIONS,
         "scanned_at": scanned_at,
+        "session_id": session_id,
     }
 
     try:
-        save_incident(incident_record)
+        save_incident(incident_record, session_id=session_id)
     except Exception as e:
         logger.error(f"[URL Screener] Failed to persist incident {incident_id}: {e}")
 

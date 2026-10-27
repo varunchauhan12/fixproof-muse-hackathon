@@ -104,9 +104,63 @@ def compute_pair_cache_key(
 
 
 def get_cached_verification(cache_key: str) -> Optional[Dict[str, Any]]:
-    """Retrieves a cached verification result from memory or disk cache."""
+    """Retrieves a cached verification result from memory, Supabase DB, or disk cache."""
     if cache_key in _MEMORY_CACHE:
         return _MEMORY_CACHE[cache_key]
+
+    try:
+        from app.registry import is_cloud_mode
+        if is_cloud_mode():
+            from app.db import default_db_manager
+            row = default_db_manager.fetch_one(
+                """
+                SELECT visual_correspondence, confidence_assessment, matching_features,
+                       contradictions, reasoning, uncertainty_factors, validation_status,
+                       model_id, latency_ms, created_at
+                FROM vision_verifications
+                WHERE cache_key = %s;
+                """,
+                (cache_key,),
+            )
+            if row:
+                m_features = row.get("matching_features") or []
+                if isinstance(m_features, str):
+                    try:
+                        m_features = json.loads(m_features)
+                    except Exception:
+                        m_features = []
+                contras = row.get("contradictions") or []
+                if isinstance(contras, str):
+                    try:
+                        contras = json.loads(contras)
+                    except Exception:
+                        contras = []
+                uncertain = row.get("uncertainty_factors") or []
+                if isinstance(uncertain, str):
+                    try:
+                        uncertain = json.loads(uncertain)
+                    except Exception:
+                        uncertain = []
+
+                res = {
+                    "cache_key": cache_key,
+                    "visual_correspondence": row.get("visual_correspondence") or "UNVERIFIED",
+                    "confidence_assessment": row.get("confidence_assessment") or "INCONCLUSIVE",
+                    "matching_features": m_features,
+                    "contradictions": contras,
+                    "reasoning": row.get("reasoning") or "",
+                    "uncertainty_factors": uncertain,
+                    "validation_status": row.get("validation_status") or "VERIFIED",
+                    "model_id": row.get("model_id") or VISION_MODEL_ID,
+                    "latency_ms": int(row.get("latency_ms") or 0),
+                    "created_at": str(row.get("created_at") or ""),
+                    "cached": True,
+                }
+                _MEMORY_CACHE[cache_key] = res
+                return res
+    except Exception as e:
+        logger.warning(f"[VisionVerifier] Cloud cache lookup error: {e}")
+
     disk = _load_disk_cache()
     if cache_key in disk:
         _MEMORY_CACHE[cache_key] = disk[cache_key]
@@ -115,8 +169,48 @@ def get_cached_verification(cache_key: str) -> Optional[Dict[str, Any]]:
 
 
 def store_cached_verification(cache_key: str, result: Dict[str, Any]) -> None:
-    """Stores a verification result in memory and disk cache."""
+    """Stores a verification result in memory, Supabase DB (cloud), and disk cache."""
     _MEMORY_CACHE[cache_key] = result
+
+    try:
+        from app.registry import is_cloud_mode
+        if is_cloud_mode():
+            from app.db import default_db_manager
+            m_feat = result.get("matching_features", [])
+            contra = result.get("contradictions", [])
+            uncert = result.get("uncertainty_factors", [])
+            default_db_manager.execute(
+                """
+                INSERT INTO vision_verifications (
+                    cache_key, visual_correspondence, confidence_assessment,
+                    matching_features, contradictions, reasoning, uncertainty_factors,
+                    validation_status, model_id, latency_ms, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (cache_key) DO UPDATE SET
+                    visual_correspondence = EXCLUDED.visual_correspondence,
+                    confidence_assessment = EXCLUDED.confidence_assessment,
+                    matching_features = EXCLUDED.matching_features,
+                    contradictions = EXCLUDED.contradictions,
+                    reasoning = EXCLUDED.reasoning,
+                    uncertainty_factors = EXCLUDED.uncertainty_factors,
+                    validation_status = EXCLUDED.validation_status;
+                """,
+                (
+                    cache_key,
+                    result.get("visual_correspondence", "UNVERIFIED"),
+                    result.get("confidence_assessment", "INCONCLUSIVE"),
+                    json.dumps(m_feat),
+                    json.dumps(contra),
+                    result.get("reasoning", ""),
+                    json.dumps(uncert),
+                    result.get("validation_status", "VERIFIED"),
+                    result.get("model_id", VISION_MODEL_ID),
+                    int(result.get("latency_ms") or 0),
+                ),
+            )
+    except Exception as e:
+        logger.warning(f"[VisionVerifier] Cloud cache store error: {e}")
+
     disk = _load_disk_cache()
     disk[cache_key] = result
     _save_disk_cache(disk)

@@ -380,20 +380,37 @@ def delete_asset_record(asset_id: str, vault: Any) -> bool:
 
 # ─── Incidents & Scans Storage ───────────────────────────────────────────────
 
-def load_incidents() -> List[Dict[str, Any]]:
+def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Loads recorded threat scan incidents from local JSON or Supabase PostgreSQL."""
     if is_cloud_mode():
-        rows = default_db_manager.fetch_all(
-            """
-            SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
-                   duration_seconds, total_frames_analyzed, candidate_matches_found,
-                   highest_confidence, lowest_l2_distance, overall_status,
-                   matched_asset_ids, cv_evidence_dossier, scanned_at
-            FROM incidents
-            ORDER BY scanned_at DESC
-            LIMIT 100;
-            """
-        )
+        if session_id:
+            rows = default_db_manager.fetch_all(
+                """
+                SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
+                       duration_seconds, total_frames_analyzed, candidate_matches_found,
+                       highest_confidence, lowest_l2_distance, overall_status,
+                       matched_asset_ids, cv_evidence_dossier, scanned_at,
+                       score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
+                FROM incidents
+                WHERE (session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')
+                ORDER BY scanned_at DESC
+                LIMIT 100;
+                """,
+                (session_id,),
+            )
+        else:
+            rows = default_db_manager.fetch_all(
+                """
+                SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
+                       duration_seconds, total_frames_analyzed, candidate_matches_found,
+                       highest_confidence, lowest_l2_distance, overall_status,
+                       matched_asset_ids, cv_evidence_dossier, scanned_at,
+                       score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
+                FROM incidents
+                ORDER BY scanned_at DESC
+                LIMIT 100;
+                """
+            )
         incidents = []
         for row in rows:
             iid = str(row["incident_id"])
@@ -448,6 +465,11 @@ def load_incidents() -> List[Dict[str, Any]]:
                 "file_size": int(row.get("file_size_bytes") or 0),
                 "duration_seconds": float(row.get("duration_seconds") or 0.0),
                 "frame_count": int(row.get("total_frames_analyzed") or 0),
+                "score_version": row.get("score_version") or "v1.1-uncalibrated-heuristic",
+                "screening_mode": row.get("screening_mode") or inv_type,
+                "session_id": row.get("session_id"),
+                "suspect_storage_path": row.get("suspect_storage_path"),
+                "thumbnail_storage_path": row.get("thumbnail_storage_path"),
             })
         return incidents
 
@@ -456,14 +478,24 @@ def load_incidents() -> List[Dict[str, Any]]:
         return []
     try:
         with open(INCIDENTS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            all_local = json.load(f)
+            if session_id:
+                return [
+                    inc for inc in all_local
+                    if inc.get("session_id") == session_id or not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
+                ]
+            return all_local
     except Exception as e:
         logger.error(f"[Registry] Failed to read {INCIDENTS_FILE}: {e}")
         return []
 
 
-def save_incident(incident_data: Dict[str, Any]) -> None:
+def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = None) -> None:
     """Appends an incident to the persistent incidents log (local JSON or Supabase PostgreSQL)."""
+    target_session = session_id or incident_data.get("session_id")
+    if target_session:
+        incident_data["session_id"] = target_session
+
     if is_cloud_mode():
         iid = str(incident_data.get("incident_id") or uuid.uuid4())
         inv_type = incident_data.get("investigation_type", "FULL_VIDEO_SCAN")
@@ -507,6 +539,10 @@ def save_incident(incident_data: Dict[str, Any]) -> None:
         suspect_name = incident_data.get("suspect_filename") or "suspect_video.mp4"
         file_size = incident_data.get("file_size") or 0
         scanned_at = incident_data.get("scanned_at") or datetime.now(timezone.utc).isoformat()
+        score_ver = incident_data.get("score_version") or "v1.1-uncalibrated-heuristic"
+        screening_mode = incident_data.get("screening_mode") or inv_type
+        suspect_path = incident_data.get("suspect_storage_path")
+        thumb_path = incident_data.get("thumbnail_storage_path")
 
         default_db_manager.execute(
             """
@@ -514,8 +550,9 @@ def save_incident(incident_data: Dict[str, Any]) -> None:
                 incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
                 duration_seconds, total_frames_analyzed, candidate_matches_found,
                 highest_confidence, lowest_l2_distance, overall_status,
-                matched_asset_ids, cv_evidence_dossier, scanned_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                matched_asset_ids, cv_evidence_dossier, scanned_at,
+                score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (incident_id) DO UPDATE SET
                 investigation_type = EXCLUDED.investigation_type,
                 suspect_filename = EXCLUDED.suspect_filename,
@@ -529,7 +566,12 @@ def save_incident(incident_data: Dict[str, Any]) -> None:
                 overall_status = EXCLUDED.overall_status,
                 matched_asset_ids = EXCLUDED.matched_asset_ids,
                 cv_evidence_dossier = EXCLUDED.cv_evidence_dossier,
-                scanned_at = EXCLUDED.scanned_at;
+                scanned_at = EXCLUDED.scanned_at,
+                score_version = EXCLUDED.score_version,
+                screening_mode = EXCLUDED.screening_mode,
+                session_id = EXCLUDED.session_id,
+                suspect_storage_path = EXCLUDED.suspect_storage_path,
+                thumbnail_storage_path = EXCLUDED.thumbnail_storage_path;
             """,
             (
                 iid,
@@ -546,6 +588,11 @@ def save_incident(incident_data: Dict[str, Any]) -> None:
                 json.dumps(matched_ids),
                 json.dumps(dossier),
                 scanned_at,
+                score_ver,
+                screening_mode,
+                target_session,
+                suspect_path,
+                thumb_path,
             ),
         )
         logger.info(f"[Registry] Saved incident {iid} ({inv_type}) to Supabase PostgreSQL.")
@@ -565,6 +612,93 @@ def save_incident(incident_data: Dict[str, Any]) -> None:
 
 def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
     """Retrieves an incident record by its incident_id."""
+    if is_cloud_mode():
+        import uuid as _uuid
+        is_uuid = False
+        try:
+            _uuid.UUID(str(incident_id))
+            is_uuid = True
+        except (ValueError, TypeError, AttributeError):
+            is_uuid = False
+
+        if is_uuid:
+            try:
+                rows = default_db_manager.fetch_all(
+                    """
+                    SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
+                           duration_seconds, total_frames_analyzed, candidate_matches_found,
+                           highest_confidence, lowest_l2_distance, overall_status,
+                           matched_asset_ids, cv_evidence_dossier, scanned_at,
+                           score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
+                    FROM incidents
+                    WHERE incident_id = %s
+                    LIMIT 1;
+                    """,
+                    (incident_id,),
+                )
+                if rows:
+                    row = rows[0]
+                    iid = str(row["incident_id"])
+                    dossier = row.get("cv_evidence_dossier") or {}
+                    if isinstance(dossier, str):
+                        try:
+                            dossier = json.loads(dossier)
+                        except Exception:
+                            dossier = {}
+
+                    matched = row.get("matched_asset_ids") or []
+                    if isinstance(matched, str):
+                        try:
+                            matched = json.loads(matched)
+                        except Exception:
+                            matched = []
+
+                    scanned_at_val = row.get("scanned_at")
+                    if isinstance(scanned_at_val, datetime):
+                        scanned_at_str = scanned_at_val.isoformat()
+                    elif scanned_at_val:
+                        scanned_at_str = str(scanned_at_val)
+                    else:
+                        scanned_at_str = ""
+
+                    s_url = row.get("suspect_url") or dossier.get("source_url") or ""
+                    inv_type = row.get("investigation_type") or "FULL_VIDEO_SCAN"
+
+                    return {
+                        "incident_id": iid,
+                        "investigation_type": inv_type,
+                        "submitted_asset_id": dossier.get("submitted_asset_id") or iid,
+                        "suspect_filename": row.get("suspect_filename") or "",
+                        "suspect_url": s_url,
+                        "source_url": s_url,
+                        "platform": dossier.get("platform") or "",
+                        "metadata": dossier.get("metadata") or {},
+                        "thumbnail_url": dossier.get("thumbnail_url") or "",
+                        "suspect_thumbnail_preview_url": dossier.get("suspect_thumbnail_preview_url") or "",
+                        "recommended_action": dossier.get("recommended_action") or ("NEEDS_FULL_VIDEO_REVIEW" if row.get("overall_status") in ("CANDIDATE_MATCH", "SUSPECT", "NEEDS_FULL_VIDEO_REVIEW") else "MONITOR"),
+                        "status_message": dossier.get("status_message") or "",
+                        "limitations": dossier.get("limitations") or [],
+                        "disclaimer": dossier.get("disclaimer", "Candidate visual similarity only; not a definitive copyright-infringement finding."),
+                        "total_frames_analyzed": int(row.get("total_frames_analyzed") or 0),
+                        "candidate_matches_found": int(row.get("candidate_matches_found") or 0),
+                        "highest_confidence": float(row.get("highest_confidence") or 0.0),
+                        "lowest_l2_distance": float(row["lowest_l2_distance"]) if row.get("lowest_l2_distance") is not None else None,
+                        "overall_status": row.get("overall_status") or "CLEAN",
+                        "matched_assets": [str(m) for m in matched],
+                        "frame_matches": dossier.get("frame_matches") or [],
+                        "scanned_at": scanned_at_str,
+                        "file_size": int(row.get("file_size_bytes") or 0),
+                        "duration_seconds": float(row.get("duration_seconds") or 0.0),
+                        "frame_count": int(row.get("total_frames_analyzed") or 0),
+                        "score_version": row.get("score_version") or "v1.1-uncalibrated-heuristic",
+                        "screening_mode": row.get("screening_mode") or inv_type,
+                        "session_id": row.get("session_id"),
+                        "suspect_storage_path": row.get("suspect_storage_path"),
+                        "thumbnail_storage_path": row.get("thumbnail_storage_path"),
+                    }
+            except Exception as e:
+                logger.warning(f"[Registry] Error querying incident {incident_id} directly: {e}")
+
     for inc in load_incidents():
         if str(inc.get("incident_id")) == str(incident_id):
             return inc

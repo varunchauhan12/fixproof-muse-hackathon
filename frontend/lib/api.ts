@@ -16,6 +16,16 @@ const noCacheHeaders = {
   Expires: "0",
 };
 
+export function getClientSessionId(): string {
+  if (typeof window === "undefined") return "server-session";
+  let sessionId = localStorage.getItem("fixproof_session_id");
+  if (!sessionId) {
+    sessionId = "sess_" + Math.random().toString(36).substring(2, 12) + "_" + Date.now().toString(36);
+    localStorage.setItem("fixproof_session_id", sessionId);
+  }
+  return sessionId;
+}
+
 export async function fetchNoCache(url: string, init?: RequestInit): Promise<Response> {
   const separator = url.includes("?") ? "&" : "?";
   const cacheBustedUrl = `${url}${separator}_t=${Date.now()}`;
@@ -24,6 +34,7 @@ export async function fetchNoCache(url: string, init?: RequestInit): Promise<Res
     cache: "no-store",
     headers: {
       ...noCacheHeaders,
+      "X-Client-Session-ID": getClientSessionId(),
       ...init?.headers,
     },
   });
@@ -124,6 +135,7 @@ export async function scanSuspectVideo(
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/api/threats/scan`);
+    xhr.setRequestHeader("X-Client-Session-ID", getClientSessionId());
 
     if (xhr.upload && onUploadProgress) {
       xhr.upload.onprogress = (event) => {

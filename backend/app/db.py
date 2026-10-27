@@ -22,7 +22,11 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urlparse, urlunparse
 from dotenv import load_dotenv
 
-load_dotenv()
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+else:
+    load_dotenv()
 
 logger = logging.getLogger(__name__)
 

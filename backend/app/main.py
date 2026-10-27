@@ -1,3 +1,4 @@
+import json
 import mimetypes
 import os
 import re
@@ -10,13 +11,15 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, RedirectResponse
+import logging
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
 load_dotenv()
+logger = logging.getLogger("fixproof.main")
 
 app = FastAPI(title="FixProof API")
 
@@ -40,7 +43,7 @@ async def add_cache_control_headers(request: Request, call_next):
 
 import shutil
 from app.extractor import extract_video_frames, preflight_video_file
-from app.matcher import analyze_asset_matches
+from app.matcher import analyze_asset_matches, SCORE_VERSION
 from app.url_screener import (
     screen_video_url,
     SSRFValidationError,
@@ -233,7 +236,7 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
     Safely streams an extracted video frame to the client.
     Supports both reference asset IDs and incident IDs / suspect asset IDs.
     Strictly checks path containment and character safety.
-    In cloud mode, streams from Supabase Storage reference-frames bucket.
+    In cloud mode, streams from Supabase Storage (suspect-frames or reference-frames bucket).
     """
     if not SAFE_ID_REGEX.match(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID format.")
@@ -276,20 +279,24 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
                 headers={"Cache-Control": "public, max-age=3600"},
             )
 
-        try:
-            storage_client = SupabaseStorageClient()
-            frame_bytes = storage_client.download_file("reference-frames", f"{resolved_id}/{frame_filename}")
-            cloud_cache_file.parent.mkdir(parents=True, exist_ok=True)
-            cloud_cache_file.write_bytes(frame_bytes)
-            return Response(
-                content=frame_bytes,
-                media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=3600"},
-            )
-        except StorageNotFoundError:
-            raise HTTPException(status_code=404, detail="Frame not found in cloud storage.")
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Failed to retrieve frame from storage: {e}")
+        storage_client = SupabaseStorageClient()
+        buckets_to_try = ["suspect-frames", "reference-frames"] if incident else ["reference-frames", "suspect-frames"]
+        for bkt in buckets_to_try:
+            try:
+                frame_bytes = storage_client.download_file(bkt, f"{resolved_id}/{frame_filename}")
+                cloud_cache_file.parent.mkdir(parents=True, exist_ok=True)
+                cloud_cache_file.write_bytes(frame_bytes)
+                return Response(
+                    content=frame_bytes,
+                    media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=3600"},
+                )
+            except StorageNotFoundError:
+                continue
+            except Exception as e:
+                logger.warning(f"[StreamFrame] Error checking bucket {bkt}: {e}")
+
+        raise HTTPException(status_code=404, detail="Frame not found in cloud storage.")
 
     # Local mode fallback
     frame_path = (FRAMES_DIR / resolved_id / frame_filename).resolve()
@@ -321,6 +328,7 @@ def stream_asset_video(asset_id: str):
     from app.registry import get_incident_by_id
     incident = get_incident_by_id(asset_id)
     resolved_id = asset_id
+    suspect_path_from_meta = None
     if incident:
         if incident.get("investigation_type") == "URL_SCREENING":
             raise HTTPException(
@@ -328,8 +336,9 @@ def stream_asset_video(asset_id: str):
                 detail="No video stream available for URL-screened threats. Preliminary screening evaluated public preview thumbnail only per platform restrictions.",
             )
         resolved_id = incident.get("submitted_asset_id") or asset_id
+        suspect_path_from_meta = incident.get("suspect_storage_path")
 
-    # 2. Check suspect videos first
+    # 2. Check local suspect videos first
     suspect_matches = list(SUSPECTS_VIDEOS_DIR.glob(f"{resolved_id}.*"))
     if not suspect_matches and resolved_id != asset_id:
         suspect_matches = list(SUSPECTS_VIDEOS_DIR.glob(f"{asset_id}.*"))
@@ -341,22 +350,48 @@ def stream_asset_video(asset_id: str):
             return FileResponse(str(target_video), media_type=media_type)
 
     if is_cloud_mode():
+        storage_client = SupabaseStorageClient()
+
+        # Check suspect video first if it's an incident or suspect asset
+        if incident or suspect_path_from_meta:
+            target_path = suspect_path_from_meta
+            if not target_path:
+                inc_row = default_db_manager.fetch_one(
+                    "SELECT suspect_storage_path FROM incidents WHERE incident_id = %s OR submitted_asset_id = %s LIMIT 1",
+                    (resolved_id, resolved_id),
+                )
+                if inc_row and inc_row.get("suspect_storage_path"):
+                    target_path = inc_row["suspect_storage_path"]
+            if not target_path:
+                target_path = f"{resolved_id}.mp4"
+
+            bucket = "suspect-videos"
+            if target_path.startswith(f"{bucket}/"):
+                target_path = target_path[len(f"{bucket}/"):]
+
+            try:
+                signed_url = storage_client.create_signed_url(bucket, target_path, expires_in=1800)
+                return RedirectResponse(url=signed_url, status_code=307)
+            except Exception as e:
+                logger.warning(f"[StreamVideo] Failed suspect signed URL: {e}")
+
+        # Check reference_assets table
         row = default_db_manager.fetch_one(
             "SELECT filename, storage_path FROM reference_assets WHERE asset_id = %s",
             (resolved_id,),
         )
-        if not row:
-            raise HTTPException(status_code=404, detail=f"Video for asset '{resolved_id}' not found.")
-        storage_path = row["storage_path"]
-        bucket = "reference-assets"
-        if storage_path.startswith(f"{bucket}/"):
-            storage_path = storage_path[len(f"{bucket}/"):]
-        try:
-            storage_client = SupabaseStorageClient()
-            signed_url = storage_client.create_signed_url(bucket, storage_path, expires_in=1800)
-            return RedirectResponse(url=signed_url, status_code=307)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Failed to generate streaming URL: {e}")
+        if row:
+            storage_path = row["storage_path"]
+            bucket = "reference-assets"
+            if storage_path.startswith(f"{bucket}/"):
+                storage_path = storage_path[len(f"{bucket}/"):]
+            try:
+                signed_url = storage_client.create_signed_url(bucket, storage_path, expires_in=1800)
+                return RedirectResponse(url=signed_url, status_code=307)
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Failed to generate streaming URL: {e}")
+
+        raise HTTPException(status_code=404, detail=f"Video for asset '{resolved_id}' not found.")
 
     # 3. Local mode fallback
     matches = list(STORAGE_DIR.glob(f"{resolved_id}.*"))
@@ -601,12 +636,14 @@ async def ingest_reference_video(
 @app.post("/api/threats/scan")
 async def scan_suspect_video(
     file: UploadFile = File(...),
+    x_client_session_id: Optional[str] = Header(None),
 ):
     """
     Ingests an untrusted suspect video, extracts frames, and executes Sentinel-style
     visual matching against the FAISS reference vault.
     NEVER indexes suspect video into the reference vault.
-    Records the scan incident for forensic review.
+    In cloud mode, persists uploaded video and frames to Supabase Storage.
+    Records the scan incident for forensic review with session isolation.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No suspect video provided.")
@@ -622,7 +659,6 @@ async def scan_suspect_video(
     target_path = SUSPECTS_VIDEOS_DIR / stored_filename
     suspect_frames_dir = SUSPECTS_FRAMES_DIR / suspect_id
     total_bytes = 0
-
 
     try:
         with open(target_path, "wb") as buffer:
@@ -666,14 +702,42 @@ async def scan_suspect_video(
                 detail="Cloud reference vault has no reference data. Scanning cannot produce valid verdict.",
             )
 
+        suspect_storage_path = None
+        if is_cloud_mode():
+            try:
+                storage_client = SupabaseStorageClient()
+                storage_client.upload_file(
+                    bucket="suspect-videos",
+                    storage_path=stored_filename,
+                    data_or_file=target_path,
+                    content_type=file.content_type or "video/mp4",
+                    upsert=True,
+                )
+                suspect_storage_path = f"suspect-videos/{stored_filename}"
+
+                for frame_file in suspect_frames_dir.glob("*.jpg"):
+                    storage_client.upload_file(
+                        bucket="suspect-frames",
+                        storage_path=f"{suspect_id}/{frame_file.name}",
+                        data_or_file=frame_file,
+                        content_type="image/jpeg",
+                        upsert=True,
+                    )
+            except Exception as up_err:
+                logger.warning(f"[CloudStorage] Uploading suspect video/frames failed: {up_err}")
+
         match_results["suspect_filename"] = file.filename
         match_results["file_size"] = total_bytes
         match_results["duration_seconds"] = duration_sec
         match_results["frame_count"] = len(extracted_frames)
         match_results["scanned_at"] = datetime.now(timezone.utc).isoformat()
         match_results["incident_id"] = str(uuid.uuid4())
+        match_results["suspect_storage_path"] = suspect_storage_path
+        match_results["screening_mode"] = "FULL_VIDEO_SCAN"
+        match_results["score_version"] = SCORE_VERSION
+        match_results["session_id"] = x_client_session_id
 
-        save_incident(match_results)
+        save_incident(match_results, session_id=x_client_session_id)
         return match_results
     except HTTPException:
         if target_path.exists():
@@ -698,10 +762,14 @@ async def scan_suspect_video(
 
 
 @app.post("/api/threats/screen-url")
-def screen_video_url_endpoint(payload: ScreenUrlRequest):
+def screen_video_url_endpoint(
+    payload: ScreenUrlRequest,
+    x_client_session_id: Optional[str] = Header(None),
+):
     """
     Screens a public video URL by extracting metadata and public thumbnail,
-    verifying SSRF protection, and matching the thumbnail against the FAISS reference vault.
+    evaluating storyboard sprite sheet frames, verifying SSRF protection,
+    and matching candidate keyframes against the FAISS reference vault.
     NEVER downloads the underlying third-party video stream.
     """
     raw_url = (payload.url or "").strip()
@@ -709,7 +777,7 @@ def screen_video_url_endpoint(payload: ScreenUrlRequest):
         raise HTTPException(status_code=400, detail="Video URL is required.")
 
     try:
-        result = screen_video_url(raw_url, vault=default_vault)
+        result = screen_video_url(raw_url, vault=default_vault, session_id=x_client_session_id)
         return result
     except SSRFValidationError as sve:
         raise HTTPException(status_code=400, detail=f"SSRF validation blocked: {sve}")
@@ -727,15 +795,26 @@ def get_suspect_thumbnail_endpoint(incident_id: str):
     if not SAFE_ID_REGEX.match(incident_id):
         raise HTTPException(status_code=400, detail="Invalid incident ID format.")
     thumb_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg"
-    if not thumb_path.exists():
-        raise HTTPException(status_code=404, detail="Suspect thumbnail image not found.")
-    return FileResponse(thumb_path, media_type="image/jpeg")
+    if thumb_path.exists():
+        return FileResponse(thumb_path, media_type="image/jpeg")
+
+    if is_cloud_mode():
+        try:
+            storage_client = SupabaseStorageClient()
+            thumb_bytes = storage_client.download_file("suspect-frames", f"thumbnails/{incident_id}.jpg")
+            thumb_path.parent.mkdir(parents=True, exist_ok=True)
+            thumb_path.write_bytes(thumb_bytes)
+            return Response(content=thumb_bytes, media_type="image/jpeg")
+        except Exception:
+            pass
+
+    raise HTTPException(status_code=404, detail="Suspect thumbnail image not found.")
 
 
 @app.get("/api/incidents")
-def get_incidents_list():
-    """Returns recorded threat scan incidents."""
-    return load_incidents()
+def get_incidents_list(x_client_session_id: Optional[str] = Header(None)):
+    """Returns recorded threat scan incidents filtered by visitor session."""
+    return load_incidents(session_id=x_client_session_id)
 
 
 @app.get("/api/incidents/{incident_id}")
@@ -875,6 +954,42 @@ def export_incident_evidence_package_endpoint(incident_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate evidence package: {e}")
 
     filename = f"fixproof_evidence_{incident_id[:8]}_{int(datetime.now(timezone.utc).timestamp())}.zip"
+
+    # Cloud Persistence: upload package to evidence-packages bucket and insert to evidence_packages table
+    if is_cloud_mode():
+        try:
+            pkg_id = manifest.get("package_id") or str(uuid.uuid4())
+            pkg_storage_path = f"{incident_id}/{pkg_id}.zip"
+            storage_client = SupabaseStorageClient()
+            storage_client.upload_file(
+                bucket="evidence-packages",
+                storage_path=pkg_storage_path,
+                data_or_file=zip_bytes,
+                content_type="application/zip",
+                upsert=True,
+            )
+            default_db_manager.execute(
+                """
+                INSERT INTO evidence_packages (
+                    package_id, incident_id, storage_path, sha256_hash,
+                    signing_key_id, signature_hex, manifest_json, file_size_bytes, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (package_id) DO NOTHING;
+                """,
+                (
+                    pkg_id,
+                    incident_id,
+                    f"evidence-packages/{pkg_storage_path}",
+                    manifest.get("evidence_package_sha256", ""),
+                    manifest.get("signing_key_id", ""),
+                    manifest.get("signature_hex", ""),
+                    json.dumps(manifest),
+                    len(zip_bytes),
+                ),
+            )
+        except Exception as pkg_err:
+            logger.warning(f"[EvidenceExport] Failed to persist evidence package to cloud: {pkg_err}")
+
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -884,6 +999,30 @@ def export_incident_evidence_package_endpoint(incident_id: str):
             "X-Signing-Key-ID": manifest.get("signing_key_id", ""),
         },
     )
+
+
+@app.get("/api/threats/{incident_id}/packages")
+def get_incident_packages_endpoint(incident_id: str):
+    """Retrieves saved evidence packages for an incident."""
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+    if is_cloud_mode():
+        try:
+            rows = default_db_manager.fetch_all(
+                """
+                SELECT package_id, incident_id, storage_path, sha256_hash,
+                       signing_key_id, signature_hex, manifest_json, file_size_bytes, created_at
+                FROM evidence_packages
+                WHERE incident_id = %s
+                ORDER BY created_at DESC;
+                """,
+                (incident_id,),
+            )
+            return rows
+        except Exception as e:
+            logger.error(f"[EvidenceExport] Failed to fetch packages: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load evidence packages.")
+    return []
 
 
 @app.post("/api/threats/reports/verify-package")
