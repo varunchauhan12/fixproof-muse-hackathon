@@ -5,6 +5,7 @@ import {
   InvestigationReport,
   InvestigateIncidentPayload,
   ReportHistoryItem,
+  PackageVerificationResult,
 } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -269,4 +270,40 @@ export async function investigateIncident(
 
   return res.json();
 }
+
+export async function exportIncidentEvidencePackage(
+  incidentId: string
+): Promise<{ blob: Blob; filename: string }> {
+  const safeId = encodeURIComponent(incidentId.trim());
+  const res = await fetchNoCache(`${API_BASE}/api/threats/${safeId}/reports/export`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to export evidence package for incident ${incidentId}`);
+  }
+  const disposition = res.headers.get("Content-Disposition") || "";
+  let filename = `fixproof_evidence_${incidentId.slice(0, 8)}.zip`;
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  if (match && match[1]) {
+    filename = match[1];
+  }
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
+export async function verifyEvidencePackage(
+  file: File
+): Promise<PackageVerificationResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/api/threats/reports/verify-package`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Package verification request failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
 

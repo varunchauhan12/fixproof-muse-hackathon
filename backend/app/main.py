@@ -70,6 +70,12 @@ from app.evidence_models import (
     build_investigation_input_from_incident,
     ReportHistoryItem,
 )
+from app.evidence_package import (
+    create_evidence_package,
+    verify_evidence_package,
+    SigningConfigurationError,
+    PackageVerificationError,
+)
 from app.timeline import cluster_frame_matches
 from app.nemotron_engine import (
     generate_nemotron_report,
@@ -812,6 +818,69 @@ def get_report_by_id_endpoint(report_id: str):
     if not report:
         raise HTTPException(status_code=404, detail="Report not found.")
     return report
+
+
+@app.get("/api/threats/{incident_id}/reports/export")
+def export_incident_evidence_package_endpoint(incident_id: str):
+    """
+    Exports a cryptographically signed forensic evidence package for an incident's report history.
+    Includes canonical manifest, Ed25519 signature, public key, chain of custody, ReportLab summary PDF,
+    and individual report JSON snapshots in a single downloadable ZIP.
+    """
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    reports = get_nemotron_reports_for_incident(incident_id)
+
+    try:
+        zip_bytes, manifest = create_evidence_package(incident, reports)
+    except SigningConfigurationError as e:
+        logger.error(f"[EvidenceExport] Signing configuration error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"[EvidenceExport] Error building evidence package for incident {incident_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate evidence package: {e}")
+
+    filename = f"fixproof_evidence_{incident_id[:8]}_{int(datetime.now(timezone.utc).timestamp())}.zip"
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Package-ID": manifest.get("package_id", ""),
+            "X-Signing-Key-ID": manifest.get("signing_key_id", ""),
+        },
+    )
+
+
+@app.post("/api/threats/reports/verify-package")
+async def verify_evidence_package_endpoint(file: UploadFile = File(...)):
+    """
+    Upload and cryptographically verify a previously exported FixProof evidence package.
+    Verifies Ed25519 signature against manifest, SHA-256 digests of all payload files,
+    and sequential hash integrity of the chain of custody.
+    """
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a .zip evidence package.")
+
+    try:
+        content = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {e}")
+
+    try:
+        result = verify_evidence_package(content)
+        return result
+    except PackageVerificationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[EvidenceVerify] Unexpected error verifying package: {e}")
+        raise HTTPException(status_code=500, detail=f"Package verification error: {e}")
 
 
 

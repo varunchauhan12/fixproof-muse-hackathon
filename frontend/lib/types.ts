@@ -201,3 +201,20 @@ export interface ReportHistoryItem {
   summary: string;
 }
 
+export interface PackageVerificationResult {
+  valid: boolean;
+  package_id?: string;
+  incident_id?: string;
+  exported_at?: string;
+  signing_key_id?: string;
+  signature_algorithm?: string;
+  signature_verified: boolean;
+  payload_integrity_verified: boolean;
+  chain_of_custody_verified: boolean;
+  total_reports?: number;
+  file_count?: number;
+  errors: string[];
+  warnings?: string[];
+  verified_at: string;
+}
+

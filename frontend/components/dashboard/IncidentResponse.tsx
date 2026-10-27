@@ -22,6 +22,10 @@ import {
   Info,
   Cpu,
   History,
+  Download,
+  ShieldCheck,
+  FileArchive,
+  X,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -29,6 +33,7 @@ import {
   AssetRecord,
   InvestigationReport,
   ReportHistoryItem,
+  PackageVerificationResult,
   TimelineInterval,
   InvestigationFinding,
   RecommendedAction,
@@ -41,6 +46,8 @@ import {
   getIncidentReportHistory,
   getReportById,
   investigateIncident,
+  exportIncidentEvidencePackage,
+  verifyEvidencePackage,
 } from "@/lib/api";
 
 interface IncidentResponseProps {
@@ -73,6 +80,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const activeIncidentIdRef = useRef<string | null>(null);
+
+  // Evidence Package Export & Verification state
+  const [exportingPackage, setExportingPackage] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [showVerifyModal, setShowVerifyModal] = useState<boolean>(false);
+  const [verifyingPackage, setVerifyingPackage] = useState<boolean>(false);
+  const [verificationResult, setVerificationResult] = useState<PackageVerificationResult | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   // Copy feedback state
   const [copiedIncidentId, setCopiedIncidentId] = useState<boolean>(false);
@@ -216,6 +231,48 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       if (activeIncidentIdRef.current === incidentId) {
         setReportLoading(false);
       }
+    }
+  };
+
+  // Export cryptographically signed evidence package (ZIP)
+  const handleExportPackage = async () => {
+    const incidentId = selectedIncident?.incident_id;
+    if (!incidentId) return;
+
+    setExportingPackage(true);
+    setExportError(null);
+    try {
+      const { blob, filename } = await exportIncidentEvidencePackage(incidentId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to export evidence package.";
+      setExportError(msg);
+    } finally {
+      setExportingPackage(false);
+    }
+  };
+
+  // Verify an uploaded evidence package ZIP
+  const handleVerifyPackage = async (file: File) => {
+    if (!file) return;
+    setVerifyingPackage(true);
+    setVerificationError(null);
+    setVerificationResult(null);
+    try {
+      const result = await verifyEvidencePackage(file);
+      setVerificationResult(result);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Package verification failed to complete.";
+      setVerificationError(msg);
+    } finally {
+      setVerifyingPackage(false);
     }
   };
 
@@ -588,7 +645,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
                   {/* Investigation Report History Bar */}
                   <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/90 space-y-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <History size={14} className="text-cyan-400" />
                         <span className="text-[11px] font-bold text-slate-200">
@@ -600,16 +657,49 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           </span>
                         )}
                       </div>
-                      <button
-                        onClick={() => selectedIncident?.incident_id && fetchHistoryForIncident(selectedIncident.incident_id)}
-                        disabled={historyLoading}
-                        title="Refresh history"
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
-                      >
-                        <RefreshCw size={10} className={historyLoading ? "animate-spin-smooth" : ""} />
-                        <span>Refresh</span>
-                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleExportPackage}
+                          disabled={exportingPackage || !selectedIncident?.incident_id}
+                          title="Export cryptographically signed evidence package (ZIP with manifest, PDF, hashes & reports)"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-200 hover:text-white border border-cyan-500/40 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {exportingPackage ? (
+                            <RefreshCw size={11} className="animate-spin-smooth text-cyan-400" />
+                          ) : (
+                            <Download size={11} className="text-cyan-400" />
+                          )}
+                          <span>{exportingPackage ? "Exporting..." : "Export Package"}</span>
+                        </button>
+
+                        <button
+                          onClick={() => setShowVerifyModal(true)}
+                          title="Cryptographically verify an exported FixProof package"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                        >
+                          <ShieldCheck size={11} className="text-emerald-400" />
+                          <span>Verify Package</span>
+                        </button>
+
+                        <button
+                          onClick={() => selectedIncident?.incident_id && fetchHistoryForIncident(selectedIncident.incident_id)}
+                          disabled={historyLoading}
+                          title="Refresh history"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          <RefreshCw size={10} className={historyLoading ? "animate-spin-smooth" : ""} />
+                          <span>Refresh</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {exportError && (
+                      <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[10px] flex items-center gap-2">
+                        <AlertCircle size={12} className="shrink-0" />
+                        <span>{exportError}</span>
+                      </div>
+                    )}
 
                     {historyLoading && reportHistory.length === 0 ? (
                       <div className="py-2 text-[11px] text-slate-500 flex items-center gap-2">
@@ -1271,6 +1361,181 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 Select an incident on the left to review side-by-side evidence.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cryptographic Package Verification Modal */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div
+            style={{ background: "#0b1220", border: "1px solid rgba(56, 189, 248, 0.3)" }}
+            className="w-full max-w-xl rounded-2xl p-6 shadow-2xl text-slate-100 space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="text-[14px] font-extrabold text-white m-0">
+                    Verify Evidence Package
+                  </h3>
+                  <p className="text-[11px] text-slate-400 m-0">
+                    Ed25519 digital signature, SHA-256 digests, and hash-linked chain of custody
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false);
+                  setVerificationResult(null);
+                  setVerificationError(null);
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Upload Zone */}
+            <div className="p-5 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-center space-y-2.5">
+              <input
+                type="file"
+                accept=".zip"
+                id="verify-package-input"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleVerifyPackage(file);
+                }}
+              />
+              <label
+                htmlFor="verify-package-input"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 hover:text-white text-[11px] font-bold cursor-pointer transition-all border border-cyan-500/40 shadow-sm"
+              >
+                <FileArchive size={14} className="text-cyan-400" />
+                <span>Select .zip Evidence Package to Verify</span>
+              </label>
+              <p className="text-[10px] text-slate-400 m-0">
+                Upload a FixProof export ZIP to independently verify manifest signature and file hashes
+              </p>
+            </div>
+
+            {/* Verifying Indicator */}
+            {verifyingPackage && (
+              <div className="py-4 text-center space-y-2">
+                <RefreshCw size={18} className="animate-spin-smooth text-cyan-400 mx-auto" />
+                <p className="text-[11px] text-slate-300 font-medium m-0">
+                  Verifying Ed25519 signature, SHA-256 payload hashes, and chain of custody...
+                </p>
+              </div>
+            )}
+
+            {/* Verification Request Error */}
+            {verificationError && (
+              <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/40 text-rose-200 space-y-1 text-[11px]">
+                <div className="font-bold flex items-center gap-1.5 text-rose-300">
+                  <AlertCircle size={13} />
+                  <span>Verification Request Failed</span>
+                </div>
+                <p className="m-0 text-rose-200/90">{verificationError}</p>
+              </div>
+            )}
+
+            {/* Verification Result Card */}
+            {verificationResult && (
+              <div
+                className={`p-4 rounded-xl border space-y-3 ${
+                  verificationResult.valid
+                    ? "bg-emerald-950/30 border-emerald-500/40"
+                    : "bg-rose-950/30 border-rose-500/40"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {verificationResult.valid ? (
+                      <CheckCircle2 size={18} className="text-emerald-400" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-rose-400" />
+                    )}
+                    <span
+                      className={`text-[12px] font-extrabold uppercase tracking-wide ${
+                        verificationResult.valid ? "text-emerald-300" : "text-rose-300"
+                      }`}
+                    >
+                      {verificationResult.valid
+                        ? "Cryptographically Verified"
+                        : "Verification Failed / Tampered"}
+                    </span>
+                  </div>
+                  {verificationResult.signing_key_id && (
+                    <span className="font-mono text-[9px] text-slate-400">
+                      {verificationResult.signing_key_id}
+                    </span>
+                  )}
+                </div>
+
+                {/* Sub-checks */}
+                <div className="grid grid-cols-3 gap-2 text-[10px]">
+                  <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <div className="text-slate-400">Ed25519 Signature</div>
+                    <div
+                      className={`font-bold ${
+                        verificationResult.signature_verified ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {verificationResult.signature_verified ? "VALID" : "INVALID"}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <div className="text-slate-400">SHA-256 Hashes</div>
+                    <div
+                      className={`font-bold ${
+                        verificationResult.payload_integrity_verified ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {verificationResult.payload_integrity_verified ? "MATCH" : "MISMATCH"}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+                    <div className="text-slate-400">Chain of Custody</div>
+                    <div
+                      className={`font-bold ${
+                        verificationResult.chain_of_custody_verified ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {verificationResult.chain_of_custody_verified ? "INTACT" : "BROKEN"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Discrepancy errors */}
+                {verificationResult.errors && verificationResult.errors.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold text-rose-300">Discrepancy Details:</div>
+                    <ul className="list-disc pl-4 text-[10px] text-rose-200/90 space-y-0.5 m-0">
+                      {verificationResult.errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false);
+                  setVerificationResult(null);
+                  setVerificationError(null);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

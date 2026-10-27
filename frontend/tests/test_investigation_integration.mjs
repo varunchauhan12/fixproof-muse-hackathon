@@ -433,3 +433,139 @@ test("11. Incident Switching Guard: stale async responses do not overwrite newly
   assert.equal(resB.data[0].incident_id, "inc-B");
 });
 
+// Phase 1.5: Evidence Package Export & Verification Helpers
+async function exportIncidentEvidencePackage(incidentId) {
+  const safeId = encodeURIComponent(incidentId.trim());
+  const res = await fetchNoCache(`${API_BASE}/api/threats/${safeId}/reports/export`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to export evidence package for incident ${incidentId}`);
+  }
+  const disposition = res.headers?.get?.("Content-Disposition") || "";
+  let filename = `fixproof_evidence_${incidentId.slice(0, 8)}.zip`;
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  if (match && match[1]) {
+    filename = match[1];
+  }
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
+async function verifyEvidencePackage(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/api/threats/reports/verify-package`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Package verification request failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+test("12. exportIncidentEvidencePackage: exports signed zip and parses filename on 200 OK", async () => {
+  const originalFetch = globalThis.fetch;
+  const mockZipBlob = new Blob(["mock-zip-binary-bytes"], { type: "application/zip" });
+
+  globalThis.fetch = createMockFetch({
+    "GET /api/threats/inc-pkg-01/reports/export": () => ({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (h) => (h.toLowerCase() === "content-disposition" ? 'attachment; filename="fixproof_evidence_inc-pkg-01_1729000.zip"' : null),
+      },
+      blob: async () => mockZipBlob,
+    }),
+  });
+
+  try {
+    const { blob, filename } = await exportIncidentEvidencePackage("inc-pkg-01");
+    assert.equal(filename, "fixproof_evidence_inc-pkg-01_1729000.zip");
+    assert.ok(blob);
+    assert.equal(blob.type, "application/zip");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("13. verifyEvidencePackage: uploads package and parses verification result on 200 OK", async () => {
+  const originalFetch = globalThis.fetch;
+  const mockResult = {
+    valid: true,
+    package_id: "pkg_test_12345",
+    incident_id: "inc-pkg-01",
+    signature_verified: true,
+    payload_integrity_verified: true,
+    chain_of_custody_verified: true,
+    signing_key_id: "ed25519:test-key",
+    total_reports: 2,
+    errors: [],
+    verified_at: "2026-10-27T12:00:00Z",
+  };
+
+  globalThis.fetch = createMockFetch({
+    "POST /api/threats/reports/verify-package": () => ({
+      ok: true,
+      status: 200,
+      json: async () => mockResult,
+    }),
+  });
+
+  try {
+    const fakeFile = new File(["dummy zip content"], "evidence.zip", { type: "application/zip" });
+    const result = await verifyEvidencePackage(fakeFile);
+    assert.equal(result.valid, true);
+    assert.equal(result.signature_verified, true);
+    assert.equal(result.payload_integrity_verified, true);
+    assert.equal(result.chain_of_custody_verified, true);
+    assert.equal(result.package_id, "pkg_test_12345");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("14. Zero Model Invocation: export and verify package NEVER invoke AI reasoning model", async () => {
+  let modelInvoked = false;
+  let exportInvoked = false;
+  let verifyInvoked = false;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = createMockFetch({
+    "GET /api/threats/inc-zero-pkg/reports/export": () => {
+      exportInvoked = true;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'attachment; filename="test.zip"' },
+        blob: async () => new Blob(["test"]),
+      };
+    },
+    "POST /api/threats/reports/verify-package": () => {
+      verifyInvoked = true;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ valid: true }),
+      };
+    },
+    "POST /api/threats/inc-zero-pkg/investigate": () => {
+      modelInvoked = true;
+      return { ok: true, status: 200, json: async () => ({ report_id: "fail" }) };
+    },
+  });
+
+  try {
+    await exportIncidentEvidencePackage("inc-zero-pkg");
+    await verifyEvidencePackage(new File(["zip"], "test.zip"));
+
+    assert.equal(exportInvoked, true);
+    assert.equal(verifyInvoked, true);
+    assert.equal(modelInvoked, false, "Must NEVER invoke model inference during evidence export or verification");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+

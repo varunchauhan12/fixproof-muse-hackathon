@@ -21,10 +21,18 @@ This document records engineering patterns and architectural concepts reviewed f
 
 ## 2. Patterns Relevant to FixProof Phases
 
-### Phase 1.4: Report History & Multi-Version Auditing (Current)
+### Phase 1.4: Report History & Multi-Version Auditing
 - **Compact Report Indexing:** `archivist.py` generates lightweight metadata summaries for historical listing while lazily loading heavy evidence graphs on demand by report ID. FixProof adopted this pattern via `ReportHistoryItem` and `GET /api/threats/{incident_id}/reports`.
 - **Zero-Model Report Recall:** Inspecting historical audit reports must never re-trigger reasoning models; reports are immutable snapshots keyed by report ID.
 - **Incident State Isolation:** Report queries must enforce strict incident ID isolation to prevent cross-incident data leaks.
+
+### Phase 1.5: Signed Evidence Packages & Chain of Custody (Current)
+- **Integrity Attestation & Proof References:** `enforcer.py` references cryptographic integrity proofs (`Integrity Hash (FAISS Proof)`) when assembling formal DMCA notices under 17 U.S.C. § 512(c).
+- **Canonical Ledger & Cryptographic Signatures:** FixProof advanced this pattern into an Ed25519-signed packaging pipeline:
+  - Hash-linked `chain_of_custody.json` tracking genesis, report iterations, and export events with SHA-256 sequential linking.
+  - Deterministic manifest canonicalization (`manifest.json` signed as `manifest.sig`).
+  - Professional ReportLab `summary.pdf` generation with forensic disclaimers and human-review attestation.
+  - In-memory package export and verification endpoints with path-traversal (ZipSlip) defense.
 
 ### Future Phase 2: Advanced Temporal Clustering & Video Scrubbing
 - **Interval Synthesis:** Rather than raw independent frame hits, grouping consecutive matches with small temporal gaps into coherent clip intervals (`start_time_s`, `end_time_s`, `duration_s`).
