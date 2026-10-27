@@ -114,10 +114,10 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   return (
     <div
       style={{
-        background: isDarkTab ? "#080b11" : "#f6f7fc",
+        background: "#121211",
         transition: "background 0.25s ease",
       }}
-      className="flex min-h-screen"
+      className="flex min-h-screen text-[#aba497]"
     >
       {/* ─── Sidebar ─── */}
       <Sidebar
@@ -130,19 +130,30 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
       />
 
       {/* ─── Main Content Area ─── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between px-6 py-2 bg-slate-900 text-slate-300 text-[11px] border-b border-slate-800">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#121211]">
+        <div
+          style={{
+            background: "#141312",
+            borderBottom: "1px solid rgba(238, 231, 219, 0.08)",
+          }}
+          className="flex items-center justify-between px-6 py-2 text-[#aba497] text-[11px]"
+        >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="font-bold text-white uppercase tracking-wider">FixProof Active Node</span>
-            <span className="text-slate-500">•</span>
-            <span className="text-slate-400">MediaGuard Protocol Swarm Engine</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#eee7db]" />
+            <span className="font-bold text-[#f4efe6] uppercase tracking-wider">FixProof Active Node</span>
+            <span className="text-[#5a554c]">•</span>
+            <span className="text-[#8e887d]">MediaGuard Protocol Swarm Engine</span>
           </div>
 
           {onBackToLanding && (
             <button
               onClick={onBackToLanding}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white font-medium transition-colors cursor-pointer"
+              style={{
+                background: "#1c1b1a",
+                border: "1px solid rgba(238, 231, 219, 0.1)",
+                color: "#ded7cb",
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-[#262422] hover:text-[#f4efe6] font-medium transition-colors cursor-pointer"
             >
               <Home size={12} />
               <span>Back to Landing Page</span>

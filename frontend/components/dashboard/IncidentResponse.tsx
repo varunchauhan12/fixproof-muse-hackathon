@@ -472,22 +472,22 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   return (
     <div
       style={{
-        background: "#090d16",
-        borderRadius: 24,
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "#171615",
+        borderRadius: 20,
+        border: "1px solid rgba(238, 231, 219, 0.08)",
       }}
-      className="p-6 text-slate-100 max-w-7xl mx-auto space-y-6"
+      className="p-6 text-[#ded7cb] max-w-7xl mx-auto space-y-6"
     >
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+      <div className="flex items-center justify-between pb-4 border-b border-[rgba(238,231,219,0.08)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-orange-500" />
-            <h2 className="text-[17px] font-extrabold text-white m-0">
+            <span className="w-2 h-2 rounded-full bg-[#d4a373]" />
+            <h2 className="text-[17px] font-extrabold text-[#f4efe6] m-0">
               Incident Response & Forensic Comparison
             </h2>
           </div>
-          <p className="text-[12px] text-slate-400 m-0">
+          <p className="text-[12px] text-[#8e887d] m-0">
             Side-by-side frame verification, MobileNetV3 cosine distances, and perceptual hash evidence.
           </p>
         </div>
@@ -495,10 +495,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         <button
           onClick={fetchIncidents}
           disabled={loading}
-          style={{ border: "1px solid rgba(255, 255, 255, 0.15)" }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-[11px] font-semibold transition-colors disabled:opacity-50"
+          style={{
+            border: "1px solid rgba(238, 231, 219, 0.12)",
+            background: "#1e1d1b",
+            color: "#ded7cb",
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:text-[#f4efe6] hover:bg-[#262422] text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         >
-          <RefreshCw size={12} className={loading ? "animate-spin-smooth" : ""} />
+          <RefreshCw size={12} className={loading ? "animate-spin-smooth text-[#eee7db]" : ""} />
           <span>Refresh Incidents</span>
         </button>
       </div>
@@ -506,20 +510,24 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       {incidents.length === 0 && !selectedIncident ? (
         <div
           style={{
-            background: "#0f172a",
+            background: "#1a1918",
             borderRadius: 20,
-            border: "1px dashed rgba(255, 255, 255, 0.15)",
+            border: "1px dashed rgba(238, 231, 219, 0.12)",
           }}
           className="text-center py-20 px-4"
         >
-          <ShieldAlert size={40} className="mx-auto text-slate-600 mb-3" />
-          <h3 className="text-[16px] font-bold text-white m-0">No Threat Incidents Recorded</h3>
-          <p className="text-[12px] text-slate-400 mt-1 max-w-sm mx-auto mb-5">
+          <ShieldAlert size={40} className="mx-auto text-[#736d62] mb-3" />
+          <h3 className="text-[16px] font-bold text-[#f4efe6] m-0">No Threat Incidents Recorded</h3>
+          <p className="text-[12px] text-[#8e887d] mt-1 max-w-sm mx-auto mb-5">
             Launch a suspect video scan in Threat Hunter to generate side-by-side forensic evidence against the reference vault.
           </p>
           <button
             onClick={onNavigateToHunter}
-            className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-[12px] font-bold inline-flex items-center gap-2"
+            style={{
+              background: "#eee7db",
+              color: "#141312",
+            }}
+            className="px-4 py-2 rounded-xl hover:bg-[#fbf7ef] text-[12px] font-bold inline-flex items-center gap-2 transition-colors cursor-pointer"
           >
             <Search size={14} />
             <span>Launch Threat Hunter Scan</span>
@@ -530,7 +538,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Compact Incidents List (4 cols) */}
           <div className="lg:col-span-4 space-y-2">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8e887d] mb-3">
               Recorded Scans ({incidents.length})
             </h4>
 
@@ -543,13 +551,13 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     key={inc.incident_id || i}
                     onClick={() => setSelectedIncident(inc)}
                     style={{
-                      background: isSelected ? "#1e293b" : "#0f172a",
+                      background: isSelected ? "#242220" : "#1a1918",
                       border: `1px solid ${
-                        isSelected ? "rgba(249, 115, 22, 0.4)" : "rgba(255, 255, 255, 0.06)"
+                        isSelected ? "rgba(238, 231, 219, 0.28)" : "rgba(238, 231, 219, 0.06)"
                       }`,
                       cursor: "pointer",
                     }}
-                    className="p-3.5 rounded-xl transition-all hover:bg-slate-800"
+                    className="p-3.5 rounded-xl transition-all hover:bg-[#201f1d]"
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
@@ -557,26 +565,33 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           style={{
                             background:
                               inc.overall_status === "CANDIDATE_MATCH"
-                                ? "#ef4444"
+                                ? "rgba(212, 163, 115, 0.2)"
                                 : inc.overall_status === "SUSPECT"
-                                ? "#f59e0b"
-                                : inc.overall_status === "NO_REFERENCE_DATA"
-                                ? "#64748b"
-                                : inc.overall_status === "NEEDS_FULL_VIDEO_REVIEW"
-                                ? "#3b82f6"
-                                : "#0d9488",
+                                ? "rgba(212, 163, 115, 0.12)"
+                                : "rgba(238, 231, 219, 0.08)",
+                            color:
+                              inc.overall_status === "CANDIDATE_MATCH"
+                                ? "#dfa974"
+                                : inc.overall_status === "SUSPECT"
+                                ? "#d4a373"
+                                : "#ded7cb",
+                            border: `1px solid ${
+                              inc.overall_status === "CANDIDATE_MATCH"
+                                ? "rgba(212, 163, 115, 0.35)"
+                                : "rgba(238, 231, 219, 0.14)"
+                            }`,
                           }}
-                          className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase text-white tracking-wider"
+                          className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
                         >
                           {inc.overall_status.replace(/_/g, " ")}
                         </span>
                         {inc.investigation_type === "URL_SCREENING" && (
-                          <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-teal-950 text-teal-300 border border-teal-800">
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-[#201f1d] text-[#ded7cb] border border-[rgba(238,231,219,0.12)]">
                             URL
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-500 font-mono" suppressHydrationWarning>
+                      <span className="text-[10px] text-[#736d62] font-mono" suppressHydrationWarning>
                         {inc.scanned_at ? new Date(inc.scanned_at).toLocaleTimeString() : "Recent"}
                       </span>
                     </div>
@@ -610,8 +625,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 {/* Incident Technical Header */}
                 <div
                   style={{
-                    background: "#0f172a",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    background: "#1a1918",
+                    border: "1px solid rgba(238, 231, 219, 0.08)",
                     borderRadius: 18,
                   }}
                   className="p-5 space-y-3"
@@ -619,16 +634,16 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8e887d]">
                           Incident Dossier
                         </span>
                         {selectedIncident.investigation_type === "URL_SCREENING" && (
-                          <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-teal-950 text-teal-300 border border-teal-800">
+                          <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-[#201f1d] text-[#ded7cb] border border-[rgba(238,231,219,0.12)]">
                             URL Screening
                           </span>
                         )}
                       </div>
-                      <h3 className="text-[16px] font-extrabold text-white m-0">
+                      <h3 className="text-[16px] font-extrabold text-[#f4efe6] m-0">
                         {selectedIncident.suspect_filename || selectedIncident.submitted_asset_id}
                       </h3>
                       {selectedIncident.source_url && (
@@ -636,7 +651,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           href={selectedIncident.source_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 font-medium text-[11px]"
+                          className="inline-flex items-center gap-1.5 text-[#ded7cb] hover:text-[#f4efe6] font-medium text-[11px]"
                         >
                           <span>{selectedIncident.source_url}</span>
                           <ExternalLink size={12} />
@@ -742,18 +757,18 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Matched References</span>
-                      <strong className="text-teal-400">
+                      <span className="text-[#736d62] block">Matched References</span>
+                      <strong className="text-[#f4efe6]">
                         {selectedIncident.matched_assets.length} asset(s)
                       </strong>
                     </div>
                   </div>
 
                   {/* Calibration Notice in Technical Header */}
-                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[10px] text-slate-400 leading-relaxed flex items-center gap-2">
-                    <Info size={13} className="text-amber-400 shrink-0" />
+                  <div className="p-2.5 rounded-xl bg-[#141312] border border-[rgba(238,231,219,0.08)] text-[10px] text-[#8e887d] leading-relaxed flex items-center gap-2">
+                    <Info size={13} className="text-[#d4a373] shrink-0" />
                     <span>
-                      <strong className="text-amber-300">Calibration Disclosure:</strong> Visual similarity measurements are not calibrated probabilities of infringement. (Metric: {selectedIncident.score_version || "v1.1-uncalibrated-heuristic"})
+                      <strong className="text-[#d4a373]">Calibration Disclosure:</strong> Visual similarity measurements are not calibrated probabilities of infringement. (Metric: {selectedIncident.score_version || "v1.1-uncalibrated-heuristic"})
                     </span>
                   </div>
                 </div>
@@ -761,28 +776,28 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 {/* ─── NEMOTRON AI INVESTIGATION DOSSIER PANEL ─── */}
                 <div
                   style={{
-                    background: "#0b1220",
-                    border: "1px solid rgba(56, 189, 248, 0.22)",
+                    background: "#1a1918",
+                    border: "1px solid rgba(238, 231, 219, 0.12)",
                     borderRadius: 18,
                   }}
-                  className="p-5 space-y-4 shadow-xl shadow-cyan-950/20"
+                  className="p-5 space-y-4 shadow-xl shadow-black/40"
                 >
                   {/* Panel Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400">
+                      <div className="p-2 rounded-xl bg-[#242220] border border-[rgba(238,231,219,0.1)] text-[#eee7db]">
                         <BrainCircuit size={18} className={reportLoading ? "animate-pulse" : ""} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="text-[14px] font-extrabold text-white m-0">
+                          <h4 className="text-[14px] font-extrabold text-[#f4efe6] m-0">
                             Nemotron Forensic Reasoning & Synthesis
                           </h4>
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[#242220] text-[#ded7cb] border border-[rgba(238,231,219,0.12)]">
                             NVIDIA 3.5
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 m-0">
+                        <p className="text-[11px] text-[#8e887d] m-0">
                           Evidence-grounded hypothesis testing, interval clustering, and legal triage
                         </p>
                       </div>
@@ -793,16 +808,25 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         <button
                           onClick={() => handleRunInvestigation(true)}
                           disabled={reportLoading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-bold transition-all border border-slate-700 disabled:opacity-50 cursor-pointer"
+                          style={{
+                            background: "#242220",
+                            border: "1px solid rgba(238, 231, 219, 0.12)",
+                            color: "#ded7cb",
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:text-[#f4efe6] hover:bg-[#2c2a27] text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer"
                         >
-                          <RefreshCw size={12} className={reportLoading ? "animate-spin-smooth" : ""} />
+                          <RefreshCw size={12} className={reportLoading ? "animate-spin-smooth text-[#eee7db]" : ""} />
                           <span>Re-run Investigation</span>
                         </button>
                       ) : (
                         <button
                           onClick={() => handleRunInvestigation(false)}
                           disabled={reportLoading}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white text-[11px] font-extrabold transition-all shadow-md shadow-cyan-900/30 disabled:opacity-50 cursor-pointer"
+                          style={{
+                            background: "#eee7db",
+                            color: "#141312",
+                          }}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-extrabold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                         >
                           <Sparkles size={13} className={reportLoading ? "animate-spin-smooth" : ""} />
                           <span>Generate Investigation Report</span>
@@ -812,7 +836,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   </div>
 
                   {/* Investigation Report History Bar */}
-                  <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/90 space-y-2.5">
+                  <div className="p-3.5 rounded-xl bg-[#141312] border border-[rgba(238,231,219,0.08)] space-y-2.5">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <History size={14} className="text-cyan-400" />
@@ -1120,8 +1144,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                 : report.confidence_assessment === "MODERATE_PROBABILITY"
                                 ? "bg-amber-950 text-amber-300 border-amber-600"
                                 : report.confidence_assessment === "CONFIRMED_DISTINCT"
-                                ? "bg-teal-950 text-teal-300 border-teal-600"
-                                : "bg-slate-900 text-slate-300 border-slate-600"
+                                ? "bg-[#1e1d1b] text-[#ded7cb] border-[rgba(238,231,219,0.15)]"
+                                : "bg-[#1a1918] text-[#ded7cb] border-[rgba(238,231,219,0.12)]"
                             }`}
                           >
                             {report.confidence_assessment ? report.confidence_assessment.replace(/_/g, " ") : "INCONCLUSIVE"}
@@ -1198,8 +1222,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                     </span>
                                   </div>
                                   <div>
-                                    <span className="text-slate-500 block">Reference Source Range:</span>
-                                    <span className="text-teal-300 font-bold">
+                                    <span className="text-[#8e887d] block">Reference Source Range:</span>
+                                    <span className="text-[#f4efe6] font-bold">
                                       {itv.source_start_sec}s → {itv.source_end_sec}s (Asset {itv.source_asset_id.slice(0, 8)}...)
                                     </span>
                                   </div>
@@ -1376,11 +1400,11 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     {/* Vaulted Reference Video Player */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-teal-400 uppercase flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                        <span className="font-bold text-[#f4efe6] uppercase flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#eee7db]" />
                           Vault Reference Footage
                         </span>
-                        <span className="text-slate-400 font-mono text-[10px]">
+                        <span className="text-[#8e887d] font-mono text-[10px]">
                           {matchedAssetId ? (
                             <>
                               ID: {matchedAssetId.slice(0, 8)}... | {formatDuration(refCurrentTime)} / {formatDuration(refDuration)}
@@ -1392,7 +1416,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       </div>
                       <div
                         style={{ background: "#000000", borderRadius: 12 }}
-                        className="aspect-video overflow-hidden border border-teal-500/30 flex items-center justify-center relative bg-black"
+                        className="aspect-video overflow-hidden border border-[rgba(238,231,219,0.12)] flex items-center justify-center relative bg-black"
                       >
                         {matchedAssetId ? (
                           <video
@@ -1413,7 +1437,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                             <span>No reference asset selected</span>
                           </div>
                         )}
-                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-mono text-teal-300 border border-teal-500/30">
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur-sm text-[9px] font-mono text-[#f4efe6] border border-[rgba(238,231,219,0.15)]">
                           REF: {refCurrentTime.toFixed(2)}s
                         </div>
                       </div>
@@ -1573,10 +1597,10 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     </div>
 
                     {/* Right: Timecode Readout */}
-                    <div className="font-mono text-[11px] text-slate-400 flex items-center gap-2">
-                      <span className="text-amber-300">S: {suspectCurrentTime.toFixed(2)}s</span>
-                      <span className="text-slate-600">|</span>
-                      <span className="text-teal-300">R: {refCurrentTime.toFixed(2)}s</span>
+                    <div className="font-mono text-[11px] text-[#8e887d] flex items-center gap-2">
+                      <span className="text-[#d4a373]">S: {suspectCurrentTime.toFixed(2)}s</span>
+                      <span className="text-[#5a554c]">|</span>
+                      <span className="text-[#f4efe6]">R: {refCurrentTime.toFixed(2)}s</span>
                     </div>
                   </div>
 
@@ -1758,10 +1782,10 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                             {/* Matched Reference Frame */}
                             <div className="space-y-2">
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-bold text-teal-400 uppercase">
+                                <span className="font-bold text-[#f4efe6] uppercase">
                                   Vaulted Reference Frame
                                 </span>
-                                <span className="text-slate-400 font-mono text-[10px]">
+                                <span className="text-[#8e887d] font-mono text-[10px]">
                                   Timestamp:{" "}
                                   {selectedFrameMatch.best_match
                                     ? `${selectedFrameMatch.best_match.source_timestamp_sec}s`
@@ -1770,7 +1794,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                               </div>
                               <div
                                 style={{ background: "#000000", borderRadius: 12 }}
-                                className="aspect-video overflow-hidden border border-teal-500/30 flex items-center justify-center bg-black"
+                                className="aspect-video overflow-hidden border border-[rgba(238,231,219,0.12)] flex items-center justify-center bg-black"
                               >
                                 {selectedFrameMatch.best_match?.source_asset_id ? (
                                   <img
@@ -1857,7 +1881,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                   onChange={(e) => setOverlayOpacity(parseInt(e.target.value))}
                                   className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                                 />
-                                <span className="text-[10px] text-teal-400 font-mono shrink-0">Reference (100%)</span>
+                                <span className="text-[10px] text-[#ded7cb] font-mono shrink-0">Reference (100%)</span>
                               </div>
                               <p className="text-[10px] text-slate-400 m-0 leading-tight">
                                 In difference blend mode, identical aligned pixels cancel to pure black. Crops, logos, or alterations highlight vividly.
@@ -1882,7 +1906,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Visual Feature Sim</span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-mono font-bold text-teal-400 text-[13px]">
+                                  <span className="font-mono font-bold text-[#f4efe6] text-[13px]">
                                     {selectedFrameMatch.best_match.visual_similarity_score !== undefined
                                       ? `${selectedFrameMatch.best_match.visual_similarity_score}%`
                                       : `${selectedFrameMatch.best_match.confidence_score}%`}

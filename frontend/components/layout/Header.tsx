@@ -26,43 +26,39 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       style={{
         height: 64,
-        background: "rgba(11, 15, 25, 0.92)",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "rgba(20, 19, 18, 0.95)",
+        borderBottom: "1px solid rgba(238, 231, 219, 0.08)",
         backdropFilter: "blur(12px)",
       }}
       className="sticky top-0 z-20 px-6 flex items-center justify-between shrink-0"
     >
       {/* Title + Status Badges */}
       <div className="flex items-center gap-3.5">
-        <h1 className="text-[15px] font-bold text-white tracking-tight">{title}</h1>
-        <div className="h-4 w-[1px] bg-slate-800" />
+        <h1 className="text-[15px] font-bold text-[#f4efe6] tracking-tight">{title}</h1>
+        <div className="h-4 w-[1px] bg-[rgba(238,231,219,0.1)]" />
         <div
           style={{
-            background: backendOnline ? "rgba(13, 148, 136, 0.14)" : "rgba(245, 158, 11, 0.14)",
-            border: `1px solid ${
-              backendOnline ? "rgba(13, 148, 136, 0.35)" : "rgba(245, 158, 11, 0.35)"
-            }`,
-            color: backendOnline ? "#2dd4bf" : "#fbbf24",
+            background: "rgba(238, 231, 219, 0.06)",
+            border: "1px solid rgba(238, 231, 219, 0.12)",
+            color: backendOnline ? "#f4efe6" : "#c48a56",
           }}
-          className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+          className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
         >
-          <Zap size={11} className={backendOnline ? "text-teal-400 fill-teal-400" : ""} />
+          <Zap size={11} className={backendOnline ? "text-[#eee7db] fill-[#eee7db]" : "text-[#8e887d]"} />
           <span>{backendOnline ? "Forensic Node Ready" : "Awaiting Backend"}</span>
         </div>
 
         {backendOnline && (
           <div
             style={{
-              background: isCloud ? "rgba(99, 102, 241, 0.14)" : "rgba(100, 116, 139, 0.14)",
-              border: `1px solid ${
-                isCloud ? "rgba(99, 102, 241, 0.35)" : "rgba(100, 116, 139, 0.3)"
-              }`,
-              color: isCloud ? "#818cf8" : "#94a3b8",
+              background: "rgba(238, 231, 219, 0.04)",
+              border: "1px solid rgba(238, 231, 219, 0.09)",
+              color: "#aba497",
             }}
-            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold hidden sm:flex"
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium hidden sm:flex"
             title={isCloud ? "PostgreSQL & Supabase Storage Active" : "Local SQLite & Filesystem Active"}
           >
-            <ShieldCheck size={11} className={isCloud ? "text-indigo-400" : "text-slate-400"} />
+            <ShieldCheck size={11} className="text-[#8e887d]" />
             <span>{isCloud ? "Supabase Cloud" : "Local Mode"}</span>
           </div>
         )}
@@ -77,14 +73,15 @@ export const Header: React.FC<HeaderProps> = ({
             disabled={refreshing}
             title="Refresh vault & state"
             style={{
-              background: "#111522",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "#1c1b1a",
+              border: "1px solid rgba(238, 231, 219, 0.1)",
+              color: "#ded7cb",
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:text-[#f4efe6] hover:bg-[#262422] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw
               size={13}
-              className={refreshing ? "animate-spin text-teal-400" : ""}
+              className={refreshing ? "animate-spin text-[#eee7db]" : ""}
             />
             <span className="hidden sm:inline">Refresh</span>
           </button>
@@ -94,29 +91,28 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative hidden md:block">
           <Search
             size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#736d62]"
           />
           <input
             type="text"
             placeholder="Search assets, incidents..."
             style={{
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              background: "#111522",
+              border: "1px solid rgba(238, 231, 219, 0.1)",
+              background: "#1c1b1a",
+              color: "#f4efe6",
             }}
-            className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-[12px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500 transition-all"
+            className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-[12px] placeholder-[#736d62] focus:outline-none focus:border-[#eee7db] transition-all"
           />
         </div>
 
         {/* Backend Connectivity Status Pill */}
         <div
           style={{
-            background: backendOnline ? "rgba(13, 148, 136, 0.14)" : "rgba(239, 68, 68, 0.14)",
-            border: `1px solid ${
-              backendOnline ? "rgba(13, 148, 136, 0.3)" : "rgba(239, 68, 68, 0.3)"
-            }`,
-            color: backendOnline ? "#2dd4bf" : "#f87171",
+            background: "rgba(238, 231, 219, 0.06)",
+            border: "1px solid rgba(238, 231, 219, 0.12)",
+            color: backendOnline ? "#f4efe6" : "#c48a56",
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold"
         >
           {backendOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
           <span>{backendOnline ? "Live" : "Offline"}</span>
@@ -125,20 +121,21 @@ export const Header: React.FC<HeaderProps> = ({
         {/* User profile avatar */}
         <div
           style={{
-            background: "#111522",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "#1c1b1a",
+            border: "1px solid rgba(238, 231, 219, 0.1)",
           }}
-          className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full select-none"
+          className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full select-none"
         >
           <div
             style={{
-              background: "linear-gradient(135deg, #0d9488, #2dd4bf)",
+              background: "#eee7db",
+              color: "#141312",
             }}
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-slate-950 shrink-0"
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
           >
             FP
           </div>
-          <span className="text-[12px] font-semibold text-slate-200">SecOps</span>
+          <span className="text-[12px] font-medium text-[#ded7cb]">SecOps</span>
         </div>
       </div>
     </header>

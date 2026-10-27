@@ -41,15 +41,14 @@ const NAV_ITEMS: {
   id: NavTab;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
-  color: string;
 }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, color: "#2dd4bf" },
-  { id: "vault", label: "Asset Vault", icon: Database, color: "#818cf8" },
-  { id: "hunter", label: "Threat Hunter", icon: Search, color: "#fbbf24" },
-  { id: "incidents", label: "Incidents", icon: ShieldAlert, color: "#fb923c" },
-  { id: "intelligence", label: "Intelligence", icon: BarChart3, color: "#c084fc" },
-  { id: "enforcer", label: "Enforce & License", icon: Gavel, color: "#f87171" },
-  { id: "notifications", label: "Swarm Logs", icon: Bell, color: "#2dd4bf" },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "vault", label: "Asset Vault", icon: Database },
+  { id: "hunter", label: "Threat Hunter", icon: Search },
+  { id: "incidents", label: "Incidents", icon: ShieldAlert },
+  { id: "intelligence", label: "Intelligence", icon: BarChart3 },
+  { id: "enforcer", label: "Enforce & License", icon: Gavel },
+  { id: "notifications", label: "Swarm Logs", icon: Bell },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -65,16 +64,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       style={{
         width: collapsed ? 68 : 256,
         transition: "width 0.22s ease-in-out",
-        background: "#0c101b",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "#141312",
+        borderRight: "1px solid rgba(238, 231, 219, 0.08)",
       }}
-      className="sticky top-0 h-screen flex flex-col shrink-0 overflow-hidden z-30 select-none text-slate-300"
+      className="sticky top-0 h-screen flex flex-col shrink-0 overflow-hidden z-30 select-none text-[#aba497]"
     >
       {/* Brand Header */}
       <div
         style={{
           minHeight: 64,
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          borderBottom: "1px solid rgba(238, 231, 219, 0.08)",
           padding: collapsed ? "16px 0" : "16px 18px",
         }}
         className="flex items-center justify-between"
@@ -83,21 +82,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-3">
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: "linear-gradient(135deg, #0d9488, #2dd4bf)",
-                boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                background: "#eee7db",
+                color: "#141312",
               }}
-              className="flex items-center justify-center shrink-0 text-slate-950 font-black"
+              className="flex items-center justify-center shrink-0 font-black shadow-sm"
             >
-              <Shield size={19} />
+              <Shield size={18} />
             </div>
             <div>
-              <div className="text-[13px] font-extrabold tracking-tight text-white leading-tight">
+              <div className="text-[13px] font-extrabold tracking-tight text-[#f4efe6] leading-tight">
                 FIXPROOF
               </div>
-              <div className="text-[9px] font-bold text-teal-400 tracking-wider uppercase">
+              <div className="text-[9px] font-semibold text-[#8e887d] tracking-wider uppercase">
                 Digital Forensics
               </div>
             </div>
@@ -106,14 +105,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="w-full flex justify-center">
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: "linear-gradient(135deg, #0d9488, #2dd4bf)",
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                background: "#eee7db",
+                color: "#141312",
               }}
-              className="flex items-center justify-center text-slate-950 font-black"
+              className="flex items-center justify-center font-black"
             >
-              <Shield size={18} />
+              <Shield size={17} />
             </div>
           </div>
         )}
@@ -125,9 +125,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             width: 26,
             height: 26,
             borderRadius: 7,
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid rgba(238, 231, 219, 0.1)",
+            background: "transparent",
           }}
-          className={`flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ${
+          className={`flex items-center justify-center text-[#8e887d] hover:text-[#f4efe6] hover:bg-[#1f1e1c] transition-colors cursor-pointer ${
             collapsed ? "hidden" : ""
           }`}
         >
@@ -136,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {collapsed && (
-        <div className="flex justify-center py-2 border-b border-slate-800">
+        <div className="flex justify-center py-2 border-b border-[rgba(238,231,219,0.08)]">
           <button
             onClick={onToggleCollapse}
             title="Expand sidebar"
@@ -144,9 +145,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               width: 26,
               height: 26,
               borderRadius: 7,
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(238, 231, 219, 0.1)",
+              background: "transparent",
             }}
-            className="flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+            className="flex items-center justify-center text-[#8e887d] hover:text-[#f4efe6] hover:bg-[#1f1e1c] cursor-pointer"
           >
             <ChevronRight size={14} />
           </button>
@@ -163,8 +165,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             style={{
               fontSize: "0.62rem",
               fontWeight: 700,
-              letterSpacing: "0.16em",
-              color: "#64748b",
+              letterSpacing: "0.14em",
+              color: "#736d62",
             }}
             className="uppercase px-2 mb-2"
           >
@@ -184,41 +186,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 display: "flex",
                 alignItems: "center",
                 gap: collapsed ? 0 : 10,
-                padding: collapsed ? "10px 0" : "9px 12px",
+                padding: collapsed ? "10px 0" : "8px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
-                borderRadius: 10,
+                borderRadius: 8,
                 marginBottom: 3,
                 width: "100%",
                 textDecoration: "none",
                 fontSize: "0.82rem",
-                fontWeight: 600,
+                fontWeight: isActive ? 600 : 500,
                 transition: "all 0.15s ease",
-                background: isActive ? `${item.color}18` : "transparent",
-                border: isActive ? `1px solid ${item.color}40` : "1px solid transparent",
-                color: isActive ? item.color : "#94a3b8",
+                background: isActive ? "rgba(238, 231, 219, 0.08)" : "transparent",
+                border: isActive
+                  ? "1px solid rgba(238, 231, 219, 0.16)"
+                  : "1px solid transparent",
+                color: isActive ? "#f4efe6" : "#aba497",
                 position: "relative",
               }}
-              className="cursor-pointer hover:bg-slate-800/60 hover:text-slate-200"
+              className="cursor-pointer hover:bg-[rgba(238,231,219,0.04)] hover:text-[#f4efe6]"
             >
               {isActive && !collapsed && (
                 <div
                   style={{
                     position: "absolute",
                     left: 0,
-                    top: "22%",
-                    bottom: "22%",
-                    width: 3,
+                    top: "24%",
+                    bottom: "24%",
+                    width: 2.5,
                     borderRadius: 99,
-                    background: item.color,
-                    boxShadow: `0 0 8px ${item.color}`,
+                    background: "#eee7db",
                   }}
                 />
               )}
 
               <Icon
-                size={17}
+                size={16}
                 style={{
-                  color: isActive ? item.color : "#64748b",
+                  color: isActive ? "#f4efe6" : "#736d62",
                   flexShrink: 0,
                 }}
               />
@@ -230,11 +233,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {isActive && !collapsed && (
                 <div
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: 4,
+                    height: 4,
                     borderRadius: "50%",
-                    background: item.color,
-                    boxShadow: `0 0 6px ${item.color}`,
+                    background: "#eee7db",
                   }}
                   className="shrink-0"
                 />
@@ -247,7 +249,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer System Status */}
       <div
         style={{
-          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+          borderTop: "1px solid rgba(238, 231, 219, 0.08)",
           padding: collapsed ? "10px 8px" : "12px 12px",
         }}
       >
@@ -256,19 +258,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div
               title={backendOnline ? "System Online" : "Backend Offline"}
               style={{
-                width: 9,
-                height: 9,
+                width: 8,
+                height: 8,
                 borderRadius: "50%",
-                background: backendOnline ? "#2dd4bf" : "#f87171",
-                boxShadow: backendOnline
-                  ? "0 0 8px #2dd4bf"
-                  : "0 0 8px #f87171",
+                background: backendOnline ? "#eee7db" : "#c48a56",
               }}
             />
             <button
               onClick={() => onSelectTab("settings")}
               title="Settings"
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer"
+              className="p-1.5 text-[#8e887d] hover:text-[#f4efe6] hover:bg-[#1f1e1c] rounded-lg cursor-pointer transition-colors"
             >
               <Settings size={15} />
             </button>
@@ -277,64 +276,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div>
             <div
               style={{
-                background: "#111522",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: 12,
-                padding: "10px 12px",
+                background: "#191817",
+                border: "1px solid rgba(238, 231, 219, 0.08)",
+                borderRadius: 10,
+                padding: "9px 11px",
                 marginBottom: 8,
               }}
             >
               <div className="flex items-center gap-2 mb-2">
                 <div
                   style={{
-                    width: 7,
-                    height: 7,
+                    width: 6,
+                    height: 6,
                     borderRadius: "50%",
-                    background: backendOnline ? "#2dd4bf" : "#f87171",
-                    boxShadow: backendOnline
-                      ? "0 0 6px #2dd4bf"
-                      : "0 0 6px #f87171",
+                    background: backendOnline ? "#eee7db" : "#c48a56",
                   }}
                 />
-                <span className="text-[11px] font-bold text-slate-200">
+                <span className="text-[11px] font-semibold text-[#ded7cb]">
                   {backendOnline ? "Forensics Engine Online" : "Backend Offline"}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center text-[10px] text-slate-400 mb-1">
-                <span className="font-semibold uppercase tracking-wider text-[9px] text-slate-500">
+              <div className="flex justify-between items-center text-[10px] text-[#8e887d] mb-1">
+                <span className="font-semibold uppercase tracking-wider text-[9px] text-[#736d62]">
                   FAISS Vault
                 </span>
                 <span
                   className="font-bold"
-                  style={{ color: backendOnline ? "#2dd4bf" : "#f87171" }}
+                  style={{ color: backendOnline ? "#eee7db" : "#c48a56" }}
                 >
                   {vaultSize > 0 ? `${vaultSize} vectors` : "Ready"}
                 </span>
               </div>
 
-              <div className="h-1 bg-slate-800 rounded-full overflow-hidden mt-1.5">
+              <div className="h-1 bg-[#242220] rounded-full overflow-hidden mt-1.5">
                 <div
                   style={{
                     width: backendOnline ? "100%" : "0%",
-                    background: "linear-gradient(to right, #0d9488, #2dd4bf)",
+                    background: "#eee7db",
                   }}
-                  className="h-full rounded-full transition-all duration-500"
+                  className="h-full rounded-full transition-all duration-300"
                 />
               </div>
             </div>
 
-            <div className="flex gap-1 text-[11px] text-slate-400">
+            <div className="flex gap-1 text-[11px] text-[#8e887d]">
               <button
                 onClick={() => onSelectTab("settings")}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white w-1/2 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[#1f1e1c] hover:text-[#f4efe6] w-1/2 transition-colors cursor-pointer"
               >
                 <Settings size={13} />
                 <span>Settings</span>
               </button>
               <button
                 onClick={() => onSelectTab("support")}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white w-1/2 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[#1f1e1c] hover:text-[#f4efe6] w-1/2 transition-colors cursor-pointer"
               >
                 <HelpCircle size={13} />
                 <span>Support</span>

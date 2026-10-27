@@ -118,7 +118,7 @@ export const Skiper61MouseFollow: React.FC<Skiper61MouseFollowProps> = ({
     >
       {/* 
         Spring-based follower from Skiper UI (skiper61)
-        Styled as a forensic scanner reticle with subtle teal aura.
+        Styled as a forensic scanner reticle with subtle warm cream aura.
       */}
       <motion.div
         style={{
@@ -133,18 +133,18 @@ export const Skiper61MouseFollow: React.FC<Skiper61MouseFollowProps> = ({
           pointerEvents: "none",
         }}
       >
-        {/* Soft radial glow aura */}
+        {/* Soft radial glow aura — subtle warm cream */}
         <div
           style={{
             width: "100%",
             height: "100%",
             borderRadius: "50%",
             background:
-              "radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(45, 212, 191, 0.04) 40%, transparent 70%)",
+              "radial-gradient(circle, rgba(238, 231, 219, 0.07) 0%, rgba(238, 231, 219, 0.02) 40%, transparent 70%)",
           }}
         />
 
-        {/* Subtle forensic reticle crosshair/ring */}
+        {/* Subtle reticle crosshair/ring */}
         <div
           style={{
             position: "absolute",
@@ -152,8 +152,8 @@ export const Skiper61MouseFollow: React.FC<Skiper61MouseFollowProps> = ({
             width: 32,
             height: 32,
             borderRadius: "50%",
-            border: "1px solid rgba(45, 212, 191, 0.22)",
-            boxShadow: "0 0 10px rgba(13, 148, 136, 0.15)",
+            border: "1px solid rgba(238, 231, 219, 0.18)",
+            boxShadow: "0 0 10px rgba(238, 231, 219, 0.05)",
           }}
         >
           {/* Center coordinate dot */}
@@ -166,8 +166,8 @@ export const Skiper61MouseFollow: React.FC<Skiper61MouseFollowProps> = ({
               width: 4,
               height: 4,
               borderRadius: "50%",
-              background: "#2dd4bf",
-              opacity: 0.7,
+              background: "#eee7db",
+              opacity: 0.6,
             }}
           />
         </div>

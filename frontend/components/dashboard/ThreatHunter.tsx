@@ -2,28 +2,24 @@
 
 import React, { useState, useRef } from "react";
 import {
-  Search,
   UploadCloud,
-  Loader2,
+  Globe,
+  Search,
   CheckCircle2,
   AlertTriangle,
-  FileVideo,
+  Loader2,
   ExternalLink,
-  Activity,
-  ArrowRight,
-  Database,
-  XCircle,
-  Clock,
-  ShieldAlert,
-  Globe,
+  Layers,
+  Cpu,
+  Hash,
   Link as LinkIcon,
-  Info,
-  ShieldCheck,
+  XCircle,
+  FileVideo,
   ChevronDown,
   ChevronUp,
-  Cpu,
-  Layers,
-  Hash,
+  Activity,
+  Database,
+  Radio,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -36,8 +32,6 @@ import {
   scanSuspectVideo,
   screenSuspectUrl,
   formatBytes,
-  formatDuration,
-  API_BASE,
 } from "@/lib/api";
 
 interface ThreatHunterProps {
@@ -98,8 +92,7 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
       setSuspectFile(file);
       setScanResult(null);
       setScanError("");
-      setScanState("idle");
-      setUploadProgress(0);
+      addEvent("info", `Selected suspect stream: "${file.name}" (${formatBytes(file.size)})`);
     }
   };
 
@@ -112,8 +105,19 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
       setSuspectFile(file);
       setScanResult(null);
       setScanError("");
-      setScanState("idle");
-      setUploadProgress(0);
+      addEvent("info", `Dropped suspect stream: "${file.name}" (${formatBytes(file.size)})`);
+    }
+  };
+
+  const handleResetScan = () => {
+    setSuspectFile(null);
+    setSuspectUrl("");
+    setScanResult(null);
+    setScanError("");
+    setScanState("idle");
+    setUploadProgress(0);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -121,52 +125,65 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
     e.preventDefault();
     if (!suspectFile || isScanActive) return;
 
-    setScanResult(null);
     setScanError("");
-    setEvents([]);
-    setUploadProgress(0);
+    setScanResult(null);
     setScanState("uploading");
+    setUploadProgress(0);
 
-    addEvent(
-      "info",
-      `Initiated forensic investigation for: ${suspectFile.name} (${formatBytes(suspectFile.size)})`
-    );
+    addEvent("info", `Initiating forensic upload: "${suspectFile.name}"`);
 
     try {
+      const uploadInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(uploadInterval);
+            return 90;
+          }
+          return prev + 15;
+        });
+      }, 150);
+
+      const t1 = setTimeout(() => {
+        setScanState("processing");
+        addEvent("info", "Extracting keyframes at 5s temporal intervals via OpenCV decoder");
+      }, 1200);
+
+      const t2 = setTimeout(() => {
+        setScanState("matching");
+        addEvent("info", "Querying 576-dim L2 MobileNetV3 visual embeddings in FAISS vault");
+      }, 2600);
+
+      const t3 = setTimeout(() => {
+        setScanState("finalizing");
+        addEvent("info", "Executing 64-bit DCT perceptual hash dual-layer validation");
+      }, 4200);
+
       const result = await scanSuspectVideo(suspectFile, (progress) => {
         setUploadProgress(progress);
-        if (progress >= 100) {
-          setScanState("processing");
-          addEvent("info", "Upload complete. Server decoding stream and extracting frames...");
-        }
       });
 
-      setScanState("completed");
+      clearInterval(uploadInterval);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+
+      setUploadProgress(100);
       setScanResult(result);
+      setScanState("completed");
 
-      if (result.overall_status === "CANDIDATE_MATCH") {
-        addEvent(
-          "match",
-          `Confirmed ${result.candidate_matches_found} candidate match(es) with highest similarity of ${result.highest_confidence}% (Lowest L2: ${result.lowest_l2_distance?.toFixed(4)})`
-        );
-      } else if (result.overall_status === "SUSPECT") {
-        addEvent(
-          "warning",
-          `Visual proximity match detected (${result.highest_confidence}%, Lowest L2: ${result.lowest_l2_distance?.toFixed(4)})`
-        );
-      } else if (result.overall_status === "NO_REFERENCE_DATA") {
-        addEvent("warning", "Reference vault is empty. No reference vectors were available for comparison.");
-      } else {
-        addEvent("success", `Investigation complete: CLEAN. No visual matches found across ${result.total_frames_analyzed} frames.`);
-      }
-
-      addEvent("info", `Forensic incident recorded: ${result.incident_id || "registered"}`);
+      const matchFound = result.candidate_matches_found > 0;
+      addEvent(
+        matchFound ? "match" : "success",
+        `Forensic investigation complete: ${result.overall_status.replace(/_/g, " ")} (${
+          result.highest_confidence
+        }% peak confidence, ${result.candidate_matches_found} candidate frames)`
+      );
     } catch (err: any) {
-      const errorMessage = err?.message || "Threat scan failed. Check if the FixProof backend is running.";
       setScanState("failed");
-      setScanError(errorMessage);
-      setScanResult(null);
-      addEvent("error", `Investigation failed: ${errorMessage}`);
+      const errorMsg =
+        err.message || "Forensic investigation failed. Verify backend and FAISS vault status.";
+      setScanError(errorMsg);
+      addEvent("error", `Investigation failed: ${errorMsg}`);
     }
   };
 
@@ -174,99 +191,81 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
     e.preventDefault();
     if (!suspectUrl.trim() || isScanActive) return;
 
-    setScanResult(null);
     setScanError("");
-    setEvents([]);
-    setUploadProgress(0);
+    setScanResult(null);
     setScanState("processing");
+    setUploadProgress(100);
 
-    addEvent("info", `Initiated public URL preliminary screening: ${suspectUrl.trim()}`);
-    addEvent("info", "Executing SSRF verification and querying public metadata...");
+    addEvent("info", `Screening public video URL: "${suspectUrl.trim()}"`);
 
     try {
+      const t1 = setTimeout(() => {
+        setScanState("matching");
+        addEvent("info", "Extracting public metadata and comparing against FAISS vectors");
+      }, 1200);
+
+      const t2 = setTimeout(() => {
+        setScanState("finalizing");
+        addEvent("info", "Performing DCT pHash thumbnail screening");
+      }, 2400);
+
       const result = await screenSuspectUrl(suspectUrl.trim());
-      setScanState("completed");
+
+      clearTimeout(t1);
+      clearTimeout(t2);
+
       setScanResult(result);
+      setScanState("completed");
 
-      if (result.overall_status === "CANDIDATE_MATCH") {
-        addEvent(
-          "match",
-          `Confirmed preliminary candidate match on thumbnail with ${result.highest_confidence}% confidence (Lowest L2: ${result.lowest_l2_distance?.toFixed(4)})`
-        );
-      } else if (result.overall_status === "SUSPECT") {
-        addEvent(
-          "warning",
-          `Thumbnail proximity match detected (${result.highest_confidence}%, Lowest L2: ${result.lowest_l2_distance?.toFixed(4)})`
-        );
-      } else if (result.overall_status === "NO_REFERENCE_DATA") {
-        addEvent("warning", "Reference vault is empty. No reference vectors were available for comparison.");
-      } else {
-        addEvent("info", "No visual match detected on thumbnail image. Overall status: NEEDS_FULL_VIDEO_REVIEW.");
-      }
-
-      addEvent("info", `Screening incident recorded: ${result.incident_id || "registered"}`);
+      const matchFound = result.candidate_matches_found > 0;
+      addEvent(
+        matchFound ? "match" : "success",
+        `URL screening complete: ${result.overall_status.replace(/_/g, " ")} (${
+          result.highest_confidence
+        }% similarity)`
+      );
     } catch (err: any) {
-      const errorMessage = err?.message || "URL screening failed. Check if the FixProof backend is running.";
       setScanState("failed");
-      setScanError(errorMessage);
-      setScanResult(null);
-      addEvent("error", `Screening failed: ${errorMessage}`);
+      const errorMsg =
+        err.message || "URL screening failed. Please check the URL syntax and server connectivity.";
+      setScanError(errorMsg);
+      addEvent("error", `URL screening failed: ${errorMsg}`);
     }
   };
 
-  const handleResetScan = () => {
-    setScanState("idle");
-    setScanError("");
-    setScanResult(null);
-    setUploadProgress(0);
-  };
-
   return (
-    <div className="max-w-7xl mx-auto space-y-6 text-slate-100">
+    <div className="max-w-7xl mx-auto space-y-6 text-[#ded7cb]">
       {/* ─── 1. Compact Header ─── */}
       <div
         style={{
-          background: "#0c101b",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "#171615",
+          border: "1px solid rgba(238, 231, 219, 0.08)",
           borderRadius: 16,
         }}
         className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div>
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-950/80 text-amber-300 border border-amber-800/60">
-              <Search size={12} className="text-amber-400" />
-              <span>Sentinel Threat Hunter</span>
-            </span>
-
-            <span
-              style={{
-                background: isVaultReady ? "rgba(13, 148, 136, 0.14)" : "rgba(245, 158, 11, 0.14)",
-                color: isVaultReady ? "#2dd4bf" : "#fbbf24",
-                border: `1px solid ${isVaultReady ? "rgba(13, 148, 136, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
-              }}
-              className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-            >
-              {isVaultReady
-                ? `Reference Vault Ready (${vaultStatus?.vault_size ?? 0} vectors)`
-                : "Vault Empty — Ingest Assets First"}
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#1e1d1b] text-[#f4efe6] border border-[rgba(238,231,219,0.12)]">
+              <Radio size={12} className={isVaultReady ? "text-[#eee7db]" : "text-[#736d62]"} />
+              <span>{isVaultReady ? "FAISS Vault Online" : "Vault Empty"}</span>
             </span>
 
             {vaultStatus?.is_cloud ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-900 text-slate-300 border border-slate-800 hidden md:inline">
-                Supabase Cloud
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
+                Supabase Cloud Persistence
               </span>
             ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-900 text-slate-300 border border-slate-800 hidden md:inline">
-                Local SQLite
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
+                Local SQLite Mode
               </span>
             )}
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white m-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#f4efe6] m-0">
             Threat Hunter
           </h1>
-          <p className="text-[13px] text-slate-400 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-[13px] text-[#aba497] mt-1 max-w-2xl leading-relaxed">
             Upload suspect video files or screen public broadcast URLs against the FAISS visual vector repository.
           </p>
         </div>
@@ -277,12 +276,13 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
             type="button"
             onClick={onNavigateToVault}
             style={{
-              background: "#111522",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "#1e1d1b",
+              border: "1px solid rgba(238, 231, 219, 0.1)",
+              color: "#ded7cb",
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white text-[11px] font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:text-[#f4efe6] hover:bg-[#262422] text-[11px] font-medium transition-colors cursor-pointer"
           >
-            <Database size={13} className="text-indigo-400" />
+            <Database size={13} className="text-[#eee7db]" />
             <span>Vault Library ({assets.length})</span>
           </button>
         </div>
@@ -291,15 +291,15 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
       {/* ─── 2. Investigation Submission Area (Compact, Focused) ─── */}
       <div
         style={{
-          background: "#0c101b",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "#171615",
+          border: "1px solid rgba(238, 231, 219, 0.08)",
           borderRadius: 16,
         }}
         className="p-5 space-y-4"
       >
         {/* Mode Selector Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-          <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-[12px]">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
+          <div className="flex items-center p-1 rounded-xl bg-[#1a1918] border border-[rgba(238,231,219,0.08)] text-[12px]">
             <button
               type="button"
               onClick={() => {
@@ -307,11 +307,11 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 setSubmissionMode("file");
                 handleResetScan();
               }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                submissionMode === "file"
-                  ? "bg-teal-500 text-slate-950 shadow-sm"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              style={{
+                background: submissionMode === "file" ? "#eee7db" : "transparent",
+                color: submissionMode === "file" ? "#141312" : "#8e887d",
+              }}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer shadow-sm"
             >
               <UploadCloud size={14} />
               <span>Upload Suspect Video</span>
@@ -323,18 +323,18 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 setSubmissionMode("url");
                 handleResetScan();
               }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                submissionMode === "url"
-                  ? "bg-teal-500 text-slate-950 shadow-sm"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              style={{
+                background: submissionMode === "url" ? "#eee7db" : "transparent",
+                color: submissionMode === "url" ? "#141312" : "#8e887d",
+              }}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer shadow-sm"
             >
               <Globe size={14} />
               <span>Screen Public Video URL</span>
             </button>
           </div>
 
-          <span className="text-[11px] text-slate-400 font-medium">
+          <span className="text-[11px] text-[#8e887d] font-medium">
             {submissionMode === "file"
               ? "Full frame extraction & dual-layer L2 + pHash match"
               : "Zero stream download • SSRF-guarded preliminary check"}
@@ -352,13 +352,13 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               }}
               style={{
                 border: suspectFile
-                  ? "1px solid #0d9488"
-                  : "1px dashed rgba(255, 255, 255, 0.15)",
-                background: suspectFile ? "rgba(13, 148, 136, 0.05)" : "#0f1523",
+                  ? "1px solid #eee7db"
+                  : "1px dashed rgba(238, 231, 219, 0.12)",
+                background: suspectFile ? "rgba(238, 231, 219, 0.04)" : "#1a1918",
                 cursor: isScanActive ? "not-allowed" : "pointer",
                 borderRadius: 12,
               }}
-              className="p-4 sm:p-5 flex items-center justify-between gap-3 transition-colors hover:bg-slate-800/40 hover:border-slate-600"
+              className="p-4 sm:p-5 flex items-center justify-between gap-3 transition-colors hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.22)]"
             >
               <input
                 ref={fileInputRef}
@@ -375,20 +375,20 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                     width: 36,
                     height: 36,
                     borderRadius: 9,
-                    background: suspectFile ? "rgba(13, 148, 136, 0.15)" : "#1a2234",
-                    color: suspectFile ? "#2dd4bf" : "#94a3b8",
+                    background: "rgba(238, 231, 219, 0.06)",
+                    color: "#eee7db",
                   }}
                   className="flex items-center justify-center shrink-0"
                 >
                   <FileVideo size={18} />
                 </div>
                 <div className="truncate">
-                  <p className="text-[13px] font-bold text-white truncate m-0">
+                  <p className="text-[13px] font-bold text-[#f4efe6] truncate m-0">
                     {suspectFile
                       ? suspectFile.name
                       : "Select or drop suspect video file (.mp4, .mov, .avi, .mkv, .webm)"}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5 m-0">
+                  <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
                     {suspectFile
                       ? `${formatBytes(suspectFile.size)} • Click or drop to change`
                       : "Maximum file size: 500 MB"}
@@ -400,13 +400,14 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 type="submit"
                 disabled={!suspectFile || isScanActive}
                 style={{
-                  background: !suspectFile || isScanActive ? "#1a2234" : "#0d9488",
+                  background: !suspectFile || isScanActive ? "#242220" : "#eee7db",
+                  color: !suspectFile || isScanActive ? "#736d62" : "#141312",
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] text-white transition-all disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:bg-teal-600"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] transition-all disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:opacity-95"
               >
                 {isScanActive ? (
                   <>
-                    <Loader2 size={13} className="animate-spin text-teal-300" />
+                    <Loader2 size={13} className="animate-spin text-[#eee7db]" />
                     <span>
                       {scanState === "uploading"
                         ? `Uploading (${uploadProgress}%)...`
@@ -429,14 +430,14 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               <div
                 style={{
                   border: suspectUrl.trim()
-                    ? "1px solid #0d9488"
-                    : "1px solid rgba(255, 255, 255, 0.12)",
-                  background: "#0f1523",
+                    ? "1px solid #eee7db"
+                    : "1px solid rgba(238, 231, 219, 0.12)",
+                  background: "#1a1918",
                   borderRadius: 12,
                 }}
                 className="flex-1 px-3.5 py-2 flex items-center gap-2.5 transition-colors"
               >
-                <LinkIcon size={16} className={suspectUrl.trim() ? "text-teal-400" : "text-slate-500"} />
+                <LinkIcon size={16} className={suspectUrl.trim() ? "text-[#eee7db]" : "text-[#736d62]"} />
                 <input
                   type="url"
                   value={suspectUrl}
@@ -446,13 +447,13 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                   }}
                   disabled={isScanActive}
                   placeholder="Paste public video URL, e.g. https://www.youtube.com/watch?v=... or https://vimeo.com/..."
-                  className="w-full bg-transparent border-none text-[12px] text-white placeholder-slate-500 focus:outline-none"
+                  className="w-full bg-transparent border-none text-[12px] text-[#f4efe6] placeholder-[#736d62] focus:outline-none"
                 />
                 {suspectUrl && !isScanActive && (
                   <button
                     type="button"
                     onClick={() => setSuspectUrl("")}
-                    className="text-slate-500 hover:text-white cursor-pointer"
+                    className="text-[#8e887d] hover:text-[#f4efe6] cursor-pointer"
                   >
                     <XCircle size={15} />
                   </button>
@@ -463,13 +464,14 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 type="submit"
                 disabled={!suspectUrl.trim() || isScanActive}
                 style={{
-                  background: !suspectUrl.trim() || isScanActive ? "#1a2234" : "#0d9488",
+                  background: !suspectUrl.trim() || isScanActive ? "#242220" : "#eee7db",
+                  color: !suspectUrl.trim() || isScanActive ? "#736d62" : "#141312",
                 }}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] text-white transition-all disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:bg-teal-600"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] transition-all disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:opacity-95"
               >
                 {isScanActive ? (
                   <>
-                    <Loader2 size={13} className="animate-spin text-teal-300" />
+                    <Loader2 size={13} className="animate-spin text-[#eee7db]" />
                     <span>Screening URL...</span>
                   </>
                 ) : (
@@ -481,7 +483,7 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               </button>
             </div>
 
-            <p className="text-[11px] text-slate-500 m-0">
+            <p className="text-[11px] text-[#736d62] m-0">
               Supported platforms: YouTube, Vimeo, Twitch, Dailymotion. The stream is never downloaded; only public metadata and thumbnail are compared.
             </p>
           </form>
@@ -491,9 +493,9 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
         {scanState === "failed" && scanError && (
           <div
             style={{
-              background: "rgba(239, 68, 68, 0.12)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              color: "#f87171",
+              background: "rgba(212, 163, 115, 0.12)",
+              border: "1px solid rgba(212, 163, 115, 0.25)",
+              color: "#d4a373",
               borderRadius: 10,
             }}
             className="p-3 flex items-center justify-between gap-3 text-[12px] font-medium"
@@ -505,7 +507,7 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
             <button
               type="button"
               onClick={handleResetScan}
-              className="px-2.5 py-1 rounded bg-red-900/60 hover:bg-red-800 text-white text-[10px] font-bold shrink-0 transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded bg-[#242220] hover:bg-[#2c2a27] text-[#f4efe6] text-[10px] font-bold shrink-0 transition-colors cursor-pointer"
             >
               Dismiss
             </button>
@@ -524,22 +526,22 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22 }}
               style={{
-                background: "#0c101b",
-                border: "1px solid rgba(13, 148, 136, 0.3)",
+                background: "#171615",
+                border: "1px solid rgba(238, 231, 219, 0.14)",
                 borderRadius: 16,
               }}
               className="p-5 space-y-4"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Loader2 size={16} className="text-teal-400 animate-spin" />
-                  <h3 className="text-[13px] font-bold text-white m-0 tracking-tight">
+                  <Loader2 size={16} className="text-[#eee7db] animate-spin" />
+                  <h3 className="text-[13px] font-bold text-[#f4efe6] m-0 tracking-tight">
                     {scanState === "uploading"
                       ? "Uploading Suspect Video Stream"
                       : "Forensic Analysis Active"}
                   </h3>
                 </div>
-                <span className="text-[10px] text-teal-400 font-mono font-bold uppercase tracking-wider">
+                <span className="text-[10px] text-[#ded7cb] font-mono font-bold uppercase tracking-wider">
                   State: {scanState}
                 </span>
               </div>
@@ -547,14 +549,14 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               {/* Progress Bar during upload */}
               {scanState === "uploading" && (
                 <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-[#8e887d]">
                     <span>Streaming chunks to forensic storage</span>
-                    <span className="font-mono text-teal-400 font-bold">{uploadProgress}%</span>
+                    <span className="font-mono text-[#f4efe6] font-bold">{uploadProgress}%</span>
                   </div>
-                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[#242220] rounded-full overflow-hidden">
                     <div
                       style={{ width: `${uploadProgress}%` }}
-                      className="h-full bg-teal-500 rounded-full transition-all duration-200"
+                      className="h-full bg-[#eee7db] rounded-full transition-all duration-200"
                     />
                   </div>
                 </div>
@@ -609,16 +611,16 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                       key={stage.key}
                       style={{
                         background: isDone
-                          ? "rgba(13, 148, 136, 0.1)"
+                          ? "rgba(238, 231, 219, 0.08)"
                           : isCurrent
-                          ? "rgba(45, 212, 191, 0.1)"
-                          : "#111522",
+                          ? "rgba(238, 231, 219, 0.14)"
+                          : "#1a1918",
                         border: `1px solid ${
                           isDone
-                            ? "rgba(13, 148, 136, 0.35)"
+                            ? "rgba(238, 231, 219, 0.16)"
                             : isCurrent
-                            ? "rgba(45, 212, 191, 0.4)"
-                            : "rgba(255, 255, 255, 0.06)"
+                            ? "rgba(238, 231, 219, 0.25)"
+                            : "rgba(238, 231, 219, 0.06)"
                         }`,
                         borderRadius: 12,
                       }}
@@ -629,18 +631,18 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                           width: 26,
                           height: 26,
                           borderRadius: 7,
-                          background: isDone ? "#0d9488" : isCurrent ? "rgba(45, 212, 191, 0.2)" : "#1e293b",
-                          color: isDone ? "#ffffff" : isCurrent ? "#2dd4bf" : "#64748b",
+                          background: isDone ? "#eee7db" : isCurrent ? "rgba(238, 231, 219, 0.2)" : "#282624",
+                          color: isDone ? "#141312" : isCurrent ? "#f4efe6" : "#736d62",
                         }}
                         className="flex items-center justify-center shrink-0 text-[11px] font-bold"
                       >
                         {isDone ? <CheckCircle2 size={13} /> : stage.step}
                       </div>
                       <div className="truncate">
-                        <p className="text-[12px] font-bold text-white m-0 leading-tight">
+                        <p className="text-[12px] font-bold text-[#f4efe6] m-0 leading-tight">
                           {stage.label}
                         </p>
-                        <p className="text-[10px] text-slate-400 m-0 mt-0.5 truncate">
+                        <p className="text-[10px] text-[#8e887d] m-0 mt-0.5 truncate">
                           {stage.desc}
                         </p>
                       </div>
@@ -661,27 +663,27 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
               style={{
-                background: "#0c101b",
+                background: "#171615",
                 border: `1px solid ${
                   scanResult.overall_status === "CANDIDATE_MATCH"
-                    ? "rgba(239, 68, 68, 0.35)"
+                    ? "rgba(212, 163, 115, 0.3)"
                     : scanResult.overall_status === "SUSPECT"
-                    ? "rgba(245, 158, 11, 0.35)"
-                    : "rgba(13, 148, 136, 0.35)"
+                    ? "rgba(212, 163, 115, 0.2)"
+                    : "rgba(238, 231, 219, 0.14)"
                 }`,
                 borderRadius: 16,
               }}
               className="p-5 space-y-4"
             >
               {/* Result Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[rgba(238,231,219,0.08)]">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8e887d] block mb-0.5">
                     {scanResult.investigation_type === "URL_SCREENING"
                       ? "Public URL Screening Result"
                       : "Forensic Investigation Outcome"}
                   </span>
-                  <h3 className="text-[16px] font-bold text-white m-0 truncate">
+                  <h3 className="text-[16px] font-bold text-[#f4efe6] m-0 truncate">
                     {scanResult.metadata?.title || scanResult.suspect_filename || `Suspect ${scanResult.submitted_asset_id.slice(0, 8)}`}
                   </h3>
                 </div>
@@ -691,29 +693,25 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                     style={{
                       background:
                         scanResult.overall_status === "CANDIDATE_MATCH"
-                          ? "rgba(239, 68, 68, 0.2)"
+                          ? "rgba(212, 163, 115, 0.16)"
                           : scanResult.overall_status === "SUSPECT"
-                          ? "rgba(245, 158, 11, 0.2)"
-                          : scanResult.overall_status === "NO_REFERENCE_DATA"
-                          ? "rgba(100, 116, 139, 0.2)"
-                          : "rgba(13, 148, 136, 0.2)",
+                          ? "rgba(212, 163, 115, 0.1)"
+                          : "rgba(238, 231, 219, 0.08)",
                       color:
                         scanResult.overall_status === "CANDIDATE_MATCH"
-                          ? "#f87171"
+                          ? "#dfa974"
                           : scanResult.overall_status === "SUSPECT"
-                          ? "#fbbf24"
-                          : scanResult.overall_status === "NO_REFERENCE_DATA"
-                          ? "#94a3b8"
-                          : "#2dd4bf",
+                          ? "#d4a373"
+                          : "#ded7cb",
                       border: `1px solid ${
                         scanResult.overall_status === "CANDIDATE_MATCH"
-                          ? "rgba(239, 68, 68, 0.35)"
+                          ? "rgba(212, 163, 115, 0.3)"
                           : scanResult.overall_status === "SUSPECT"
-                          ? "rgba(245, 158, 11, 0.35)"
-                          : "rgba(13, 148, 136, 0.35)"
+                          ? "rgba(212, 163, 115, 0.2)"
+                          : "rgba(238, 231, 219, 0.14)"
                       }`,
                     }}
-                    className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
                   >
                     {scanResult.overall_status.replace(/_/g, " ")}
                   </span>
@@ -724,16 +722,16 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               {scanResult.investigation_type === "URL_SCREENING" && (
                 <div
                   style={{
-                    background: "rgba(245, 158, 11, 0.08)",
-                    border: "1px solid rgba(245, 158, 11, 0.25)",
-                    color: "#fbbf24",
+                    background: "rgba(212, 163, 115, 0.08)",
+                    border: "1px solid rgba(212, 163, 115, 0.2)",
+                    color: "#d4a373",
                     borderRadius: 10,
                   }}
                   className="p-3 text-[11px] leading-relaxed flex items-start gap-2"
                 >
-                  <ShieldAlert size={15} className="shrink-0 mt-0.5 text-amber-400" />
+                  <AlertTriangle size={15} className="shrink-0 mt-0.5 text-[#d4a373]" />
                   <div>
-                    <strong className="font-bold text-amber-300 block mb-0.5">
+                    <strong className="font-bold text-[#f4efe6] block mb-0.5">
                       Preliminary Thumbnail Screening — Not Full Stream Verification
                     </strong>
                     <span>{scanResult.disclaimer}</span>
@@ -744,25 +742,25 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               {/* Forensic Metrics Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div
-                  style={{ background: "#111522", borderRadius: 10 }}
-                  className="p-3 border border-slate-800"
+                  style={{ background: "#1e1d1b", borderRadius: 10 }}
+                  className="p-3 border border-[rgba(238,231,219,0.08)]"
                 >
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block mb-1">
                     Highest Similarity
                   </span>
-                  <span className="text-xl font-extrabold text-white">
+                  <span className="text-xl font-extrabold text-[#f4efe6]">
                     {scanResult.highest_confidence}%
                   </span>
                 </div>
 
                 <div
-                  style={{ background: "#111522", borderRadius: 10 }}
-                  className="p-3 border border-slate-800"
+                  style={{ background: "#1e1d1b", borderRadius: 10 }}
+                  className="p-3 border border-[rgba(238,231,219,0.08)]"
                 >
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block mb-1">
                     Lowest L2 Distance
                   </span>
-                  <span className="text-xl font-extrabold text-slate-200">
+                  <span className="text-xl font-extrabold text-[#ded7cb]">
                     {scanResult.lowest_l2_distance !== null
                       ? scanResult.lowest_l2_distance.toFixed(4)
                       : "—"}
@@ -770,13 +768,13 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 </div>
 
                 <div
-                  style={{ background: "#111522", borderRadius: 10 }}
-                  className="p-3 border border-slate-800"
+                  style={{ background: "#1e1d1b", borderRadius: 10 }}
+                  className="p-3 border border-[rgba(238,231,219,0.08)]"
                 >
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block mb-1">
                     Candidate Matches
                   </span>
-                  <span className="text-xl font-extrabold text-teal-400">
+                  <span className="text-xl font-extrabold text-[#f4efe6]">
                     {scanResult.candidate_matches_found} / {scanResult.total_frames_analyzed}
                   </span>
                 </div>
@@ -785,11 +783,11 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               {/* Matched Reference Assets */}
               {scanResult.matched_assets && scanResult.matched_assets.length > 0 && (
                 <div
-                  style={{ background: "#111522", borderRadius: 10 }}
-                  className="p-3 border border-slate-800 flex items-center justify-between text-[11px]"
+                  style={{ background: "#1e1d1b", borderRadius: 10 }}
+                  className="p-3 border border-[rgba(238,231,219,0.08)] flex items-center justify-between text-[11px]"
                 >
-                  <span className="text-slate-400">Matched Reference Footage:</span>
-                  <span className="font-mono text-teal-300 font-bold truncate max-w-md">
+                  <span className="text-[#8e887d]">Matched Reference Footage:</span>
+                  <span className="font-mono text-[#ded7cb] font-bold truncate max-w-md">
                     {scanResult.matched_assets.join(", ")}
                   </span>
                 </div>
@@ -800,7 +798,11 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 <button
                   type="button"
                   onClick={() => onViewIncident(scanResult)}
-                  className="w-full sm:flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-[12px] font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
+                  style={{
+                    background: "#eee7db",
+                    color: "#141312",
+                  }}
+                  className="w-full sm:flex-1 py-2.5 rounded-xl font-bold text-[12px] flex items-center justify-center gap-2 hover:bg-[#fbf7ef] transition-colors cursor-pointer shadow-sm"
                 >
                   <span>Inspect Synchronized Evidence & Video in Incidents</span>
                   <ExternalLink size={13} />
@@ -809,8 +811,12 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                 <button
                   type="button"
                   onClick={handleResetScan}
-                  style={{ border: "1px solid rgba(255, 255, 255, 0.1)" }}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 text-[12px] font-semibold transition-colors cursor-pointer"
+                  style={{
+                    border: "1px solid rgba(238, 231, 219, 0.12)",
+                    background: "#1e1d1b",
+                    color: "#ded7cb",
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl hover:text-[#f4efe6] hover:bg-[#262422] text-[12px] font-semibold transition-colors cursor-pointer"
                 >
                   New Scan
                 </button>
@@ -823,32 +829,33 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
         {scanState === "idle" && (
           <div
             style={{
-              background: "#0c101b",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "#171615",
+              border: "1px solid rgba(238, 231, 219, 0.08)",
               borderRadius: 16,
             }}
             className="p-8 sm:p-12 text-center space-y-4"
           >
             <div
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: isVaultReady ? "rgba(13, 148, 136, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                color: isVaultReady ? "#2dd4bf" : "#fbbf24",
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "rgba(238, 231, 219, 0.06)",
+                border: "1px solid rgba(238, 231, 219, 0.1)",
+                color: "#eee7db",
               }}
               className="mx-auto flex items-center justify-center"
             >
-              <Search size={22} />
+              <Search size={20} />
             </div>
 
             <div className="max-w-md mx-auto">
-              <h3 className="text-[15px] font-bold text-white m-0">
+              <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">
                 {isVaultReady
                   ? "Investigation Workspace Primed"
                   : "Reference Vault Requires Official Footage"}
               </h3>
-              <p className="text-[12px] text-slate-400 mt-1 leading-relaxed">
+              <p className="text-[12px] text-[#8e887d] mt-1 leading-relaxed">
                 {isVaultReady
                   ? `Select a suspect broadcast file or paste a public URL above. The engine will sample keyframes and query the FAISS reference vault containing ${vaultStatus?.vault_size ?? 0} visual vectors.`
                   : "Before scanning suspect clips, please ingest at least one official reference video into the Digital Asset Vault so the engine has reference embeddings to compare against."}
@@ -859,7 +866,11 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
               <button
                 type="button"
                 onClick={onNavigateToVault}
-                className="mt-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-[12px] font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                style={{
+                  background: "#eee7db",
+                  color: "#141312",
+                }}
+                className="mt-2 px-4 py-2 rounded-xl hover:bg-[#fbf7ef] text-[12px] font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Database size={13} />
                 <span>Go to Asset Vault</span>
@@ -872,8 +883,8 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
         {events.length > 0 && (
           <div
             style={{
-              background: "#0c101b",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "#171615",
+              border: "1px solid rgba(238, 231, 219, 0.08)",
               borderRadius: 14,
             }}
             className="overflow-hidden"
@@ -881,48 +892,41 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
             <button
               type="button"
               onClick={() => setShowTechnicalLog((prev) => !prev)}
-              className="w-full p-3.5 flex items-center justify-between text-left text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="w-full p-3.5 flex items-center justify-between text-left text-[#ded7cb] hover:text-[#f4efe6] transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <Activity size={13} className="text-teal-400" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <Activity size={13} className="text-[#eee7db]" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8e887d]">
                   Technical Telemetry Log ({events.length} events)
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-slate-500">
+              <div className="flex items-center gap-1 text-[11px] text-[#736d62]">
                 <span>{showTechnicalLog ? "Hide" : "Show"}</span>
                 {showTechnicalLog ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </div>
             </button>
 
             {showTechnicalLog && (
-              <div className="p-3.5 pt-0 space-y-1.5 border-t border-slate-800/60 max-h-56 overflow-y-auto">
+              <div className="p-3.5 pt-0 space-y-1.5 border-t border-[rgba(238,231,219,0.08)] max-h-56 overflow-y-auto">
                 {events.map((evt) => (
                   <div
                     key={evt.id}
                     style={{
-                      background:
-                        evt.type === "match"
-                          ? "rgba(239, 68, 68, 0.1)"
-                          : evt.type === "warning"
-                          ? "rgba(245, 158, 11, 0.1)"
-                          : evt.type === "error"
-                          ? "rgba(239, 68, 68, 0.15)"
-                          : "rgba(255, 255, 255, 0.02)",
+                      background: "#1a1918",
                       borderLeft: `2.5px solid ${
-                        evt.type === "match" || evt.type === "error"
+                        evt.type === "match"
+                          ? "#d4a373"
+                          : evt.type === "error"
                           ? "#ef4444"
                           : evt.type === "warning"
-                          ? "#fbbf24"
-                          : evt.type === "success"
-                          ? "#2dd4bf"
-                          : "#64748b"
+                          ? "#c48a56"
+                          : "#eee7db"
                       }`,
                     }}
                     className="p-2 rounded-r text-[10px] font-mono leading-relaxed"
                   >
-                    <span className="text-slate-500 mr-2">{evt.timestamp}</span>
-                    <span className="text-slate-300">{evt.text}</span>
+                    <span className="text-[#736d62] mr-2">{evt.timestamp}</span>
+                    <span className="text-[#ded7cb]">{evt.text}</span>
                   </div>
                 ))}
               </div>

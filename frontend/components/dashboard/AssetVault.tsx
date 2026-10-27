@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Layers,
   Clock,
-  HardDrive,
   Trash2,
   Play,
   X,
@@ -18,12 +17,9 @@ import {
   ShieldCheck,
   FileVideo,
   Search,
-  Filter,
-  Check,
-  Info,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { AssetRecord, VaultStatus, FrameRecord } from "@/lib/types";
+import { motion } from "framer-motion";
+import { AssetRecord, VaultStatus } from "@/lib/types";
 import {
   API_BASE,
   ingestReferenceVideo,
@@ -188,38 +184,38 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 text-slate-100">
+    <div className="max-w-7xl mx-auto space-y-6 text-[#ded7cb]">
       {/* ─── Compact Top Bar / Status Header ─── */}
       <div
         style={{
-          background: "#0c101b",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "#171615",
+          border: "1px solid rgba(238, 231, 219, 0.08)",
           borderRadius: 16,
         }}
         className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div>
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-950/80 text-indigo-300 border border-indigo-800/60">
-              <Database size={12} className="text-indigo-400" />
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#1e1d1b] text-[#f4efe6] border border-[rgba(238,231,219,0.12)]">
+              <Database size={12} className="text-[#eee7db]" />
               <span>Reference Vault</span>
             </span>
 
             {vaultStatus?.is_cloud ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-900 text-slate-300 border border-slate-800">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
                 Supabase Cloud (PostgreSQL + S3 Storage)
               </span>
             ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-900 text-slate-300 border border-slate-800">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
                 Local Mode (Filesystem Storage)
               </span>
             )}
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white m-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#f4efe6] m-0">
             Digital Asset Vault
           </h1>
-          <p className="text-[13px] text-slate-400 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-[13px] text-[#aba497] mt-1 max-w-2xl leading-relaxed">
             Protected reference broadcast library. Each official video is sampled every 5s and indexed into FAISS with 576-dim L2 MobileNetV3 visual vectors.
           </p>
         </div>
@@ -229,12 +225,13 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
           onClick={onRefresh}
           disabled={refreshing}
           style={{
-            background: "#131826",
-            border: "1px solid rgba(255, 255, 255, 0.09)",
+            background: "#1e1d1b",
+            border: "1px solid rgba(238, 231, 219, 0.1)",
+            color: "#ded7cb",
           }}
-          className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-200 hover:text-white hover:border-slate-700 text-[12px] font-semibold transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+          className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-2 rounded-xl hover:text-[#f4efe6] hover:bg-[#262422] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer shrink-0"
         >
-          <RefreshCw size={13} className={refreshing ? "animate-spin text-teal-400" : "text-slate-400"} />
+          <RefreshCw size={13} className={refreshing ? "animate-spin text-[#eee7db]" : ""} />
           <span>{refreshing ? "Syncing..." : "Sync Vault"}</span>
         </button>
       </div>
@@ -246,21 +243,18 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
             label: "Reference Assets",
             value: totalAssets.toString(),
             sub: `${totalAssets} official reference items`,
-            accent: "#6366f1",
             icon: Database,
           },
           {
             label: "FAISS Vectors Vaulted",
             value: totalVectors > 0 ? totalVectors.toLocaleString() : "0",
             sub: "576-dim MobileNetV3 embeddings",
-            accent: "#14b8a6",
             icon: Layers,
           },
           {
             label: "Protected References",
             value: protectedAssets.toString(),
             sub: `${totalAssets - protectedAssets} awaiting indexation`,
-            accent: "#10b981",
             icon: ShieldCheck,
           },
         ].map((card) => {
@@ -271,36 +265,36 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               whileHover={{ y: -2 }}
               transition={{ duration: 0.18 }}
               style={{
-                background: "#0c101b",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
+                background: "#171615",
+                border: "1px solid rgba(238, 231, 219, 0.08)",
                 borderRadius: 14,
               }}
-              className="p-4 sm:p-5 flex flex-col justify-between hover:border-slate-700 transition-colors"
+              className="p-4 sm:p-5 flex flex-col justify-between hover:border-[rgba(238,231,219,0.16)] transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e887d] mb-1">
                     {card.label}
                   </p>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white m-0">
+                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#f4efe6] m-0">
                     {card.value}
                   </p>
                 </div>
                 <div
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    background: `${card.accent}14`,
-                    border: `1px solid ${card.accent}30`,
-                    color: card.accent,
+                    width: 36,
+                    height: 36,
+                    borderRadius: 9,
+                    background: "rgba(238, 231, 219, 0.06)",
+                    border: "1px solid rgba(238, 231, 219, 0.1)",
+                    color: "#eee7db",
                   }}
                   className="flex items-center justify-center shrink-0"
                 >
-                  <Icon size={18} />
+                  <Icon size={17} />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 mt-3 pt-3 border-t border-slate-800/80">
+              <p className="text-[11px] text-[#8e887d] mt-3 pt-3 border-t border-[rgba(238,231,219,0.08)]">
                 {card.sub}
               </p>
             </motion.div>
@@ -311,17 +305,17 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
       {/* ─── Concise & Prominent Ingestion Section ─── */}
       <div
         style={{
-          background: "#0c101b",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          background: "#171615",
+          border: "1px solid rgba(238, 231, 219, 0.08)",
           borderRadius: 16,
         }}
         className="p-5"
       >
         <div className="mb-3.5">
-          <h2 className="text-[15px] font-bold text-white m-0 tracking-tight">
+          <h2 className="text-[15px] font-bold text-[#f4efe6] m-0 tracking-tight">
             Ingest Official Reference Content
           </h2>
-          <p className="text-[12px] text-slate-400 mt-0.5 leading-relaxed">
+          <p className="text-[12px] text-[#aba497] mt-0.5 leading-relaxed">
             The FixProof ingest pipeline decodes reference video, samples 1 frame every 5s, computes 576-dim L2-normalized embeddings, and registers vectors into the FAISS index with synchronized timestamps.
           </p>
         </div>
@@ -334,12 +328,12 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
             onClick={() => fileInputRef.current?.click()}
             style={{
               border: selectedFile
-                ? "2px solid #0d9488"
-                : "2px dashed rgba(255, 255, 255, 0.12)",
-              background: selectedFile ? "rgba(13, 148, 136, 0.05)" : "#0f1523",
+                ? "2px solid #eee7db"
+                : "2px dashed rgba(238, 231, 219, 0.12)",
+              background: selectedFile ? "rgba(238, 231, 219, 0.04)" : "#1a1918",
               borderRadius: 12,
             }}
-            className="p-6 text-center cursor-pointer transition-all hover:bg-slate-800/40 hover:border-slate-600"
+            className="p-6 text-center cursor-pointer transition-all hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.22)]"
           >
             <input
               ref={fileInputRef}
@@ -350,23 +344,23 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
             />
             {selectedFile ? (
               <div className="flex items-center justify-center gap-3">
-                <FileVideo size={28} className="text-teal-400 shrink-0" />
+                <FileVideo size={28} className="text-[#eee7db] shrink-0" />
                 <div className="text-left">
-                  <p className="text-[13px] font-bold text-white truncate max-w-md m-0">
+                  <p className="text-[13px] font-bold text-[#f4efe6] truncate max-w-md m-0">
                     {selectedFile.name}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5 m-0">
+                  <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
                     {formatBytes(selectedFile.size)} • Click or drop another file to replace
                   </p>
                 </div>
               </div>
             ) : (
               <div>
-                <UploadCloud size={30} className="mx-auto text-slate-400 mb-2 opacity-80" />
-                <p className="text-[13px] font-semibold text-slate-200 m-0">
+                <UploadCloud size={30} className="mx-auto text-[#8e887d] mb-2 opacity-80" />
+                <p className="text-[13px] font-semibold text-[#f4efe6] m-0">
                   Select official reference video or drag and drop
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[11px] text-[#736d62] mt-1">
                   MP4, MOV, AVI, MKV, WEBM, M4V, FLV, WMV, TS (Max 500 MB)
                 </p>
               </div>
@@ -380,9 +374,9 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 type="checkbox"
                 checked={autoIndex}
                 onChange={(e) => setAutoIndex(e.target.checked)}
-                className="w-4 h-4 rounded text-teal-600 bg-slate-900 border-slate-700 focus:ring-teal-500"
+                className="w-4 h-4 rounded text-[#eee7db] bg-[#1a1918] border-[rgba(238,231,219,0.2)] focus:ring-0"
               />
-              <span className="text-[12px] text-slate-300 font-medium">
+              <span className="text-[12px] text-[#ded7cb] font-medium">
                 Auto-index visual vectors into FAISS reference vault immediately
               </span>
             </label>
@@ -393,14 +387,18 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               style={{
                 background:
                   !selectedFile || ingestStage !== "idle"
-                    ? "#1a2234"
-                    : "#0d9488",
+                    ? "#242220"
+                    : "#eee7db",
+                color:
+                  !selectedFile || ingestStage !== "idle"
+                    ? "#736d62"
+                    : "#141312",
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] text-white transition-all disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:bg-teal-600"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] transition-all disabled:cursor-not-allowed cursor-pointer shadow-sm hover:opacity-95"
             >
               {ingestStage !== "idle" ? (
                 <>
-                  <Loader2 size={13} className="animate-spin text-teal-300" />
+                  <Loader2 size={13} className="animate-spin text-[#eee7db]" />
                   <span>Processing Stream...</span>
                 </>
               ) : (
@@ -417,15 +415,15 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
         {ingestStage !== "idle" && (
           <div
             style={{
-              background: "#111522",
-              border: "1px solid rgba(13, 148, 136, 0.3)",
+              background: "#1a1918",
+              border: "1px solid rgba(238, 231, 219, 0.12)",
               borderRadius: 12,
             }}
             className="mt-4 p-4"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Loader2 size={13} className="text-teal-400 animate-spin" />
-              <span className="text-[11px] font-bold text-teal-300 uppercase tracking-wider">
+              <Loader2 size={13} className="text-[#eee7db] animate-spin" />
+              <span className="text-[11px] font-bold text-[#f4efe6] uppercase tracking-wider">
                 Ingestion Pipeline Active
               </span>
             </div>
@@ -452,24 +450,20 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                           height: 24,
                           borderRadius: "50%",
                           background: isDone
-                            ? "#0d9488"
+                            ? "#eee7db"
                             : isCurrent
-                            ? "rgba(13, 148, 136, 0.2)"
-                            : "#1e293b",
-                          border: `2px solid ${isDone || isCurrent ? "#0d9488" : "#334155"}`,
-                          color: isDone ? "#ffffff" : isCurrent ? "#2dd4bf" : "#64748b",
+                            ? "rgba(238, 231, 219, 0.15)"
+                            : "#242220",
+                          color: isDone ? "#141312" : isCurrent ? "#f4efe6" : "#736d62",
+                          border: isCurrent
+                            ? "2px solid #eee7db"
+                            : "1px solid rgba(238, 231, 219, 0.1)",
                         }}
-                        className="flex items-center justify-center text-[10px] font-bold"
+                        className="flex items-center justify-center text-[10px] font-bold shrink-0"
                       >
-                        {isDone ? <Check size={12} /> : idx + 1}
+                        {isDone ? "✓" : idx + 1}
                       </div>
-                      <span
-                        style={{
-                          color: isDone ? "#2dd4bf" : isCurrent ? "#f1f5f9" : "#64748b",
-                          fontWeight: isCurrent || isDone ? 700 : 500,
-                        }}
-                        className="text-[9px] uppercase tracking-wider whitespace-nowrap"
-                      >
+                      <span className="text-[10px] text-[#8e887d] max-w-[80px]">
                         {step.label}
                       </span>
                     </div>
@@ -477,12 +471,11 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     {idx < 3 && (
                       <div
                         style={{
-                          background: isDone ? "#0d9488" : "#334155",
                           height: 2,
                           flex: 1,
-                          margin: "0 8px 14px 8px",
+                          background: isDone ? "#eee7db" : "#242220",
                         }}
-                        className="transition-colors duration-300"
+                        className="mx-1 mt-[-14px]"
                       />
                     )}
                   </React.Fragment>
@@ -492,62 +485,71 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
           </div>
         )}
 
-        {/* Alerts */}
+        {/* Feedback Messages */}
+        {ingestSuccess && (
+          <div
+            style={{
+              background: "rgba(238, 231, 219, 0.08)",
+              border: "1px solid rgba(238, 231, 219, 0.18)",
+              color: "#f4efe6",
+              borderRadius: 10,
+            }}
+            className="mt-3 p-3 flex items-center gap-2 text-[12px]"
+          >
+            <CheckCircle2 size={15} className="text-[#eee7db] shrink-0" />
+            <span>{ingestSuccess}</span>
+          </div>
+        )}
+
         {ingestError && (
           <div
             style={{
-              background: "rgba(239, 68, 68, 0.12)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              color: "#f87171",
+              background: "rgba(212, 163, 115, 0.12)",
+              border: "1px solid rgba(212, 163, 115, 0.25)",
+              color: "#d4a373",
               borderRadius: 10,
             }}
-            className="mt-3 p-3 flex items-center gap-2 text-[12px] font-medium"
+            className="mt-3 p-3 flex items-center gap-2 text-[12px]"
           >
             <AlertTriangle size={15} className="shrink-0" />
             <span>{ingestError}</span>
           </div>
         )}
+      </div>
 
-        {ingestSuccess && (
-          <div
-            style={{
-              background: "rgba(13, 148, 136, 0.12)",
-              border: "1px solid rgba(13, 148, 136, 0.3)",
-              color: "#2dd4bf",
-              borderRadius: 10,
-            }}
-            className="mt-3 p-3 flex items-center gap-2 text-[12px] font-medium"
-          >
-            <CheckCircle2 size={15} className="shrink-0" />
-            <span>{ingestSuccess}</span>
-          </div>
-        )}
-
-        {actionError && (
-          <div
-            style={{
-              background: "rgba(239, 68, 68, 0.12)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              color: "#f87171",
-              borderRadius: 10,
-            }}
-            className="mt-3 p-3 flex items-center gap-2 text-[12px] font-medium"
-          >
+      {/* Action Error Banner */}
+      {actionError && (
+        <div
+          style={{
+            background: "rgba(212, 163, 115, 0.12)",
+            border: "1px solid rgba(212, 163, 115, 0.25)",
+            color: "#d4a373",
+            borderRadius: 10,
+          }}
+          className="p-3 flex items-center justify-between text-[12px]"
+        >
+          <div className="flex items-center gap-2">
             <AlertTriangle size={15} className="shrink-0" />
             <span>{actionError}</span>
           </div>
-        )}
-      </div>
+          <button
+            onClick={() => setActionError("")}
+            className="text-[#8e887d] hover:text-[#f4efe6]"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ─── Registered Reference Assets Section ─── */}
       <div className="space-y-4">
-        {/* Section Header with Controls */}
+        {/* Section Header with Search & Filter */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-[15px] font-bold text-white m-0">
-              Registered Reference Vault
-            </h3>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 uppercase">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[16px] font-bold text-[#f4efe6] m-0">
+              Registered Reference Assets
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)] uppercase">
               {filteredAssets.length} of {assets.length} items
             </span>
           </div>
@@ -555,27 +557,28 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             {/* Search Input */}
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#736d62]" />
               <input
                 type="text"
                 placeholder="Search reference assets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
-                  background: "#111522",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "#1e1d1b",
+                  border: "1px solid rgba(238, 231, 219, 0.1)",
+                  color: "#f4efe6",
                 }}
-                className="w-48 sm:w-56 pl-8 pr-2.5 py-1.5 rounded-lg text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                className="w-48 sm:w-56 pl-8 pr-2.5 py-1.5 rounded-lg text-[11px] placeholder-[#736d62] focus:outline-none focus:border-[#eee7db]"
               />
             </div>
 
             {/* Status Filter */}
-            <div className="flex items-center p-0.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px]">
+            <div className="flex items-center p-0.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.08)] text-[11px]">
               <button
                 type="button"
                 onClick={() => setFilterMode("all")}
-                className={`px-2 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                  filterMode === "all" ? "bg-slate-800 text-white font-bold" : "text-slate-400 hover:text-white"
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  filterMode === "all" ? "bg-[#282624] text-[#f4efe6] font-bold" : "text-[#8e887d] hover:text-[#f4efe6]"
                 }`}
               >
                 All
@@ -583,8 +586,8 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               <button
                 type="button"
                 onClick={() => setFilterMode("indexed")}
-                className={`px-2 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                  filterMode === "indexed" ? "bg-slate-800 text-teal-300 font-bold" : "text-slate-400 hover:text-white"
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  filterMode === "indexed" ? "bg-[#282624] text-[#f4efe6] font-bold" : "text-[#8e887d] hover:text-[#f4efe6]"
                 }`}
               >
                 Vaulted
@@ -592,8 +595,8 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               <button
                 type="button"
                 onClick={() => setFilterMode("unindexed")}
-                className={`px-2 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                  filterMode === "unindexed" ? "bg-slate-800 text-amber-300 font-bold" : "text-slate-400 hover:text-white"
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  filterMode === "unindexed" ? "bg-[#282624] text-[#d4a373] font-bold" : "text-[#8e887d] hover:text-[#f4efe6]"
                 }`}
               >
                 Pending
@@ -606,27 +609,29 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
         {filteredAssets.length === 0 ? (
           <div
             style={{
-              background: "#0c101b",
+              background: "#171615",
               borderRadius: 16,
-              border: "1px dashed rgba(255, 255, 255, 0.12)",
+              border: "1px dashed rgba(238, 231, 219, 0.12)",
             }}
             className="text-center py-16 px-4"
           >
             <div
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: "rgba(99, 102, 241, 0.1)",
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "rgba(238, 231, 219, 0.06)",
+                border: "1px solid rgba(238, 231, 219, 0.1)",
+                color: "#eee7db",
               }}
-              className="mx-auto flex items-center justify-center text-indigo-400 mb-3"
+              className="mx-auto flex items-center justify-center mb-3"
             >
-              <Database size={22} />
+              <Database size={20} />
             </div>
-            <p className="text-[14px] font-bold text-slate-200 m-0">
+            <p className="text-[14px] font-bold text-[#f4efe6] m-0">
               {assets.length === 0 ? "Reference Vault is Empty" : "No matching assets found"}
             </p>
-            <p className="text-[12px] text-slate-400 mt-1 max-w-sm mx-auto">
+            <p className="text-[12px] text-[#8e887d] mt-1 max-w-sm mx-auto">
               {assets.length === 0
                 ? "Upload an official broadcast using the ingestion control above to generate reference fingerprints."
                 : "Try adjusting your search query or filter to view registered reference assets."}
@@ -645,19 +650,19 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                   whileHover={{ y: -2 }}
                   transition={{ duration: 0.18 }}
                   style={{
-                    background: "#0c101b",
+                    background: "#171615",
                     borderRadius: 14,
                     overflow: "hidden",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(238, 231, 219, 0.08)",
                   }}
-                  className="flex flex-col hover:border-slate-700 transition-colors"
+                  className="flex flex-col hover:border-[rgba(238,231,219,0.16)] transition-colors"
                 >
                   {/* Smaller Thumbnail with Consistent 16:9 Aspect Ratio (max-height clamped) */}
                   <div
                     style={{
                       aspectRatio: "16/9",
                       maxHeight: "140px",
-                      background: "#070a12",
+                      background: "#121211",
                     }}
                     className="relative overflow-hidden group select-none shrink-0"
                   >
@@ -668,7 +673,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-600">
+                      <div className="w-full h-full flex items-center justify-center text-[#736d62]">
                         <FileVideo size={28} />
                       </div>
                     )}
@@ -680,11 +685,17 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                       <span
                         style={{
                           background: isIndexed
-                            ? "rgba(13, 148, 136, 0.85)"
-                            : "rgba(245, 158, 11, 0.85)",
+                            ? "rgba(238, 231, 219, 0.15)"
+                            : "rgba(212, 163, 115, 0.2)",
+                          color: isIndexed ? "#f4efe6" : "#d4a373",
+                          border: `1px solid ${
+                            isIndexed
+                              ? "rgba(238, 231, 219, 0.25)"
+                              : "rgba(212, 163, 115, 0.35)"
+                          }`,
                           backdropFilter: "blur(6px)",
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-white"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
                       >
                         {isIndexed ? (
                           <>
@@ -704,22 +715,24 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
                       <span
                         style={{
-                          background: "rgba(11, 15, 25, 0.85)",
+                          background: "rgba(20, 19, 18, 0.85)",
                           backdropFilter: "blur(4px)",
+                          border: "1px solid rgba(238, 231, 219, 0.08)",
                         }}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold text-slate-200"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-[#ded7cb]"
                       >
-                        <Layers size={9} className="text-teal-400" />
+                        <Layers size={9} className="text-[#eee7db]" />
                         <span>{asset.frame_count} frames</span>
                       </span>
 
                       {asset.duration_seconds > 0 && (
                         <span
                           style={{
-                            background: "rgba(11, 15, 25, 0.85)",
+                            background: "rgba(20, 19, 18, 0.85)",
                             backdropFilter: "blur(4px)",
+                            border: "1px solid rgba(238, 231, 219, 0.08)",
                           }}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold text-slate-300"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-[#aba497]"
                         >
                           <Clock size={9} />
                           <span>{formatDuration(asset.duration_seconds)}</span>
@@ -733,7 +746,11 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                         type="button"
                         onClick={() => setPreviewingVideoAsset(asset)}
                         title="Play original video"
-                        className="absolute inset-0 m-auto w-9 h-9 rounded-full bg-teal-500/90 hover:bg-teal-400 text-slate-950 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md cursor-pointer"
+                        style={{
+                          background: "#eee7db",
+                          color: "#141312",
+                        }}
+                        className="absolute inset-0 m-auto w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md cursor-pointer"
                       >
                         <Play size={14} className="ml-0.5 fill-current" />
                       </button>
@@ -745,25 +762,25 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     <div>
                       <p
                         title={asset.filename}
-                        className="text-[12px] font-bold text-slate-100 truncate mb-0.5"
+                        className="text-[12px] font-semibold text-[#f4efe6] truncate mb-0.5"
                       >
                         {asset.filename}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-mono truncate mb-2.5">
+                      <p className="text-[10px] text-[#736d62] font-mono truncate mb-2.5">
                         ID: {asset.asset_id.slice(0, 12)}...
                       </p>
 
                       {/* Technical Specs Row */}
                       <div className="grid grid-cols-2 gap-2 mb-3">
                         <div
-                          style={{ background: "#111522", borderRadius: 8 }}
-                          className="p-1.5 px-2 border border-slate-800"
+                          style={{ background: "#1e1d1b", borderRadius: 8 }}
+                          className="p-1.5 px-2 border border-[rgba(238,231,219,0.06)]"
                         >
-                          <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          <span className="text-[8px] font-semibold uppercase tracking-wider text-[#8e887d] block mb-0.5">
                             FAISS Vectors
                           </span>
                           <span
-                            style={{ color: isIndexed ? "#2dd4bf" : "#64748b" }}
+                            style={{ color: isIndexed ? "#f4efe6" : "#736d62" }}
                             className="text-[12px] font-bold"
                           >
                             {asset.indexed_vectors > 0 ? asset.indexed_vectors : "0"}
@@ -771,13 +788,13 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                         </div>
 
                         <div
-                          style={{ background: "#111522", borderRadius: 8 }}
-                          className="p-1.5 px-2 border border-slate-800"
+                          style={{ background: "#1e1d1b", borderRadius: 8 }}
+                          className="p-1.5 px-2 border border-[rgba(238,231,219,0.06)]"
                         >
-                          <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          <span className="text-[8px] font-semibold uppercase tracking-wider text-[#8e887d] block mb-0.5">
                             File Size
                           </span>
-                          <span className="text-[12px] font-bold text-slate-300">
+                          <span className="text-[12px] font-bold text-[#ded7cb]">
                             {formatBytes(asset.file_size)}
                           </span>
                         </div>
@@ -785,7 +802,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     </div>
 
                     {/* Action Bar */}
-                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
+                    <div className="pt-2 border-t border-[rgba(238,231,219,0.08)] flex items-center justify-between gap-1.5">
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -793,8 +810,11 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                             setInspectingAsset(asset);
                             setActiveFrameIndex(0);
                           }}
-                          style={{ border: "1px solid rgba(255, 255, 255, 0.08)" }}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 text-[10px] font-semibold transition-colors cursor-pointer"
+                          style={{
+                            border: "1px solid rgba(238, 231, 219, 0.1)",
+                            background: "transparent",
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-[#ded7cb] hover:text-[#f4efe6] hover:bg-[#22201e] text-[10px] font-medium transition-colors cursor-pointer"
                         >
                           <Eye size={11} />
                           <span>Frames</span>
@@ -806,14 +826,13 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                             onClick={() => handleIndexAsset(asset)}
                             disabled={indexingAssetId === asset.asset_id}
                             style={{
-                              background: "rgba(13, 148, 136, 0.15)",
-                              border: "1px solid rgba(13, 148, 136, 0.3)",
-                              color: "#2dd4bf",
+                              background: "#eee7db",
+                              color: "#141312",
                             }}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold hover:bg-teal-900/40 transition-colors disabled:opacity-50 cursor-pointer"
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold hover:bg-[#fbf7ef] transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             {indexingAssetId === asset.asset_id ? (
-                              <Loader2 size={11} className="animate-spin text-teal-400" />
+                              <Loader2 size={11} className="animate-spin" />
                             ) : (
                               <ShieldCheck size={11} />
                             )}
@@ -826,7 +845,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                         type="button"
                         onClick={() => setDeletingAsset(asset)}
                         title="Delete asset from vault"
-                        className="p-1 text-slate-500 hover:text-red-400 hover:bg-red-950/40 rounded transition-colors cursor-pointer"
+                        className="p-1 text-[#736d62] hover:text-red-400 hover:bg-red-950/30 rounded transition-colors cursor-pointer"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -842,37 +861,37 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
       {/* ─── Inspect Sampled Frames Modal ─── */}
       {inspectingAsset && (
         <div
-          style={{ background: "rgba(5, 8, 15, 0.8)", backdropFilter: "blur(6px)" }}
+          style={{ background: "rgba(18, 18, 17, 0.85)", backdropFilter: "blur(6px)" }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setInspectingAsset(null)}
         >
           <div
             style={{
-              background: "#0c101b",
+              background: "#171615",
               borderRadius: 18,
               maxWidth: 900,
               width: "100%",
               maxHeight: "90vh",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+              border: "1px solid rgba(238, 231, 219, 0.12)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
             }}
-            className="flex flex-col overflow-hidden text-slate-100"
+            className="flex flex-col overflow-hidden text-[#ded7cb]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+            <div className="px-5 py-3.5 border-b border-[rgba(238,231,219,0.08)] flex items-center justify-between">
               <div>
-                <h4 className="text-[14px] font-bold text-white m-0">
+                <h4 className="text-[14px] font-bold text-[#f4efe6] m-0">
                   Sampled Frames — {inspectingAsset.filename}
                 </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 m-0">
+                <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
                   1 frame sampled every 5s • MobileNetV3 576-dim L2 embeddings
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setInspectingAsset(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 text-[#8e887d] hover:text-[#f4efe6] rounded-lg hover:bg-[#242220] cursor-pointer"
               >
                 <X size={17} />
               </button>
@@ -884,8 +903,8 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 <>
                   {/* Large Active Frame View */}
                   <div
-                    style={{ background: "#050810", borderRadius: 12 }}
-                    className="relative overflow-hidden aspect-video flex items-center justify-center border border-slate-800 max-h-[50vh]"
+                    style={{ background: "#121211", borderRadius: 12 }}
+                    className="relative overflow-hidden aspect-video flex items-center justify-center border border-[rgba(238,231,219,0.08)] max-h-[50vh]"
                   >
                     <img
                       src={`${API_BASE}${inspectingAsset.frames[activeFrameIndex]?.url}`}
@@ -893,18 +912,18 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                       className="max-h-full max-w-full object-contain"
                     />
 
-                    <div className="absolute top-2.5 left-2.5 bg-black/80 backdrop-blur px-2.5 py-1 rounded text-[10px] font-mono text-teal-400 font-bold border border-slate-800">
+                    <div className="absolute top-2.5 left-2.5 bg-[#141312]/90 backdrop-blur px-2.5 py-1 rounded text-[10px] font-mono text-[#eee7db] font-bold border border-[rgba(238,231,219,0.1)]">
                       Timestamp: {inspectingAsset.frames[activeFrameIndex]?.timestamp_sec}s
                     </div>
 
-                    <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur px-2.5 py-1 rounded text-[10px] font-mono text-slate-300 border border-slate-800">
+                    <div className="absolute bottom-2.5 right-2.5 bg-[#141312]/90 backdrop-blur px-2.5 py-1 rounded text-[10px] font-mono text-[#ded7cb] border border-[rgba(238,231,219,0.1)]">
                       {inspectingAsset.frames[activeFrameIndex]?.filename}
                     </div>
                   </div>
 
                   {/* Frame Thumbnails Strip */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8e887d] mb-2">
                       Extracted Frame Timeline ({inspectingAsset.frames.length} total)
                     </p>
                     <div className="flex gap-2 overflow-x-auto pb-2">
@@ -916,20 +935,20 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                           style={{
                             border:
                               idx === activeFrameIndex
-                                ? "2px solid #0d9488"
-                                : "1px solid rgba(255, 255, 255, 0.1)",
+                                ? "2px solid #eee7db"
+                                : "1px solid rgba(238, 231, 219, 0.1)",
                             borderRadius: 8,
                           }}
-                          className="shrink-0 overflow-hidden w-24 bg-slate-900 text-left transition-all hover:opacity-90 cursor-pointer"
+                          className="shrink-0 overflow-hidden w-24 bg-[#1a1918] text-left transition-all hover:opacity-90 cursor-pointer"
                         >
                           <img
                             src={`${API_BASE}${frame.url}`}
                             alt={frame.filename}
                             className="w-full aspect-video object-cover"
                           />
-                          <div className="p-1 text-[9px] font-mono text-slate-400 flex justify-between">
+                          <div className="p-1 text-[9px] font-mono text-[#8e887d] flex justify-between">
                             <span>{frame.timestamp_sec}s</span>
-                            <span className="text-slate-500">#{idx}</span>
+                            <span className="text-[#736d62]">#{idx}</span>
                           </div>
                         </button>
                       ))}
@@ -937,17 +956,17 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                   </div>
                 </>
               ) : (
-                <div className="text-center py-10 text-slate-500 text-[12px]">
+                <div className="text-center py-10 text-[#736d62] text-[12px]">
                   No frames found on storage for this reference asset.
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">
+            <div className="px-5 py-3 border-t border-[rgba(238,231,219,0.08)] bg-[#141312] flex items-center justify-between">
+              <span className="text-[11px] text-[#8e887d]">
                 Index status:{" "}
-                <strong style={{ color: inspectingAsset.indexed ? "#2dd4bf" : "#fbbf24" }}>
+                <strong style={{ color: inspectingAsset.indexed ? "#f4efe6" : "#d4a373" }}>
                   {inspectingAsset.indexed ? "Vaulted in FAISS" : "Unindexed"}
                 </strong>
               </span>
@@ -959,7 +978,11 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     setPreviewingVideoAsset(inspectingAsset);
                     setInspectingAsset(null);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                  style={{
+                    background: "#eee7db",
+                    color: "#141312",
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-bold transition-colors cursor-pointer"
                 >
                   <Play size={12} className="fill-current" />
                   <span>Play Original Video</span>
@@ -973,34 +996,34 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
       {/* ─── Video Player Modal ─── */}
       {previewingVideoAsset && (
         <div
-          style={{ background: "rgba(5, 8, 15, 0.85)", backdropFilter: "blur(6px)" }}
+          style={{ background: "rgba(18, 18, 17, 0.85)", backdropFilter: "blur(6px)" }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setPreviewingVideoAsset(null)}
         >
           <div
             style={{
-              background: "#0c101b",
+              background: "#171615",
               borderRadius: 18,
               maxWidth: 800,
               width: "100%",
               overflow: "hidden",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(238, 231, 219, 0.12)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between text-white">
+            <div className="px-5 py-3 border-b border-[rgba(238,231,219,0.08)] flex items-center justify-between text-[#f4efe6]">
               <span className="text-[13px] font-bold truncate max-w-lg">
                 {previewingVideoAsset.filename}
               </span>
               <button
                 type="button"
                 onClick={() => setPreviewingVideoAsset(null)}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-[#8e887d] hover:text-[#f4efe6] cursor-pointer"
               >
                 <X size={17} />
               </button>
             </div>
-            <div className="p-4 bg-black flex justify-center">
+            <div className="p-4 bg-[#121211] flex justify-center">
               <video
                 controls
                 autoPlay
@@ -1017,19 +1040,19 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
       {/* ─── Delete Confirmation Modal ─── */}
       {deletingAsset && (
         <div
-          style={{ background: "rgba(5, 8, 15, 0.8)", backdropFilter: "blur(4px)" }}
+          style={{ background: "rgba(18, 18, 17, 0.8)", backdropFilter: "blur(4px)" }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => !isDeleting && setDeletingAsset(null)}
         >
           <div
             style={{
-              background: "#0c101b",
+              background: "#171615",
               borderRadius: 18,
               maxWidth: 420,
               width: "100%",
               padding: "22px 24px 20px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
+              border: "1px solid rgba(238, 231, 219, 0.12)",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.7)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1038,25 +1061,25 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 width: 44,
                 height: 44,
                 borderRadius: 12,
-                background: "rgba(239, 68, 68, 0.12)",
-                border: "1px solid rgba(239, 68, 68, 0.25)",
+                background: "rgba(212, 163, 115, 0.12)",
+                border: "1px solid rgba(212, 163, 115, 0.25)",
               }}
-              className="flex items-center justify-center text-red-400 mb-3.5"
+              className="flex items-center justify-center text-[#d4a373] mb-3.5"
             >
               <Trash2 size={20} />
             </div>
 
-            <h4 className="text-[15px] font-bold text-white m-0 mb-1.5">
+            <h4 className="text-[15px] font-bold text-[#f4efe6] m-0 mb-1.5">
               Delete from Reference Vault?
             </h4>
-            <p className="text-[12px] text-slate-300 mb-3 leading-relaxed">
-              <strong className="text-white">{deletingAsset.filename}</strong> will be permanently removed from FixProof.
+            <p className="text-[12px] text-[#ded7cb] mb-3 leading-relaxed">
+              <strong className="text-[#f4efe6]">{deletingAsset.filename}</strong> will be permanently removed from FixProof.
             </p>
             <div
               style={{
-                background: "rgba(239, 68, 68, 0.08)",
-                border: "1px solid rgba(239, 68, 68, 0.25)",
-                color: "#f87171",
+                background: "rgba(212, 163, 115, 0.08)",
+                border: "1px solid rgba(212, 163, 115, 0.2)",
+                color: "#d4a373",
                 borderRadius: 8,
               }}
               className="p-3 text-[11px] leading-relaxed mb-4"
@@ -1069,7 +1092,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 type="button"
                 onClick={() => setDeletingAsset(null)}
                 disabled={isDeleting}
-                className="flex-1 py-2 rounded-xl border border-slate-700 text-slate-300 text-[12px] font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-2 rounded-xl border border-[rgba(238,231,219,0.12)] text-[#ded7cb] text-[12px] font-semibold hover:bg-[#242220] transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1077,7 +1100,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-md cursor-pointer"
+                className="flex-1 py-2 rounded-xl bg-red-800/80 hover:bg-red-700 text-white text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-md cursor-pointer"
               >
                 {isDeleting ? (
                   <>
