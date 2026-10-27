@@ -1,27 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   Layers,
   ArrowRight,
   ExternalLink,
   RefreshCw,
-  FileVideo,
-  Hash,
-  Database,
   Search,
   Copy,
   Check,
-  BrainCircuit,
-  Sparkles,
-  AlertCircle,
   Info,
   Cpu,
-  History,
   Download,
   ShieldCheck,
   FileArchive,
@@ -30,34 +22,24 @@ import {
   Pause,
   RotateCcw,
   Sliders,
-  Eye,
   SplitSquareVertical,
   Volume2,
   VolumeX,
   ImageOff,
-  ChevronDown,
   Upload,
+  FileText,
+  Database,
+  Crosshair,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
   FrameMatchDetail,
   AssetRecord,
-  InvestigationReport,
-  ReportHistoryItem,
   PackageVerificationResult,
-  TimelineInterval,
-  InvestigationFinding,
-  RecommendedAction,
-  ConfidenceAssessment,
-  VisionVerificationResult,
 } from "@/lib/types";
 import {
   API_BASE,
   getIncidentsList,
-  getIncidentLatestReport,
-  getIncidentReportHistory,
-  getReportById,
-  investigateIncident,
   exportIncidentEvidencePackage,
   verifyEvidencePackage,
   getAssetVideoUrl,
@@ -70,6 +52,7 @@ interface IncidentResponseProps {
   assets: AssetRecord[];
   onNavigateToVault: (assetId?: string) => void;
   onNavigateToHunter: () => void;
+  onNavigateToNemotron?: (incident: MatchAnalysisResult) => void;
 }
 
 export const IncidentResponse: React.FC<IncidentResponseProps> = ({
@@ -77,6 +60,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   assets,
   onNavigateToVault,
   onNavigateToHunter,
+  onNavigateToNemotron,
 }) => {
   const [incidents, setIncidents] = useState<MatchAnalysisResult[]>([]);
   const [selectedIncident, setSelectedIncident] = useState<MatchAnalysisResult | null>(
@@ -103,20 +87,12 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [overlayOpacity, setOverlayOpacity] = useState<number>(50); // 0-100%
   const [blendDifference, setBlendDifference] = useState<boolean>(true);
 
+  // Keyframe sequence ledger filter
+  const [keyframeFilter, setKeyframeFilter] = useState<"ALL" | "CONFIRMED" | "HIGH_SIMILARITY">("ALL");
+
   // Image loading error tracking (prevents broken image icons)
   const [refFrameError, setRefFrameError] = useState<boolean>(false);
   const [suspectFrameError, setSuspectFrameError] = useState<boolean>(false);
-
-  // Nemotron Investigation state
-  const [report, setReport] = useState<InvestigationReport | null>(null);
-  const [reportLoading, setReportLoading] = useState<boolean>(false);
-  const [reportError, setReportError] = useState<string | null>(null);
-
-  // Investigation Report History state
-  const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
-  const [showHistoryDropdown, setShowHistoryDropdown] = useState<boolean>(false);
-  const activeIncidentIdRef = useRef<string | null>(null);
 
   // Evidence Package Export & Verification state
   const [exportingPackage, setExportingPackage] = useState<boolean>(false);
@@ -128,9 +104,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
   // Copy feedback state
   const [copiedIncidentId, setCopiedIncidentId] = useState<boolean>(false);
-  const [copiedReportId, setCopiedReportId] = useState<boolean>(false);
 
-  const handleCopy = async (text: string, type: "incident" | "report") => {
+  const handleCopy = async (text: string) => {
     if (!text) return;
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
@@ -147,13 +122,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         textArea.remove();
       }
 
-      if (type === "incident") {
-        setCopiedIncidentId(true);
-        setTimeout(() => setCopiedIncidentId(false), 2000);
-      } else if (type === "report") {
-        setCopiedReportId(true);
-        setTimeout(() => setCopiedReportId(false), 2000);
-      }
+      setCopiedIncidentId(true);
+      setTimeout(() => setCopiedIncidentId(false), 2000);
     } catch (err) {
       console.warn("Clipboard copy failed gracefully:", err);
     }
@@ -171,103 +141,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       // ignore
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Safe read-only report fetcher for selected incident (does NOT trigger new model investigation)
-  const fetchReportForIncident = useCallback(async (incidentId: string) => {
-    setReportLoading(true);
-    setReportError(null);
-    try {
-      const existingReport = await getIncidentLatestReport(incidentId);
-      if (activeIncidentIdRef.current === incidentId) {
-        setReport(existingReport);
-      }
-    } catch (err: unknown) {
-      if (activeIncidentIdRef.current === incidentId) {
-        const msg = err instanceof Error ? err.message : "Failed to load investigation report.";
-        setReportError(msg);
-        setReport(null);
-      }
-    } finally {
-      if (activeIncidentIdRef.current === incidentId) {
-        setReportLoading(false);
-      }
-    }
-  }, []);
-
-  // Safe read-only report history fetcher
-  const fetchHistoryForIncident = useCallback(async (incidentId: string) => {
-    setHistoryLoading(true);
-    try {
-      const history = await getIncidentReportHistory(incidentId);
-      if (activeIncidentIdRef.current === incidentId) {
-        setReportHistory(history);
-      }
-    } catch {
-      if (activeIncidentIdRef.current === incidentId) {
-        setReportHistory([]);
-      }
-    } finally {
-      if (activeIncidentIdRef.current === incidentId) {
-        setHistoryLoading(false);
-      }
-    }
-  }, []);
-
-  // Safe selection of a specific saved report (loads by ID, NEVER triggers model)
-  const handleSelectReport = async (reportId: string) => {
-    if (!reportId || reportId === report?.report_id) {
-      setShowHistoryDropdown(false);
-      return;
-    }
-    const currentIncidentId = selectedIncident?.incident_id;
-    if (!currentIncidentId) return;
-
-    setShowHistoryDropdown(false);
-    setReportLoading(true);
-    setReportError(null);
-    try {
-      const loadedReport = await getReportById(reportId);
-      if (activeIncidentIdRef.current === currentIncidentId) {
-        setReport(loadedReport);
-      }
-    } catch (err: unknown) {
-      if (activeIncidentIdRef.current === currentIncidentId) {
-        const msg = err instanceof Error ? err.message : `Failed to load report ${reportId}.`;
-        setReportError(msg);
-      }
-    } finally {
-      if (activeIncidentIdRef.current === currentIncidentId) {
-        setReportLoading(false);
-      }
-    }
-  };
-
-  // Run Nemotron investigation (user-triggered via button)
-  const handleRunInvestigation = async (forceRefresh: boolean = false) => {
-    const incidentId = selectedIncident?.incident_id;
-    if (!incidentId) return;
-    setReportLoading(true);
-    setReportError(null);
-    try {
-      const generatedReport = await investigateIncident(incidentId, {
-        force_refresh: forceRefresh,
-        model_override: null,
-      });
-      if (activeIncidentIdRef.current === incidentId) {
-        setReport(generatedReport);
-        fetchHistoryForIncident(incidentId);
-      }
-    } catch (err: unknown) {
-      if (activeIncidentIdRef.current === incidentId) {
-        const msg = err instanceof Error ? err.message : "Investigation failed to execute.";
-        setReportError(msg);
-      }
-    } finally {
-      if (activeIncidentIdRef.current === incidentId) {
-        setReportLoading(false);
-      }
     }
   };
 
@@ -332,16 +205,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         : String(selectedIncident.matched_assets[0])
       : null);
 
-  // Total timeline duration
-  const totalTimelineDuration = Math.max(
-    selectedIncident?.duration_seconds || 0,
-    suspectDuration || 0,
-    refDuration || 0,
-    selectedIncident?.frame_matches && selectedIncident.frame_matches.length > 0
-      ? Math.max(...selectedIncident.frame_matches.map((f) => f.submitted_frame.timestamp_sec)) + 5
-      : 10
-  );
-
   const togglePlay = () => {
     if (isPlaying) {
       suspectVideoRef.current?.pause();
@@ -392,18 +255,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     setRefCurrentTime(refVideoRef.current.currentTime);
   };
 
-  const handleTimelineScrub = (targetSec: number) => {
-    setSuspectCurrentTime(targetSec);
-    if (suspectVideoRef.current) {
-      suspectVideoRef.current.currentTime = targetSec;
-    }
-    const targetRef = Math.max(0, targetSec - temporalOffset);
-    if (refVideoRef.current) {
-      refVideoRef.current.currentTime = targetRef;
-      setRefCurrentTime(targetRef);
-    }
-  };
-
   const handleMarkerClick = (fm: FrameMatchDetail) => {
     setSelectedFrameMatch(fm);
     setRefFrameError(false);
@@ -429,8 +280,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   };
 
   useEffect(() => {
-    const incidentId = selectedIncident?.incident_id || null;
-    activeIncidentIdRef.current = incidentId;
     setRefFrameError(false);
     setSuspectFrameError(false);
 
@@ -464,17 +313,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       setSelectedFrameMatch(null);
       setTemporalOffset(0);
     }
-
-    // Fetch existing report and history
-    if (incidentId) {
-      fetchReportForIncident(incidentId);
-      fetchHistoryForIncident(incidentId);
-    } else {
-      setReport(null);
-      setReportError(null);
-      setReportHistory([]);
-    }
-  }, [selectedIncident, fetchReportForIncident, fetchHistoryForIncident]);
+  }, [selectedIncident]);
 
   // Derive URLs for suspect and reference frames
   const suspectFrameUrl =
@@ -494,6 +333,13 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         )
       : "";
 
+  // Filtered keyframes for the forensic sequence ledger
+  const filteredKeyframes = (selectedIncident?.frame_matches || []).filter((fm) => {
+    if (keyframeFilter === "CONFIRMED") return fm.best_match?.match_confirmed;
+    if (keyframeFilter === "HIGH_SIMILARITY") return (fm.best_match?.confidence_score ?? 0) >= 70;
+    return true;
+  });
+
   return (
     <div
       style={{
@@ -512,7 +358,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
             </h2>
           </div>
           <p className="text-[12px] text-[#aba497] m-0">
-            Verifiable frame matching, synchronized video inspection, and NVIDIA Nemotron 3.5 synthesis.
+            Cryptographic frame matching, synchronized forensic video player, and tamper-evident proof packages.
           </p>
         </div>
 
@@ -648,7 +494,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
           <div className="lg:col-span-8 xl:col-span-9 space-y-5">
             {selectedIncident ? (
               <>
-                {/* ─── A. Compact Incident Summary Strip ─── */}
+                {/* ─── A. Incident Dossier Header & Action Toolbar ─── */}
                 <div
                   style={{
                     background: "#171615",
@@ -657,7 +503,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   }}
                   className="p-4 space-y-3"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62]">
@@ -685,7 +531,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {/* Integrated Dossier Actions */}
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span
                         style={{
                           background:
@@ -713,7 +560,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
                       {selectedIncident.incident_id && (
                         <button
-                          onClick={() => handleCopy(selectedIncident.incident_id!, "incident")}
+                          onClick={() => handleCopy(selectedIncident.incident_id!)}
                           title={`Click to copy incident ID: ${selectedIncident.incident_id}`}
                           style={{
                             background: "#242220",
@@ -734,8 +581,63 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           )}
                         </button>
                       )}
+
+                      {/* Export Evidence Package ZIP */}
+                      <button
+                        onClick={handleExportPackage}
+                        disabled={exportingPackage}
+                        style={{
+                          background: "#242220",
+                          border: "1px solid rgba(238, 231, 219, 0.12)",
+                          color: "#ded7cb",
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:text-[#f4efe6] hover:bg-[#2c2a27] text-[10.5px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                        title="Export cryptographically signed evidence package (ZIP)"
+                      >
+                        <Download size={11} className={exportingPackage ? "animate-bounce" : ""} />
+                        <span>{exportingPackage ? "Exporting..." : "Export ZIP"}</span>
+                      </button>
+
+                      {/* Verify Package ZIP */}
+                      <button
+                        onClick={() => setShowVerifyModal(true)}
+                        style={{
+                          background: "#242220",
+                          border: "1px solid rgba(238, 231, 219, 0.12)",
+                          color: "#aba497",
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:text-[#f4efe6] hover:bg-[#2c2a27] text-[10.5px] font-semibold transition-colors cursor-pointer"
+                        title="Verify integrity of an evidence package ZIP"
+                      >
+                        <ShieldCheck size={11} />
+                        <span>Verify ZIP</span>
+                      </button>
+
+                      {/* Direct Bridge to Nemotron Center */}
+                      {onNavigateToNemotron && (
+                        <button
+                          onClick={() => onNavigateToNemotron(selectedIncident)}
+                          style={{
+                            background: "#eee7db",
+                            color: "#141312",
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg hover:bg-[#fbf7ef] text-[10.5px] font-bold transition-all cursor-pointer shadow-sm ml-1"
+                          title="Open this incident in Nemotron Intelligence Center"
+                        >
+                          <Cpu size={11} />
+                          <span>Nemotron Center</span>
+                          <ArrowRight size={10} />
+                        </button>
+                      )}
                     </div>
                   </div>
+
+                  {exportError && (
+                    <div className="p-2.5 rounded-lg bg-[#242220] border border-[rgba(212,163,115,0.3)] text-[11px] text-[#dfa974] flex items-center gap-2">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      <span>{exportError}</span>
+                    </div>
+                  )}
 
                   {/* Concise Facts Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] py-2 border-t border-[rgba(238,231,219,0.06)]">
@@ -777,7 +679,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   )}
                 </div>
 
-                {/* ─── B. Cohesive Evidence Viewer (Primary Focus) ─── */}
+                {/* ─── B. Cohesive Evidence Viewer (Dual Viewport) ─── */}
                 <div
                   style={{
                     background: "#171615",
@@ -967,7 +869,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           className="aspect-video overflow-hidden border border-[rgba(238,231,219,0.1)] flex items-center justify-center relative bg-black"
                         >
                           {matchedAssetId ? (
-                            /* Prioritize live video if playing, or frame inspection still */
                             isPlaying ? (
                               <video
                                 ref={refVideoRef}
@@ -982,7 +883,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                 }}
                               />
                             ) : refFrameError || !refFrameUrl ? (
-                              /* Clean Explicit Fallback: No Broken Image Icon */
                               <div className="flex flex-col items-center justify-center p-6 text-center text-[#8e887d]">
                                 <ImageOff size={22} className="mb-1 text-[#736d62]" />
                                 <span className="text-[12px] font-bold text-[#f4efe6]">Reference frame unavailable</span>
@@ -1100,7 +1000,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         Sampled Keyframes ({selectedIncident.frame_matches.length})
                       </span>
                       <span>
-                        Offset: {temporalOffset >= 0 ? `+${temporalOffset}` : temporalOffset}s
+                        Temporal Offset: {temporalOffset >= 0 ? `+${temporalOffset}` : temporalOffset}s
                       </span>
                     </div>
 
@@ -1184,14 +1084,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         </div>
                       </div>
 
-                      {/* Frame-level Nemotron Vision Verification */}
-                      {selectedFrameMatch.best_match?.vision_verification ? (
+                      {/* Frame-level Vision Verification Badge (if already evaluated by model) */}
+                      {selectedFrameMatch.best_match?.vision_verification && (
                         <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-start gap-2 text-[10.5px]">
-                          <Sparkles size={13} className="text-[#eee7db] shrink-0 mt-0.5" />
+                          <Cpu size={13} className="text-[#eee7db] shrink-0 mt-0.5" />
                           <div className="space-y-0.5 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-[#f4efe6]">
-                                Nemotron Vision Verification:
+                                Multimodal Vision Verification:
                               </span>
                               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-[#242220] text-[#eee7db] border border-[rgba(238,231,219,0.12)]">
                                 {selectedFrameMatch.best_match.vision_verification.visual_correspondence?.replace(/_/g, " ") || "UNVERIFIED"}
@@ -1203,13 +1103,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                               </p>
                             )}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-center gap-2 text-[10.5px] text-[#736d62]">
-                          <Sparkles size={12} className="text-[#524e47] shrink-0" />
-                          <span>
-                            Nemotron Vision Verification: Unverified for this frame. Generate full investigation below for multi-interval synthesis.
-                          </span>
                         </div>
                       )}
 
@@ -1224,7 +1117,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   )}
                 </div>
 
-                {/* ─── C. Integrated Nemotron Investigation Section ─── */}
+                {/* ─── C. Forensic Keyframe Sequence & Evidence Integrity Ledger ─── */}
                 <div
                   style={{
                     background: "#171615",
@@ -1233,314 +1126,261 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   }}
                   className="p-4 md:p-5 space-y-4"
                 >
-                  {/* Section Toolbar */}
+                  {/* Sequence Ledger Header & Filter Tabs */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
                     <div className="flex items-center gap-2.5">
                       <div className="p-1.5 rounded-lg bg-[#242220] border border-[rgba(238,231,219,0.1)] text-[#eee7db]">
-                        <BrainCircuit size={16} className={reportLoading ? "animate-pulse" : ""} />
+                        <Layers size={16} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="text-[14px] font-bold text-[#f4efe6] m-0">
-                            NVIDIA Nemotron 3.5 Forensic Investigation
+                            Forensic Keyframe Sequence & Match Ledger
                           </h4>
                           <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold uppercase tracking-wider bg-[#242220] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
-                            {report?.model_id || "NVIDIA 3.5"}
+                            {selectedIncident.frame_matches.length} Keyframes
                           </span>
                         </div>
                         <p className="text-[10.5px] text-[#aba497] m-0">
-                          Timeline interval derivation, continuous infringement risk assessment, and legal triage.
+                          Individual sampled frame matches, MobileNetV3 feature vectors, perceptual hash distances, and temporal offsets.
                         </p>
                       </div>
                     </div>
 
-                    {/* Consolidated Action Toolbar */}
-                    <div className="flex items-center gap-2 flex-wrap relative">
-                      {/* Report History Dropdown Button */}
-                      {reportHistory.length > 0 && (
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
-                            style={{
-                              background: "#1a1918",
-                              border: "1px solid rgba(238, 231, 219, 0.12)",
-                              color: "#aba497",
-                            }}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:text-[#f4efe6] text-[11px] font-semibold transition-colors cursor-pointer"
-                          >
-                            <History size={12} />
-                            <span>History ({reportHistory.length})</span>
-                            <ChevronDown size={11} />
-                          </button>
-
-                          {showHistoryDropdown && (
-                            <div
-                              style={{
-                                background: "#1a1918",
-                                border: "1px solid rgba(238, 231, 219, 0.16)",
-                                borderRadius: 12,
-                              }}
-                              className="absolute right-0 top-full mt-1.5 w-64 p-1.5 space-y-1 shadow-2xl z-20"
-                            >
-                              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#736d62] border-b border-[rgba(238,231,219,0.08)]">
-                                Prior Reports
-                              </div>
-                              {reportHistory.map((item) => (
-                                <button
-                                  key={item.report_id}
-                                  onClick={() => handleSelectReport(item.report_id)}
-                                  className={`w-full text-left p-2 rounded-lg text-[10.5px] font-mono transition-colors cursor-pointer ${
-                                    item.report_id === report?.report_id
-                                      ? "bg-[#242220] text-[#f4efe6]"
-                                      : "hover:bg-[#242220] text-[#aba497]"
-                                  }`}
-                                >
-                                  <div className="font-semibold text-[#ded7cb]">
-                                    {item.created_at ? new Date(item.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : "Report"}
-                                  </div>
-                                  <div className="text-[9.5px] text-[#736d62] truncate">
-                                    ID: {item.report_id.slice(0, 10)}... · {item.model_id || "Nemotron"}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Export Evidence Package */}
+                    {/* Filter Pills */}
+                    <div className="flex items-center gap-1 bg-[#1a1918] p-1 rounded-xl border border-[rgba(238,231,219,0.08)] text-[10.5px]">
                       <button
-                        onClick={handleExportPackage}
-                        disabled={exportingPackage}
+                        onClick={() => setKeyframeFilter("ALL")}
                         style={{
-                          background: "#1a1918",
-                          border: "1px solid rgba(238, 231, 219, 0.12)",
-                          color: "#aba497",
+                          background: keyframeFilter === "ALL" ? "#242220" : "transparent",
+                          color: keyframeFilter === "ALL" ? "#f4efe6" : "#aba497",
                         }}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:text-[#f4efe6] text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                        title="Export cryptographically signed evidence package (ZIP)"
+                        className="px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer"
                       >
-                        <Download size={12} className={exportingPackage ? "animate-bounce" : ""} />
-                        <span>Export ZIP</span>
+                        All ({selectedIncident.frame_matches.length})
                       </button>
-
-                      {/* Verify Package Button */}
                       <button
-                        onClick={() => setShowVerifyModal(true)}
+                        onClick={() => setKeyframeFilter("CONFIRMED")}
                         style={{
-                          background: "#1a1918",
-                          border: "1px solid rgba(238, 231, 219, 0.12)",
-                          color: "#aba497",
+                          background: keyframeFilter === "CONFIRMED" ? "#242220" : "transparent",
+                          color: keyframeFilter === "CONFIRMED" ? "#dfa974" : "#aba497",
                         }}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:text-[#f4efe6] text-[11px] font-semibold transition-colors cursor-pointer"
-                        title="Verify integrity of an evidence package ZIP"
+                        className="px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer"
                       >
-                        <ShieldCheck size={12} />
-                        <span>Verify ZIP</span>
+                        Matches ({selectedIncident.frame_matches.filter((f) => f.best_match?.match_confirmed).length})
                       </button>
-
-                      {/* Generate / Re-run Report Button */}
                       <button
-                        onClick={() => handleRunInvestigation(report !== null)}
-                        disabled={reportLoading}
+                        onClick={() => setKeyframeFilter("HIGH_SIMILARITY")}
                         style={{
-                          background: "#eee7db",
-                          color: "#141312",
+                          background: keyframeFilter === "HIGH_SIMILARITY" ? "#242220" : "transparent",
+                          color: keyframeFilter === "HIGH_SIMILARITY" ? "#f4efe6" : "#aba497",
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer"
                       >
-                        <Sparkles size={12} className={reportLoading ? "animate-spin" : ""} />
-                        <span>{reportLoading ? "Synthesizing..." : report ? "Re-run Report" : "Generate Report"}</span>
+                        Sim &gt; 70% ({selectedIncident.frame_matches.filter((f) => (f.best_match?.confidence_score ?? 0) >= 70).length})
                       </button>
                     </div>
                   </div>
 
-                  {exportError && (
-                    <div className="p-2.5 rounded-lg bg-[#242220] border border-[rgba(212,163,115,0.3)] text-[11px] text-[#dfa974] flex items-center gap-2">
-                      <AlertTriangle size={13} className="shrink-0" />
-                      <span>{exportError}</span>
-                    </div>
-                  )}
-
-                  {/* ─── Report Content ─── */}
-                  {reportLoading ? (
-                    <div className="p-8 text-center space-y-3 bg-[#1a1918] rounded-xl border border-[rgba(238,231,219,0.06)]">
-                      <BrainCircuit size={28} className="mx-auto text-[#eee7db] animate-pulse" />
-                      <p className="text-[13px] font-bold text-[#f4efe6] m-0">
-                        Analyzing Computer-Vision Evidence via Nemotron 3.5...
-                      </p>
-                      <p className="text-[11px] text-[#aba497] max-w-md mx-auto m-0">
-                        Synthesizing timeline intervals from keyframe matches, evaluating visual continuity, and formulating legal triage findings.
-                      </p>
-                    </div>
-                  ) : reportError ? (
-                    <div className="p-4 rounded-xl bg-[#1a1918] border border-[rgba(212,163,115,0.3)] space-y-2">
-                      <div className="flex items-center gap-2 text-[#dfa974] font-bold text-[12px]">
-                        <AlertCircle size={14} />
-                        <span>Investigation Notice</span>
-                      </div>
-                      <p className="text-[11px] text-[#aba497] m-0">{reportError}</p>
-                      <button
-                        onClick={() => handleRunInvestigation(true)}
-                        className="text-[11px] font-bold text-[#eee7db] underline cursor-pointer"
-                      >
-                        Retry Investigation
-                      </button>
-                    </div>
-                  ) : !report ? (
-                    /* Concise Empty State */
-                    <div className="p-6 text-center space-y-2 bg-[#1a1918] rounded-xl border border-dashed border-[rgba(238,231,219,0.08)]">
-                      <BrainCircuit size={24} className="mx-auto text-[#736d62]" />
-                      <h5 className="text-[13px] font-bold text-[#f4efe6] m-0">
-                        No Investigation Report Yet
-                      </h5>
-                      <p className="text-[11px] text-[#aba497] max-w-sm mx-auto m-0">
-                        Click "Generate Report" above to execute NVIDIA Nemotron 3.5 and formulate a structured forensic dossier with timeline intervals and recommended legal actions.
-                      </p>
+                  {/* Sequence Table */}
+                  {filteredKeyframes.length === 0 ? (
+                    <div className="p-8 text-center text-[#736d62] text-[11px] bg-[#1a1918] rounded-xl border border-dashed border-[rgba(238,231,219,0.08)]">
+                      No keyframes meet the selected filter criteria.
                     </div>
                   ) : (
-                    /* ─── Rendered Generated Report ─── */
-                    <div className="space-y-4 text-[11.5px]">
-                      {/* Key Assessment / Executive Summary Box */}
-                      <div className="p-3.5 rounded-xl bg-[#1a1918] border border-[rgba(238,231,219,0.08)] space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[rgba(238,231,219,0.06)] pb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62]">
-                              Confidence Assessment
-                            </span>
-                            <span
-                              style={{
-                                background:
-                                  report.confidence_assessment === "HIGH_CONFIDENCE_MATCH"
-                                    ? "rgba(212, 163, 115, 0.2)"
-                                    : "rgba(238, 231, 219, 0.08)",
-                                color:
-                                  report.confidence_assessment === "HIGH_CONFIDENCE_MATCH"
-                                    ? "#dfa974"
-                                    : "#ded7cb",
-                                border: "1px solid rgba(238, 231, 219, 0.14)",
-                              }}
-                              className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider"
-                            >
-                              {report.confidence_assessment?.replace(/_/g, " ") || "EVALUATED"}
-                            </span>
-                            {report.human_review_required && (
-                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono uppercase bg-[#242220] text-[#aba497] border border-[rgba(238,231,219,0.1)]">
-                                Human Review Required
-                              </span>
-                            )}
-                          </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[11px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-[rgba(238,231,219,0.08)] text-[#736d62] text-[10px] uppercase tracking-wider font-mono">
+                            <th className="py-2.5 px-3"># / Query Ts</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Reference Match</th>
+                            <th className="py-2.5 px-3">Ref Ts / Δt</th>
+                            <th className="py-2.5 px-3">Visual Sim</th>
+                            <th className="py-2.5 px-3">L2 Vector</th>
+                            <th className="py-2.5 px-3">pHash</th>
+                            <th className="py-2.5 px-3 text-right">Inspect</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[rgba(238,231,219,0.04)] font-mono">
+                          {filteredKeyframes.map((fm, idx) => {
+                            const isSelected =
+                              selectedFrameMatch?.submitted_frame.timestamp_sec === fm.submitted_frame.timestamp_sec;
+                            const isMatch = fm.best_match?.match_confirmed;
+                            const conf = fm.best_match?.confidence_score ?? 0;
+                            const sTs = fm.submitted_frame.timestamp_sec;
+                            const rTs = fm.best_match?.source_timestamp_sec ?? 0;
+                            const delta = (sTs - rTs).toFixed(2);
 
-                          <div className="flex items-center gap-2 text-[10px] text-[#736d62] font-mono">
-                            <span>Report ID: {report.report_id?.slice(0, 8)}...</span>
-                            <button
-                              onClick={() => handleCopy(report.report_id, "report")}
-                              className="hover:text-[#f4efe6] transition-colors cursor-pointer"
-                              title="Copy report ID"
-                            >
-                              {copiedReportId ? <Check size={11} className="text-[#eee7db]" /> : <Copy size={11} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className="text-[#ded7cb] leading-relaxed m-0 text-[12px]">
-                          {report.summary || "Forensic investigation generated successfully."}
-                        </p>
-                      </div>
-
-                      {/* Timeline Intervals Section */}
-                      {report.timeline_intervals && report.timeline_intervals.length > 0 && (
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62] block">
-                            Synthesized Timeline Intervals ({report.timeline_intervals.length})
-                          </span>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {report.timeline_intervals.map((inv: TimelineInterval, idx: number) => (
-                              <div
+                            return (
+                              <tr
                                 key={idx}
-                                className="p-2.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.06)] space-y-1 font-mono text-[10.5px]"
+                                onClick={() => handleMarkerClick(fm)}
+                                style={{
+                                  background: isSelected ? "#242220" : "transparent",
+                                }}
+                                className="hover:bg-[#1f1e1c] transition-colors cursor-pointer group"
                               >
-                                <div className="flex items-center justify-between text-[#f4efe6] font-semibold">
-                                  <span>
-                                    {inv.suspect_start_sec !== undefined ? `${inv.suspect_start_sec.toFixed(1)}s` : "0.0s"} –{" "}
-                                    {inv.suspect_end_sec !== undefined ? `${inv.suspect_end_sec.toFixed(1)}s` : "0.0s"}
+                                <td className="py-2 px-3 text-[#f4efe6] font-semibold whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[#736d62] text-[10px]">#{String(idx + 1).padStart(2, "0")}</span>
+                                    <span>{sTs.toFixed(2)}s</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 whitespace-nowrap">
+                                  <span
+                                    style={{
+                                      background: isMatch
+                                        ? "rgba(212, 163, 115, 0.16)"
+                                        : conf >= 65
+                                        ? "rgba(212, 163, 115, 0.08)"
+                                        : "rgba(238, 231, 219, 0.05)",
+                                      color: isMatch ? "#dfa974" : conf >= 65 ? "#d4a373" : "#736d62",
+                                      border: `1px solid ${
+                                        isMatch
+                                          ? "rgba(212, 163, 115, 0.3)"
+                                          : "rgba(238, 231, 219, 0.08)"
+                                      }`,
+                                    }}
+                                    className="px-2 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider"
+                                  >
+                                    {isMatch ? "Match Confirmed" : conf >= 65 ? "Candidate" : "No Match"}
                                   </span>
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#242220] text-[#aba497]">
-                                    {inv.continuity_status?.replace(/_/g, " ") || "Interval"}
-                                  </span>
-                                </div>
-                                <div className="text-[#736d62] text-[10px] truncate">
-                                  Reference Asset: {inv.source_asset_id?.slice(0, 8) || "Vaulted"}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Structured Findings & Reasoning */}
-                      {report.findings && report.findings.length > 0 && (
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62] block">
-                            Key Forensic Observations ({report.findings.length})
-                          </span>
-                          <div className="space-y-1.5">
-                            {report.findings.map((f: InvestigationFinding, idx: number) => (
-                              <div
-                                key={idx}
-                                className="p-2.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.06)] space-y-1"
-                              >
-                                <div className="flex items-center justify-between text-[11px] font-bold text-[#f4efe6]">
-                                  <span>{f.category?.replace(/_/g, " ") || `Finding ${idx + 1}`}</span>
-                                </div>
-                                <p className="text-[#aba497] text-[11px] leading-relaxed m-0">
-                                  {f.statement}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Legal Triage & Recommended Action */}
-                      {report.recommended_action && (
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62] block">
-                            Recommended Legal & Operational Action
-                          </span>
-                          <div className="p-2.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.06)] flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#eee7db] mt-1.5 shrink-0" />
-                            <div className="space-y-0.5 text-[11px]">
-                              <strong className="text-[#f4efe6] block font-mono">
-                                {report.recommended_action.replace(/_/g, " ")}
-                              </strong>
-                              <p className="text-[#aba497] leading-relaxed m-0">
-                                Assessment generated by model reasoning. Authoritative human legal review is required prior to enforcement.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Limitations & Uncertainty Caveats */}
-                      {report.limitations_disclosed && report.limitations_disclosed.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.06)] space-y-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#736d62] block">
-                            Investigative Limitations & Boundaries
-                          </span>
-                          <ul className="list-disc pl-4 text-[#aba497] space-y-0.5 m-0 text-[10.5px]">
-                            {report.limitations_disclosed.map((lim: string, idx: number) => (
-                              <li key={idx}>{lim}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                                </td>
+                                <td className="py-2 px-3 text-[#ded7cb] whitespace-nowrap max-w-[140px] truncate">
+                                  {fm.best_match?.source_filename || (fm.best_match?.source_asset_id ? `${fm.best_match.source_asset_id.slice(0, 8)}...` : "—")}
+                                </td>
+                                <td className="py-2 px-3 text-[#aba497] whitespace-nowrap">
+                                  {fm.best_match ? (
+                                    <span>
+                                      {rTs.toFixed(2)}s{" "}
+                                      <span className="text-[10px] text-[#736d62]">
+                                        (Δ {Number(delta) >= 0 ? `+${delta}` : delta}s)
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-14 h-1.5 rounded-full bg-[#242220] overflow-hidden">
+                                      <div
+                                        style={{ width: `${conf}%` }}
+                                        className={`h-full ${
+                                          conf >= 80 ? "bg-[#eee7db]" : conf >= 60 ? "bg-[#dfa974]" : "bg-[#736d62]"
+                                        }`}
+                                      />
+                                    </div>
+                                    <span className="text-[#f4efe6] font-semibold">{conf}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 text-[#ded7cb] whitespace-nowrap">
+                                  {fm.best_match?.l2_distance !== undefined && fm.best_match?.l2_distance !== null
+                                    ? fm.best_match.l2_distance.toFixed(4)
+                                    : "—"}
+                                </td>
+                                <td className="py-2 px-3 text-[#aba497] whitespace-nowrap">
+                                  {fm.best_match?.phash_evidence?.hamming_distance !== undefined
+                                    ? `Dist: ${fm.best_match.phash_evidence.hamming_distance}`
+                                    : fm.best_match?.phash_match
+                                    ? "Confirmed"
+                                    : "None"}
+                                </td>
+                                <td className="py-2 px-3 text-right whitespace-nowrap">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkerClick(fm);
+                                    }}
+                                    style={{
+                                      background: isSelected ? "#eee7db" : "#242220",
+                                      color: isSelected ? "#141312" : "#ded7cb",
+                                      border: "1px solid rgba(238, 231, 219, 0.12)",
+                                    }}
+                                    className="px-2 py-0.5 rounded text-[10px] font-sans font-bold hover:bg-[#eee7db] hover:text-[#141312] transition-colors cursor-pointer"
+                                  >
+                                    {isSelected ? "Active" : "Inspect"}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
-                  {/* Single Operational Disclaimer */}
-                  <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] text-[9.5px] text-[#736d62] leading-relaxed">
-                    FixProof AI Investigation Notice: Model-derived assessments and timeline continuous intervals are generated by NVIDIA Nemotron 3.5 to assist legal triage. Final adjudication and DMCA action require authoritative human review.
+                  {/* ─── Evidence Package & Proof Package Integrity Section ─── */}
+                  <div className="pt-3 border-t border-[rgba(238,231,219,0.06)] grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                    <div className="p-3 bg-[#1a1918] rounded-xl border border-[rgba(238,231,219,0.06)] space-y-2">
+                      <div className="flex items-center gap-2 text-[#f4efe6] font-bold">
+                        <FileArchive size={14} className="text-[#eee7db]" />
+                        <span>Tamper-Evident Evidence Package</span>
+                      </div>
+                      <p className="text-[#aba497] text-[10.5px] leading-relaxed m-0">
+                        Export an Ed25519 digitally signed ZIP containing raw frame matches, MobileNet embeddings, SHA-256 asset checksums, and cryptographic chain-of-custody metadata suitable for courtroom or platform disputes.
+                      </p>
+                      <div className="pt-1 flex items-center gap-2">
+                        <button
+                          onClick={handleExportPackage}
+                          disabled={exportingPackage}
+                          style={{
+                            background: "#242220",
+                            border: "1px solid rgba(238, 231, 219, 0.12)",
+                            color: "#f4efe6",
+                          }}
+                          className="px-3 py-1.5 rounded-lg hover:bg-[#2c2a27] text-[10.5px] font-bold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          <Download size={11} className={exportingPackage ? "animate-bounce" : ""} />
+                          <span>{exportingPackage ? "Packaging..." : "Export ZIP Package"}</span>
+                        </button>
+                        <button
+                          onClick={() => setShowVerifyModal(true)}
+                          style={{
+                            background: "#1a1918",
+                            border: "1px solid rgba(238, 231, 219, 0.12)",
+                            color: "#aba497",
+                          }}
+                          className="px-3 py-1.5 rounded-lg hover:text-[#f4efe6] text-[10.5px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <ShieldCheck size={11} />
+                          <span>Verify Archive</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Bridge to Dedicated Nemotron Intelligence Page */}
+                    <div className="p-3 bg-[#1a1918] rounded-xl border border-[rgba(238,231,219,0.06)] space-y-2 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[#f4efe6] font-bold">
+                          <Cpu size={14} className="text-[#dfa974]" />
+                          <span>Legal Synthesis & Commercial Enforcement</span>
+                        </div>
+                        <p className="text-[#aba497] text-[10.5px] leading-relaxed m-0">
+                          Automated reasoning, multi-interval timeline derivation, copyright notice preparation, and revenue-sharing outreach are consolidated exclusively in the Nemotron Intelligence & Action Center.
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        {onNavigateToNemotron ? (
+                          <button
+                            onClick={() => onNavigateToNemotron(selectedIncident)}
+                            style={{
+                              background: "#eee7db",
+                              color: "#141312",
+                            }}
+                            className="w-full sm:w-auto px-4 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-bold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                          >
+                            <span>Open in Nemotron Center</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-[#736d62] font-mono">
+                            Navigate to the Nemotron tab from the sidebar.
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </>

@@ -228,6 +228,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
                 setActiveTab("vault");
               }}
               onNavigateToHunter={() => setActiveTab("hunter")}
+              onNavigateToNemotron={handleNavigateToNemotron}
             />
           )}
 
