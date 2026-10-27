@@ -98,14 +98,23 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   };
 
   const currentTitle = PAGE_TITLES[activeTab] || "Command Center";
-  const isDarkTab = ["hunter", "incidents", "intelligence", "enforcer", "notifications"].includes(
-    activeTab
-  );
+  const isDarkTab = [
+    "overview",
+    "vault",
+    "hunter",
+    "incidents",
+    "intelligence",
+    "enforcer",
+    "notifications",
+    "analytics",
+    "settings",
+    "support",
+  ].includes(activeTab);
 
   return (
     <div
       style={{
-        background: isDarkTab ? "#06090f" : "#f6f7fc",
+        background: isDarkTab ? "#080b11" : "#f6f7fc",
         transition: "background 0.25s ease",
       }}
       className="flex min-h-screen"
@@ -158,6 +167,9 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
               vaultStatus={vaultStatus}
               incidents={incidents}
               onNavigateToTab={setActiveTab}
+              onViewIncident={handleNavigateToIncidents}
+              onRefresh={loadBackendState}
+              refreshing={refreshing}
             />
           )}
 
