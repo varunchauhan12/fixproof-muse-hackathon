@@ -219,6 +219,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
               vaultStatus={vaultStatus}
               incidents={incidents}
               onNavigateToTab={setActiveTab}
+              onSelectIncident={handleNavigateToIncidents}
             />
           )}
 
