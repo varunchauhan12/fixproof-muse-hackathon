@@ -1,5 +1,5 @@
 """
-URL-Based Video Screening module for FixProof (Milestone 6C.5).
+URL-Based Video Screening module for FixProof (Phase 2.2).
 Ported and adapted from MediaGuard Sports (agents/spider.py & agents/sentinel.py).
 
 Features:
@@ -7,9 +7,10 @@ Features:
   cloud metadata endpoints, loopback, link-local, unsafe redirects).
 - Uses yt-dlp strictly with download=False to extract public metadata and thumbnail URL
   without downloading or streaming third-party video.
-- Safely retrieves public thumbnail bytes with preflight limits and redirect checks.
-- Screens suspect thumbnail against the trusted FAISS reference vault using FixProof's
-  MobileNetV3 (576-dim) L2 embeddings and pHash cross-verification.
+- Discovers primary public thumbnail plus permitted preview/storyboard candidates.
+- Evaluates candidate frames against reference vault using MobileNetV3 (576-dim) + pHash.
+- Enforces Shannon image entropy filter to reject blank/solid test patterns.
+- Submits top candidate pairs to Nemotron Vision Verification (nvidia/Nemotron-3.5-Super-VL).
 - Isolated storage: Suspect thumbnails are kept strictly under storage/suspects/thumbnails/
   and NEVER indexed into the trusted FAISS reference vault.
 - Returns structured preliminary screening results with mandatory disclaimer,
@@ -31,9 +32,22 @@ from PIL import Image
 import requests
 import yt_dlp
 
-from app.matcher import match_single_frame, l2_to_confidence, severity_from_confidence, MATCH_THRESHOLD, SUSPECT_THRESHOLD
+from app.matcher import (
+    match_single_frame,
+    l2_to_confidence,
+    l2_to_visual_similarity,
+    severity_from_confidence,
+    compute_image_entropy,
+    load_reference_frame_image,
+    MATCH_THRESHOLD,
+    SUSPECT_THRESHOLD,
+    MIN_IMAGE_ENTROPY,
+    SCORE_VERSION,
+    VISUAL_SIMILARITY_NOTICE,
+)
 from app.registry import save_incident
 from app.vault import ReferenceVault, default_vault
+from app.vision_verifier import verify_candidate_pair
 
 logger = logging.getLogger(__name__)
 
@@ -78,17 +92,17 @@ BLOCKED_HOSTNAMES = {
 }
 
 PRELIMINARY_SCREENING_DISCLAIMER = (
-    "Preliminary thumbnail screening only. A thumbnail-only visual similarity match is NOT "
+    "Preliminary preview screening only. A visual similarity match on public preview thumbnails is NOT "
     "a definitive copyright-infringement finding and cannot verify the contents of the full video. "
-    "Definitive legal or forensic assessment requires full video acquisition and verification."
+    "Definitive legal assessment requires authorized full video review."
 )
 
 SCREENING_LIMITATIONS = [
-    "Evaluated ONLY the public static thumbnail image; underlying video frames were not scanned.",
-    "Third-party video stream was not downloaded, inspected, or bypassed per platform restrictions.",
-    "Video content may differ substantially from thumbnail artwork, clickbait stills, or title cards.",
+    "Evaluated public preview thumbnail images; third-party video stream was not downloaded per platform restrictions.",
+    "Video stream was not bypassed, downloaded, or ingested per platform protections.",
+    "Video content may differ from public thumbnail artwork or preview stills.",
     "A clean thumbnail screening result does NOT guarantee non-infringing video content.",
-    "Preliminary screening results are non-adjudicative and require full video review."
+    "Visual similarity measurements are not calibrated probabilities of infringement.",
 ]
 
 
@@ -109,7 +123,6 @@ class MetadataExtractionError(Exception):
 
 def is_ip_restricted(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """Checks whether an IP address belongs to any private, loopback, or reserved network range."""
-    # Check built-in properties
     if (
         ip.is_private
         or ip.is_loopback
@@ -120,12 +133,10 @@ def is_ip_restricted(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     ):
         return True
 
-    # Check against explicit restricted networks
     for net in RESTRICTED_NETWORKS:
         if ip in net:
             return True
 
-    # Handle IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1)
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         return is_ip_restricted(ip.ipv4_mapped)
 
@@ -162,23 +173,18 @@ def validate_url_for_ssrf(url_str: str) -> urllib.parse.SplitResult:
     if not hostname:
         raise SSRFValidationError("URL must include a valid hostname.")
 
-    # Remove enclosing IPv6 brackets if present
     clean_host = hostname.strip("[]")
-
     if clean_host in BLOCKED_HOSTNAMES:
         raise SSRFValidationError(f"Access to host '{hostname}' is blocked for security.")
 
-    # Check if host is a direct IP literal
     try:
         ip = ipaddress.ip_address(clean_host)
         if is_ip_restricted(ip):
             raise SSRFValidationError(f"Direct access to private/restricted IP '{ip}' is blocked.")
         return parsed
     except ValueError:
-        # Host is a domain name, proceed to DNS resolution
         pass
 
-    # Resolve domain to all IP addresses
     port = parsed.port or (443 if scheme == "https" else 80)
     try:
         addr_info = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
@@ -219,7 +225,6 @@ def fetch_suspect_thumbnail_image(
     raw_content = bytearray()
 
     for _ in range(max_redirects):
-        # Validate current URL before each outbound request to block redirect SSRF
         validate_url_for_ssrf(current_url)
 
         try:
@@ -233,7 +238,6 @@ def fetch_suspect_thumbnail_image(
         except requests.RequestException as e:
             raise MetadataExtractionError(f"Failed to connect to thumbnail URL: {e}")
 
-        # Check for HTTP redirect
         if resp.status_code in (301, 302, 303, 307, 308):
             location = resp.headers.get("Location")
             if not location:
@@ -244,7 +248,6 @@ def fetch_suspect_thumbnail_image(
         if resp.status_code != 200:
             raise MetadataExtractionError(f"Thumbnail fetch returned HTTP status {resp.status_code}.")
 
-        # Check declared content-length if present
         cl_header = resp.headers.get("Content-Length")
         if cl_header:
             try:
@@ -255,7 +258,6 @@ def fetch_suspect_thumbnail_image(
             except ValueError:
                 pass
 
-        # Stream content with hard size cap
         try:
             for chunk in resp.iter_content(chunk_size=32768):
                 if chunk:
@@ -273,7 +275,6 @@ def fetch_suspect_thumbnail_image(
     if not raw_content:
         raise MetadataExtractionError("Retrieved thumbnail is empty (0 bytes).")
 
-    # Decode image using PIL
     try:
         pil_img = Image.open(io.BytesIO(raw_content)).convert("RGB")
     except Exception as e:
@@ -300,7 +301,6 @@ def detect_platform_from_info(info: Dict[str, Any], url: str) -> str:
     if "twitter" in extractor or "x.com" in url_lower or "twitter.com" in url_lower:
         return "Twitter / X"
 
-    # Fallback to capitalized extractor key if available
     if extractor:
         return extractor.capitalize()
     return "Public Video Platform"
@@ -308,12 +308,8 @@ def detect_platform_from_info(info: Dict[str, Any], url: str) -> str:
 
 def extract_public_video_metadata(url: str) -> Dict[str, Any]:
     """
-    Extracts public video metadata and thumbnail URL using yt-dlp without downloading.
-    
-    Guarantees:
-    - Enforces SSRF preflight validation.
-    - Uses download=False, skip_download=True, extract_flat=False.
-    - Never accesses third-party video media stream.
+    Extracts public video metadata and thumbnail URLs using yt-dlp without downloading streams.
+    Discovers primary thumbnail plus permitted preview candidate URLs.
     """
     validate_url_for_ssrf(url)
 
@@ -344,13 +340,30 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
             )
         raise MetadataExtractionError(f"Could not retrieve public metadata: {first_line}")
 
-    # Determine best thumbnail URL
+    # Determine best primary thumbnail URL
     thumbnail_url = info.get("thumbnail")
-    if not thumbnail_url and info.get("thumbnails"):
-        # Select thumbnail with highest resolution or last entry
-        thumbnails = info.get("thumbnails")
-        if isinstance(thumbnails, list) and len(thumbnails) > 0:
-            thumbnail_url = thumbnails[-1].get("url")
+    raw_thumbnails = info.get("thumbnails") or []
+
+    if not thumbnail_url and raw_thumbnails:
+        if isinstance(raw_thumbnails, list) and len(raw_thumbnails) > 0:
+            thumbnail_url = raw_thumbnails[-1].get("url")
+
+    # Discover candidate preview URLs (up to 5 distinct preview URLs)
+    candidate_urls: List[str] = []
+    if thumbnail_url:
+        candidate_urls.append(thumbnail_url)
+
+    if isinstance(raw_thumbnails, list):
+        for t in raw_thumbnails:
+            u = t.get("url")
+            if u and isinstance(u, str) and u.startswith("http") and u not in candidate_urls:
+                # Filter out tiny favicons or icons under 100px width
+                w = t.get("width")
+                h = t.get("height")
+                if (w is None or w >= 100) and (h is None or h >= 80):
+                    candidate_urls.append(u)
+            if len(candidate_urls) >= 5:
+                break
 
     platform = detect_platform_from_info(info, url)
 
@@ -366,6 +379,8 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
         "description": (info.get("description") or "")[:400],
         "webpage_url": info.get("webpage_url") or url,
         "thumbnail_url": thumbnail_url,
+        "candidate_thumbnail_urls": candidate_urls,
+        "candidate_count": len(candidate_urls),
     }
 
     return metadata
@@ -374,18 +389,12 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
 def screen_video_url(
     url: str,
     vault: Optional[ReferenceVault] = None,
+    run_vision_verification: bool = True,
 ) -> Dict[str, Any]:
     """
     Orchestrates URL-based preliminary video screening.
-    
-    Workflow:
-    1. Validates URL against SSRF and platform restrictions.
-    2. Extracts public metadata and thumbnail URL without video stream download.
-    3. Retrieves public thumbnail image bytes safely.
-    4. Screens thumbnail against trusted reference FAISS vault using MobileNetV3 + pHash.
-    5. Caches suspect thumbnail locally under storage/suspects/thumbnails/ (never in reference vault).
-    6. Persists investigation incident with investigation_type='URL_SCREENING'.
-    7. Returns complete evidence dossier with disclaimers and recommended action.
+    Evaluates discovered candidate preview images against the reference FAISS vault
+    and executes bounded Nemotron vision verification on top candidate matches.
     """
     if vault is None:
         vault = default_vault
@@ -393,128 +402,194 @@ def screen_video_url(
     incident_id = str(uuid.uuid4())
     scanned_at = datetime.now(timezone.utc).isoformat()
 
-    # Step 1 & 2: Extract public metadata
+    # Step 1: Extract public metadata
     metadata = extract_public_video_metadata(url)
-    thumbnail_url = metadata.get("thumbnail_url")
+    candidate_urls = metadata.get("candidate_thumbnail_urls") or []
+    if not candidate_urls and metadata.get("thumbnail_url"):
+        candidate_urls = [metadata["thumbnail_url"]]
 
-    if not thumbnail_url:
+    if not candidate_urls:
         raise MetadataExtractionError(
             "Video metadata retrieved successfully, but no public thumbnail image was found. "
             "Screening cannot proceed without a thumbnail."
         )
 
-    # Step 3: Safely download suspect thumbnail
-    pil_img, raw_bytes = fetch_suspect_thumbnail_image(thumbnail_url)
+    screening_mode = "MULTI_FRAME_PREVIEW_SCREENING" if len(candidate_urls) > 1 else "SINGLE_FRAME_PRELIMINARY"
 
-    # Step 4: Cache suspect thumbnail locally for UI display (isolated in suspects dir)
-    cached_thumbnail_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg"
-    try:
-        cached_thumbnail_path.write_bytes(raw_bytes)
-    except Exception as e:
-        logger.warning(f"[URL Screener] Could not cache suspect thumbnail on disk: {e}")
-
-    # Step 5: Screen against reference vault
-    match_result = match_single_frame(
-        suspect_img=pil_img,
-        submitted_asset_id=incident_id,
-        vault=vault,
-        k=3,
-    )
-
-    best_match = match_result.get("best_match") if match_result else None
-    top_candidates = match_result.get("top_candidates", []) if match_result else []
-
-    # Frame match representation for consistency with incident schema
     frame_matches = []
-    thumbnail_frame_info = {
-        "frame_index": 0,
-        "timestamp_sec": 0,
-        "filename": f"thumbnail_{incident_id[:8]}.jpg",
-        "frame_path": str(cached_thumbnail_path),
-    }
-
     highest_confidence = 0.0
     lowest_l2_distance = None
     candidate_matches_found = 0
     matched_asset_ids = set()
+    raw_bytes_primary = b""
 
-    if best_match:
-        highest_confidence = float(best_match.get("confidence_score") or 0.0)
-        lowest_l2_distance = float(best_match.get("l2_distance")) if best_match.get("l2_distance") is not None else None
+    # Candidate pairs shortlisted for second-stage Nemotron vision verification
+    candidate_pairs_to_verify: List[Dict[str, Any]] = []
 
-        if best_match.get("match_confirmed"):
-            candidate_matches_found = 1
-            matched_asset_ids.add(best_match.get("source_asset_id"))
-        elif lowest_l2_distance is not None and lowest_l2_distance < SUSPECT_THRESHOLD:
-            matched_asset_ids.add(best_match.get("source_asset_id"))
+    for c_idx, c_url in enumerate(candidate_urls[:5]):
+        try:
+            pil_img, raw_bytes = fetch_suspect_thumbnail_image(c_url)
+            if c_idx == 0:
+                raw_bytes_primary = raw_bytes
 
-        frame_matches.append({
-            "submitted_frame": thumbnail_frame_info,
-            "best_match": best_match,
-            "top_candidates": top_candidates,
-        })
-    else:
-        frame_matches.append({
-            "submitted_frame": thumbnail_frame_info,
-            "best_match": None,
-            "top_candidates": [],
-        })
+            # Cache preview image locally in suspects directory
+            cached_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}_{c_idx}.jpg"
+            if c_idx == 0:
+                # Also save standard {incident_id}.jpg for legacy endpoints
+                (SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg").write_bytes(raw_bytes)
+            cached_path.write_bytes(raw_bytes)
+
+            entropy_val = compute_image_entropy(pil_img)
+            is_low_entropy = bool(entropy_val < MIN_IMAGE_ENTROPY)
+
+            # Match against FAISS vault
+            match_result = match_single_frame(
+                suspect_img=pil_img,
+                submitted_asset_id=incident_id,
+                vault=vault,
+                k=3,
+            )
+
+            best_match = match_result.get("best_match") if match_result else None
+            top_candidates = match_result.get("top_candidates", []) if match_result else []
+
+            frame_info = {
+                "frame_index": c_idx,
+                "timestamp_sec": c_idx * 5,  # Heuristic preview offset
+                "filename": f"preview_{incident_id[:8]}_{c_idx}.jpg",
+                "frame_path": str(cached_path),
+                "entropy": entropy_val,
+                "low_entropy_flag": is_low_entropy,
+            }
+
+            if best_match:
+                conf = float(best_match.get("confidence_score") or 0.0)
+                dist = float(best_match.get("l2_distance")) if best_match.get("l2_distance") is not None else None
+
+                if conf > highest_confidence:
+                    highest_confidence = conf
+                if dist is not None and (lowest_l2_distance is None or dist < lowest_l2_distance):
+                    lowest_l2_distance = dist
+
+                if best_match.get("match_confirmed"):
+                    candidate_matches_found += 1
+                    matched_asset_ids.add(best_match.get("source_asset_id"))
+                elif dist is not None and dist < SUSPECT_THRESHOLD:
+                    matched_asset_ids.add(best_match.get("source_asset_id"))
+
+                # Shortlist for Nemotron vision verification if passing CV gates
+                if (
+                    dist is not None
+                    and dist < SUSPECT_THRESHOLD
+                    and not is_low_entropy
+                    and (best_match.get("phash_match") or best_match.get("phash_score", 0) >= 30)
+                ):
+                    comp_rank = 0.6 * (1.0 - min(1.0, dist)) + 0.4 * (best_match.get("phash_score", 0) / 100.0)
+                    candidate_pairs_to_verify.append({
+                        "frame_match_idx": len(frame_matches),
+                        "suspect_pil": pil_img,
+                        "best_match": best_match,
+                        "composite_rank": comp_rank,
+                    })
+
+                frame_matches.append({
+                    "submitted_frame": frame_info,
+                    "best_match": best_match,
+                    "top_candidates": top_candidates,
+                })
+            else:
+                frame_matches.append({
+                    "submitted_frame": frame_info,
+                    "best_match": None,
+                    "top_candidates": [],
+                })
+
+        except Exception as e:
+            logger.warning(f"[URL Screener] Error screening candidate preview {c_idx} ({c_url}): {e}")
+            continue
+
+    if not frame_matches:
+        raise MetadataExtractionError("Could not retrieve or process any candidate preview images.")
+
+    # Execute Bounded Nemotron Vision Verification on Top Candidates (Max 3)
+    if run_vision_verification and candidate_pairs_to_verify:
+        try:
+            candidate_pairs_to_verify.sort(key=lambda x: x["composite_rank"], reverse=True)
+            top_pairs = candidate_pairs_to_verify[:3]
+
+            for pair_idx, cand in enumerate(top_pairs):
+                best = cand["best_match"]
+                ref_pil = load_reference_frame_image(best)
+                if ref_pil and cand.get("suspect_pil"):
+                    v_res = verify_candidate_pair(
+                        suspect_img=cand["suspect_pil"],
+                        ref_img=ref_pil,
+                        suspect_timestamp_sec=0.0,
+                        reference_timestamp_sec=float(best.get("source_timestamp_sec", 0.0)),
+                        source_asset_id=str(best.get("source_asset_id", "")),
+                        candidate_pair_index=pair_idx,
+                    )
+                    fm_idx = cand["frame_match_idx"]
+                    frame_matches[fm_idx]["best_match"]["vision_verification"] = v_res
+        except Exception as e:
+            logger.warning(f"[URL Screener] Vision verification stage encountered error: {e}")
 
     # Determine overall status & recommended action
-    # Requirement: "If evidence is insufficient, return NEEDS_FULL_VIDEO_REVIEW rather than claiming the video is clean or pirated."
     if vault.vector_db.ntotal == 0:
         overall_status = "NO_REFERENCE_DATA"
         status_message = "Reference library is empty. No reference videos are currently indexed for comparison."
     elif candidate_matches_found > 0:
         overall_status = "CANDIDATE_MATCH"
         status_message = (
-            f"Preliminary visual match detected on thumbnail against reference asset '{list(matched_asset_ids)[0]}'. "
-            "Thumbnail match is preliminary; full video review is required for definitive assessment."
+            f"Preliminary visual match detected on preview thumbnail against reference asset '{list(matched_asset_ids)[0]}'. "
+            "Thumbnail match is preliminary; authorized full video review is required for definitive assessment."
         )
-    elif highest_confidence >= 62.5:  # L2 distance < 0.75
+    elif lowest_l2_distance is not None and lowest_l2_distance < SUSPECT_THRESHOLD:
         overall_status = "SUSPECT"
         status_message = (
-            "Visual proximity to reference asset detected on thumbnail image. "
-            "Preliminary thumbnail check requires full video review."
+            "Visual proximity to reference asset detected on preview thumbnail image. "
+            "Preliminary preview check requires full video review."
         )
     else:
-        # Crucial: Thumbnail does not match, but video itself is unverified!
         overall_status = "NEEDS_FULL_VIDEO_REVIEW"
         status_message = (
-            "No visual match detected on the public thumbnail image. Because only the static thumbnail "
-            "was screened, full video content remains unverified. If copyright infringement is suspected, "
-            "full video acquisition and review is required."
+            "No visual match detected on the public preview thumbnail image(s). Because only static preview images "
+            "were screened, full video content remains unverified. If copyright infringement is suspected, "
+            "authorized full video acquisition and review is required."
         )
 
     # Format incident record
     incident_record = {
         "incident_id": incident_id,
         "investigation_type": "URL_SCREENING",
+        "screening_mode": screening_mode,
         "suspect_filename": f"[{metadata['platform']}] {metadata['title']}",
         "suspect_url": url,
         "source_url": url,
         "platform": metadata["platform"],
         "metadata": metadata,
-        "thumbnail_url": thumbnail_url,
+        "thumbnail_url": metadata.get("thumbnail_url"),
         "suspect_thumbnail_preview_url": f"/api/threats/suspect-thumbnail/{incident_id}",
-        "file_size": len(raw_bytes),
+        "file_size": len(raw_bytes_primary),
         "duration_seconds": metadata.get("duration_seconds", 0.0),
-        "total_frames_analyzed": 1,  # Thumbnail-only
-        "frame_count": 1,
+        "total_frames_analyzed": len(frame_matches),
+        "frame_count": len(frame_matches),
         "candidate_matches_found": candidate_matches_found,
         "highest_confidence": highest_confidence,
+        "highest_visual_similarity": highest_confidence,
         "lowest_l2_distance": lowest_l2_distance,
         "overall_status": overall_status,
         "recommended_action": "NEEDS_FULL_VIDEO_REVIEW",
         "status_message": status_message,
         "matched_assets": sorted(list(matched_asset_ids)),
         "frame_matches": frame_matches,
+        "score_version": SCORE_VERSION,
+        "score_calibration_notice": VISUAL_SIMILARITY_NOTICE,
         "disclaimer": PRELIMINARY_SCREENING_DISCLAIMER,
         "limitations": SCREENING_LIMITATIONS,
         "scanned_at": scanned_at,
     }
 
-    # Step 6: Persist incident in FixProof incident registry (local & Supabase modes)
     try:
         save_incident(incident_record)
     except Exception as e:

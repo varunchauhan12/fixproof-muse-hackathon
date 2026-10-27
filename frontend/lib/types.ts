@@ -34,6 +34,22 @@ export interface VaultStatus {
   is_cloud?: boolean;
 }
 
+export interface VisionVerificationResult {
+  pair_id?: string;
+  source_asset_id?: string;
+  source_frame_id?: number | string;
+  suspect_frame_idx?: number | string;
+  model_id?: string;
+  visual_correspondence?: "HIGH_CORRESPONDENCE" | "POSSIBLE_REUSE" | "UNRELATED_SCENE" | "UNVERIFIED";
+  supporting_visible_features?: string[];
+  contradictions?: string[];
+  uncertainty_notes?: string;
+  reasoning_summary?: string;
+  status?: "VERIFIED" | "FAILED" | "SKIPPED";
+  verified_at?: string;
+  cached?: boolean;
+}
+
 export interface MatchCandidate {
   vector_id: number;
   source_asset_id: string;
@@ -43,6 +59,9 @@ export interface MatchCandidate {
   source_frame_path: string;
   l2_distance: number;
   confidence_score: number;
+  visual_similarity_score?: number;
+  score_version?: string;
+  score_calibration_notice?: string;
   severity: "CRITICAL" | "WARNING" | "INFO";
   match_confirmed: boolean;
   phash_match?: boolean;
@@ -54,6 +73,7 @@ export interface MatchCandidate {
     phash_score: number;
     phash_match: boolean;
   } | null;
+  vision_verification?: VisionVerificationResult | null;
 }
 
 export interface FrameMatchDetail {
@@ -87,6 +107,10 @@ export interface MatchAnalysisResult {
   highest_confidence: number;
   lowest_l2_distance: number | null;
   overall_status: "CANDIDATE_MATCH" | "SUSPECT" | "CLEAN" | "NO_REFERENCE_DATA" | "NEEDS_FULL_VIDEO_REVIEW";
+  score_version?: string;
+  score_calibration_notice?: string;
+  screening_mode?: "SINGLE_FRAME_PRELIMINARY" | "MULTI_FRAME_PREVIEW_SCREENING";
+  evaluated_previews_count?: number;
   message?: string;
   matched_assets: string[];
   frame_matches: FrameMatchDetail[];

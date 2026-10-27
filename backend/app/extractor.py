@@ -118,11 +118,12 @@ def extract_video_frames(
     output_dir: Path,
     sample_interval_sec: int = 5,
     preflight_info: Optional[Dict[str, Any]] = None,
+    max_frames: int = 120,
 ) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Extracts frames from a video file at regular intervals.
     Mirrors the MediaGuard sports archivist sampling logic:
-      - 1 frame every 5 seconds (frame_id % (frame_rate * 5) == 0)
+      - 1 frame every 5 seconds (bounded by max_frames)
       - Records timestamp_sec = extracted_count * sample_interval_sec
       - Saves frames as JPEG images in output_dir
       - Defers output directory creation until the first valid frame is written.
@@ -131,14 +132,8 @@ def extract_video_frames(
         video_path: Path to the video file on disk.
         output_dir: Directory where extracted JPEG frames will be saved.
         sample_interval_sec: Interval in seconds between extracted frames (default 5).
-        preflight_info: Optional preflight metadata from `preflight_video_file`. If omitted, preflight is run automatically.
-
-    Returns:
-        A tuple of (duration_seconds, extracted_frames_metadata_list).
-
-    Raises:
-        ValueError: If the video cannot be opened, has no readable frames, or is corrupted.
-        IOError: If writing a frame image fails.
+        preflight_info: Optional preflight metadata from `preflight_video_file`.
+        max_frames: Maximum number of frames to extract (default 120) to bound resource usage.
     """
     if preflight_info is None:
         preflight_info = preflight_video_file(video_path)
@@ -146,6 +141,10 @@ def extract_video_frames(
     frame_rate = preflight_info.get("frame_rate", 1)
     total_frames = preflight_info.get("total_frames", 0)
     duration_sec = preflight_info.get("estimated_duration_sec", 0.0)
+
+    # Adaptive bounding: adjust sample interval if estimated frames exceed max_frames
+    if max_frames > 0 and duration_sec > 0 and (duration_sec / sample_interval_sec) > max_frames:
+        sample_interval_sec = max(sample_interval_sec, int(math.ceil(duration_sec / float(max_frames))))
 
     sample_interval = frame_rate * sample_interval_sec
     if sample_interval < 1:

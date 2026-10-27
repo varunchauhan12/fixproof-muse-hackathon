@@ -26,6 +26,14 @@ import {
   ShieldCheck,
   FileArchive,
   X,
+  Play,
+  Pause,
+  RotateCcw,
+  Sliders,
+  Eye,
+  SplitSquareVertical,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -38,6 +46,7 @@ import {
   InvestigationFinding,
   RecommendedAction,
   ConfidenceAssessment,
+  VisionVerificationResult,
 } from "@/lib/types";
 import {
   API_BASE,
@@ -48,6 +57,8 @@ import {
   investigateIncident,
   exportIncidentEvidencePackage,
   verifyEvidencePackage,
+  getAssetVideoUrl,
+  formatDuration,
 } from "@/lib/api";
 
 interface IncidentResponseProps {
@@ -69,6 +80,24 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   );
   const [selectedFrameMatch, setSelectedFrameMatch] = useState<FrameMatchDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  // Synchronized Playback state
+  const refVideoRef = useRef<HTMLVideoElement | null>(null);
+  const suspectVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackRate, setPlaybackRate] = useState<number>(1.0);
+  const [suspectCurrentTime, setSuspectCurrentTime] = useState<number>(0);
+  const [suspectDuration, setSuspectDuration] = useState<number>(0);
+  const [refCurrentTime, setRefCurrentTime] = useState<number>(0);
+  const [refDuration, setRefDuration] = useState<number>(0);
+  const [temporalOffset, setTemporalOffset] = useState<number>(0); // suspect - ref
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const isSyncingRef = useRef<boolean>(false);
+
+  // Evidence overlay inspection state
+  const [overlayMode, setOverlayMode] = useState<"side-by-side" | "difference">("side-by-side");
+  const [overlayOpacity, setOverlayOpacity] = useState<number>(50); // 0-100%
+  const [blendDifference, setBlendDifference] = useState<boolean>(true);
 
   // Nemotron Investigation state
   const [report, setReport] = useState<InvestigationReport | null>(null);
@@ -286,17 +315,146 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     }
   }, [initialIncident]);
 
+  // Helper to derive matched reference asset ID
+  const matchedAssetId =
+    selectedFrameMatch?.best_match?.source_asset_id ||
+    (selectedIncident?.matched_assets && selectedIncident.matched_assets.length > 0
+      ? (typeof selectedIncident.matched_assets[0] === "object"
+          ? (selectedIncident.matched_assets[0] as any).asset_id
+          : String(selectedIncident.matched_assets[0]))
+      : null);
+
+  // Total timeline duration calculation
+  const totalTimelineDuration = Math.max(
+    selectedIncident?.duration_seconds || 0,
+    suspectDuration || 0,
+    refDuration || 0,
+    selectedIncident?.frame_matches && selectedIncident.frame_matches.length > 0
+      ? Math.max(...selectedIncident.frame_matches.map((f) => f.submitted_frame.timestamp_sec)) + 5
+      : 10
+  );
+
+  const togglePlay = () => {
+    if (isPlaying) {
+      suspectVideoRef.current?.pause();
+      refVideoRef.current?.pause();
+      setIsPlaying(false);
+    } else {
+      if (suspectVideoRef.current) {
+        suspectVideoRef.current.play().catch(() => {});
+      }
+      if (refVideoRef.current) {
+        refVideoRef.current.play().catch(() => {});
+      }
+      setIsPlaying(true);
+    }
+  };
+
+  const handleRateChange = (rate: number) => {
+    setPlaybackRate(rate);
+    if (suspectVideoRef.current) suspectVideoRef.current.playbackRate = rate;
+    if (refVideoRef.current) refVideoRef.current.playbackRate = rate;
+  };
+
+  const handleRestart = () => {
+    if (suspectVideoRef.current) suspectVideoRef.current.currentTime = 0;
+    const targetRef = Math.max(0, -temporalOffset);
+    if (refVideoRef.current) refVideoRef.current.currentTime = targetRef;
+    setSuspectCurrentTime(0);
+    setRefCurrentTime(targetRef);
+  };
+
+  const handleSuspectTimeUpdate = () => {
+    if (!suspectVideoRef.current || isSyncingRef.current) return;
+    const curTime = suspectVideoRef.current.currentTime;
+    setSuspectCurrentTime(curTime);
+
+    // Drift correction on reference follower
+    if (refVideoRef.current && isPlaying) {
+      const expectedRefTime = Math.max(0, curTime - temporalOffset);
+      const actualRefTime = refVideoRef.current.currentTime;
+      if (Math.abs(actualRefTime - expectedRefTime) > 0.35) {
+        isSyncingRef.current = true;
+        refVideoRef.current.currentTime = expectedRefTime;
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 80);
+      }
+    }
+  };
+
+  const handleRefTimeUpdate = () => {
+    if (!refVideoRef.current) return;
+    setRefCurrentTime(refVideoRef.current.currentTime);
+  };
+
+  const handleTimelineScrub = (targetSec: number) => {
+    setSuspectCurrentTime(targetSec);
+    if (suspectVideoRef.current) {
+      suspectVideoRef.current.currentTime = targetSec;
+    }
+    const targetRef = Math.max(0, targetSec - temporalOffset);
+    if (refVideoRef.current) {
+      refVideoRef.current.currentTime = targetRef;
+      setRefCurrentTime(targetRef);
+    }
+  };
+
+  const handleMarkerClick = (fm: FrameMatchDetail) => {
+    setSelectedFrameMatch(fm);
+    // Pause on inspection
+    suspectVideoRef.current?.pause();
+    refVideoRef.current?.pause();
+    setIsPlaying(false);
+
+    const sTs = fm.submitted_frame.timestamp_sec;
+    const rTs = fm.best_match?.source_timestamp_sec ?? Math.max(0, sTs - temporalOffset);
+    setTemporalOffset(parseFloat((sTs - rTs).toFixed(2)));
+
+    if (suspectVideoRef.current) {
+      suspectVideoRef.current.currentTime = sTs;
+      setSuspectCurrentTime(sTs);
+    }
+    if (refVideoRef.current) {
+      refVideoRef.current.currentTime = rTs;
+      setRefCurrentTime(rTs);
+    }
+  };
+
   useEffect(() => {
     const incidentId = selectedIncident?.incident_id || null;
     activeIncidentIdRef.current = incidentId;
+
+    // Reset video playback states when switching incidents
+    setIsPlaying(false);
+    if (suspectVideoRef.current) {
+      suspectVideoRef.current.pause();
+      suspectVideoRef.current.currentTime = 0;
+    }
+    if (refVideoRef.current) {
+      refVideoRef.current.pause();
+      refVideoRef.current.currentTime = 0;
+    }
+    setSuspectCurrentTime(0);
+    setRefCurrentTime(0);
+    setOverlayMode("side-by-side");
 
     if (selectedIncident && selectedIncident.frame_matches.length > 0) {
       const firstWithMatch = selectedIncident.frame_matches.find(
         (f) => f.best_match?.match_confirmed
       );
-      setSelectedFrameMatch(firstWithMatch || selectedIncident.frame_matches[0]);
+      const chosen = firstWithMatch || selectedIncident.frame_matches[0];
+      setSelectedFrameMatch(chosen);
+      if (chosen.best_match) {
+        const sTs = chosen.submitted_frame.timestamp_sec;
+        const rTs = chosen.best_match.source_timestamp_sec ?? 0;
+        setTemporalOffset(parseFloat((sTs - rTs).toFixed(2)));
+      } else {
+        setTemporalOffset(0);
+      }
     } else {
       setSelectedFrameMatch(null);
+      setTemporalOffset(0);
     }
 
     // Fetch existing report and history when selected incident changes
@@ -436,7 +594,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     )}
 
                     <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2">
-                      <span>Conf: {inc.highest_confidence}%</span>
+                      <span>Visual Sim: {inc.highest_confidence}%</span>
                       <span>Matches: {inc.candidate_matches_found}</span>
                     </div>
                   </div>
@@ -565,12 +723,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       <span className="text-slate-500 block">Total Analyzed</span>
                       <strong className="text-white">
                         {selectedIncident.investigation_type === "URL_SCREENING"
-                          ? "1 thumbnail"
+                          ? (selectedIncident.evaluated_previews_count && selectedIncident.evaluated_previews_count > 1
+                              ? `${selectedIncident.evaluated_previews_count} previews`
+                              : "1 thumbnail")
                           : `${selectedIncident.total_frames_analyzed} frames`}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Highest Confidence</span>
+                      <span className="text-slate-500 block">Peak Visual Feature Sim</span>
                       <strong className="text-white">{selectedIncident.highest_confidence}%</strong>
                     </div>
                     <div>
@@ -587,6 +747,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         {selectedIncident.matched_assets.length} asset(s)
                       </strong>
                     </div>
+                  </div>
+
+                  {/* Calibration Notice in Technical Header */}
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[10px] text-slate-400 leading-relaxed flex items-center gap-2">
+                    <Info size={13} className="text-amber-400 shrink-0" />
+                    <span>
+                      <strong className="text-amber-300">Calibration Disclosure:</strong> Visual similarity measurements are not calibrated probabilities of infringement. (Metric: {selectedIncident.score_version || "v1.1-uncalibrated-heuristic"})
+                    </span>
                   </div>
                 </div>
 
@@ -1165,183 +1333,719 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   </div>
                 </div>
 
-                {/* Side-by-Side Visual Evidence Workspace */}
+                {/* Synchronized Forensic Video Playback Workspace */}
                 <div
                   style={{
                     background: "#0f172a",
                     border: "1px solid rgba(255, 255, 255, 0.08)",
                     borderRadius: 18,
                   }}
-                  className="p-5"
+                  className="p-5 space-y-5"
                 >
-                  <h4 className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                    Side-by-Side Visual Evidence
-                  </h4>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-orange-950/80 border border-orange-500/40 text-orange-400">
+                        <FileVideo size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-[13px] font-extrabold text-white m-0">
+                          Synchronized Forensic Video Playback
+                        </h4>
+                        <p className="text-[10px] text-slate-400 m-0">
+                          Side-by-side frame-accurate streaming, master/follower drift compensation, and temporal alignment
+                        </p>
+                      </div>
+                    </div>
 
-                  {selectedFrameMatch ? (
-                    <div className="space-y-4">
-                      {/* Image Comparison Box */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Suspect Frame / Thumbnail */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-amber-400 uppercase">
-                              {selectedIncident.investigation_type === "URL_SCREENING"
-                                ? "Screened Public Thumbnail"
-                                : "Suspect Video Frame"}
-                            </span>
-                            <span className="text-slate-400 font-mono">
-                              {selectedIncident.investigation_type === "URL_SCREENING"
-                                ? `Platform: ${selectedIncident.platform || "Web"}`
-                                : `Timestamp: ${selectedFrameMatch.submitted_frame.timestamp_sec}s`}
-                            </span>
+                    <div className="flex items-center gap-2 text-[10px]">
+                      {selectedIncident.investigation_type === "URL_SCREENING" ? (
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                          THUMBNAIL-ONLY PREVIEW
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                          <CheckCircle2 size={11} />
+                          HTTP 206 RANGE STREAMING
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dual Video Players */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Vaulted Reference Video Player */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-teal-400 uppercase flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                          Vault Reference Footage
+                        </span>
+                        <span className="text-slate-400 font-mono text-[10px]">
+                          {matchedAssetId ? (
+                            <>
+                              ID: {matchedAssetId.slice(0, 8)}... | {formatDuration(refCurrentTime)} / {formatDuration(refDuration)}
+                            </>
+                          ) : (
+                            "No Matched Asset"
+                          )}
+                        </span>
+                      </div>
+                      <div
+                        style={{ background: "#000000", borderRadius: 12 }}
+                        className="aspect-video overflow-hidden border border-teal-500/30 flex items-center justify-center relative bg-black"
+                      >
+                        {matchedAssetId ? (
+                          <video
+                            ref={refVideoRef}
+                            src={getAssetVideoUrl(matchedAssetId)}
+                            className="w-full h-full object-contain"
+                            muted={isMuted}
+                            playsInline
+                            onTimeUpdate={handleRefTimeUpdate}
+                            onLoadedMetadata={(e) => {
+                              const d = (e.target as HTMLVideoElement).duration;
+                              if (!isNaN(d)) setRefDuration(d);
+                            }}
+                          />
+                        ) : (
+                          <div className="text-slate-600 text-[12px] flex flex-col items-center gap-1">
+                            <Database size={20} className="text-slate-700" />
+                            <span>No reference asset selected</span>
                           </div>
-                          <div
-                            style={{ background: "#000000", borderRadius: 12 }}
-                            className="aspect-video overflow-hidden border border-amber-500/30 flex items-center justify-center"
-                          >
+                        )}
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-mono text-teal-300 border border-teal-500/30">
+                          REF: {refCurrentTime.toFixed(2)}s
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Suspect Video Player OR URL Screening Preview */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-amber-400 uppercase flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          {selectedIncident.investigation_type === "URL_SCREENING"
+                            ? "Screened Public Preview"
+                            : "Suspect Video Footage"}
+                        </span>
+                        <span className="text-slate-400 font-mono text-[10px]">
+                          {selectedIncident.investigation_type === "URL_SCREENING" ? (
+                            `Platform: ${selectedIncident.platform || "Web"}`
+                          ) : (
+                            `${formatDuration(suspectCurrentTime)} / ${formatDuration(suspectDuration)}`
+                          )}
+                        </span>
+                      </div>
+                      <div
+                        style={{ background: "#000000", borderRadius: 12 }}
+                        className="aspect-video overflow-hidden border border-amber-500/30 flex items-center justify-center relative bg-black"
+                      >
+                        {selectedIncident.investigation_type === "URL_SCREENING" ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center relative p-3 text-center">
                             <img
                               src={
-                                selectedIncident.investigation_type === "URL_SCREENING"
-                                  ? (selectedIncident.suspect_thumbnail_preview_url
-                                      ? `${API_BASE}${selectedIncident.suspect_thumbnail_preview_url}`
-                                      : selectedIncident.thumbnail_url || "")
-                                  : `${API_BASE}/api/vault/assets/${selectedIncident.submitted_asset_id}/frames/${selectedFrameMatch.submitted_frame.filename}`
+                                selectedIncident.suspect_thumbnail_preview_url
+                                  ? `${API_BASE}${selectedIncident.suspect_thumbnail_preview_url}`
+                                  : selectedIncident.thumbnail_url || ""
                               }
-                              alt="Suspect frame or thumbnail"
+                              alt="Screened Public Thumbnail"
                               className="max-h-full max-w-full object-contain"
                               onError={(e) => {
-                                if (selectedIncident.thumbnail_url && (e.target as HTMLElement).getAttribute("src") !== selectedIncident.thumbnail_url) {
+                                if (
+                                  selectedIncident.thumbnail_url &&
+                                  (e.target as HTMLElement).getAttribute("src") !== selectedIncident.thumbnail_url
+                                ) {
                                   (e.target as HTMLImageElement).src = selectedIncident.thumbnail_url;
                                 }
                               }}
                             />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex flex-col justify-end p-3 text-left">
+                              <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-950/90 text-amber-300 border border-amber-500/40 w-fit mb-1">
+                                SINGLE-FRAME PRELIMINARY SCREENING — STREAM NOT DOWNLOADED
+                              </span>
+                              <p className="text-[10px] text-slate-300 m-0 leading-tight">
+                                FixProof bounded screener evaluated publicly exposed preview thumbnails without fetching third-party video streams.
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-[10px] text-slate-500 font-mono truncate">
-                            {selectedIncident.investigation_type === "URL_SCREENING"
-                              ? (selectedIncident.metadata?.title || selectedIncident.suspect_filename)
-                              : selectedFrameMatch.submitted_frame.filename}
-                          </p>
-                        </div>
+                        ) : (
+                          <>
+                            <video
+                              ref={suspectVideoRef}
+                              src={selectedIncident.incident_id ? getAssetVideoUrl(selectedIncident.incident_id) : undefined}
+                              className="w-full h-full object-contain"
+                              muted={isMuted}
+                              playsInline
+                              onTimeUpdate={handleSuspectTimeUpdate}
+                              onLoadedMetadata={(e) => {
+                                const d = (e.target as HTMLVideoElement).duration;
+                                if (!isNaN(d)) setSuspectDuration(d);
+                              }}
+                            />
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-mono text-amber-300 border border-amber-500/30">
+                              SUSPECT: {suspectCurrentTime.toFixed(2)}s
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                        {/* Matched Reference Frame */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-teal-400 uppercase">
-                              Vaulted Reference Frame
-                            </span>
-                            <span className="text-slate-400 font-mono">
-                              Timestamp:{" "}
-                              {selectedFrameMatch.best_match
-                                ? `${selectedFrameMatch.best_match.source_timestamp_sec}s`
-                                : "No match"}
-                            </span>
-                          </div>
-                          <div
-                            style={{ background: "#000000", borderRadius: 12 }}
-                            className="aspect-video overflow-hidden border border-teal-500/30 flex items-center justify-center"
+                  {/* Playback Transport & Synchronization Controls */}
+                  <div
+                    style={{ background: "#1e293b", borderRadius: 14 }}
+                    className="p-3 flex flex-wrap items-center justify-between gap-3 text-[11px]"
+                  >
+                    {/* Left: Play/Pause, Restart, Speeds */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={togglePlay}
+                        disabled={selectedIncident.investigation_type === "URL_SCREENING" && !matchedAssetId}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-white transition-all cursor-pointer shadow-sm ${
+                          isPlaying
+                            ? "bg-amber-600 hover:bg-amber-500"
+                            : "bg-orange-600 hover:bg-orange-500"
+                        }`}
+                      >
+                        {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                        <span>{isPlaying ? "Pause" : "Play Synced"}</span>
+                      </button>
+
+                      <button
+                        onClick={handleRestart}
+                        title="Seek both videos to start"
+                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+
+                      <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800 text-[10px]">
+                        {[0.5, 1.0, 1.5, 2.0].map((rate) => (
+                          <button
+                            key={rate}
+                            onClick={() => handleRateChange(rate)}
+                            className={`px-2 py-1 rounded transition-colors cursor-pointer font-mono ${
+                              playbackRate === rate
+                                ? "bg-orange-500/30 text-orange-300 font-bold"
+                                : "text-slate-400 hover:text-white"
+                            }`}
                           >
-                            {selectedFrameMatch.best_match?.source_asset_id ? (
+                            {rate}x
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => setIsMuted(!isMuted)}
+                        title={isMuted ? "Unmute audio" : "Mute audio"}
+                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                      >
+                        {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                      </button>
+                    </div>
+
+                    {/* Middle: Drift Compensation & Offset Adjustment */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 font-mono text-[11px]">
+                        <span className="text-slate-500 font-bold uppercase text-[9px]">Offset (Δt):</span>
+                        <button
+                          onClick={() => setTemporalOffset((prev) => parseFloat((prev - 0.5).toFixed(2)))}
+                          title="Shift reference back 0.5s"
+                          className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                        >
+                          -0.5s
+                        </button>
+                        <span className="text-white font-bold px-1">
+                          {temporalOffset >= 0 ? `+${temporalOffset.toFixed(2)}s` : `${temporalOffset.toFixed(2)}s`}
+                        </span>
+                        <button
+                          onClick={() => setTemporalOffset((prev) => parseFloat((prev + 0.5).toFixed(2)))}
+                          title="Shift reference forward 0.5s"
+                          className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                        >
+                          +0.5s
+                        </button>
+                      </div>
+
+                      <span className="text-[10px] text-slate-400 hidden xl:inline-block">
+                        Auto drift-correction threshold: <strong className="text-slate-300 font-mono">0.35s</strong>
+                      </span>
+                    </div>
+
+                    {/* Right: Timecode Readout */}
+                    <div className="font-mono text-[11px] text-slate-400 flex items-center gap-2">
+                      <span className="text-amber-300">S: {suspectCurrentTime.toFixed(2)}s</span>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-teal-300">R: {refCurrentTime.toFixed(2)}s</span>
+                    </div>
+                  </div>
+
+                  {/* Continuous Visual Match Timeline & Scrubber */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span className="font-bold uppercase tracking-wider text-slate-300">
+                        Forensic Timeline & Match Markers ({selectedIncident.frame_matches.length} sampled points)
+                      </span>
+                      <span>
+                        Playhead: {suspectCurrentTime.toFixed(2)}s / {totalTimelineDuration.toFixed(1)}s
+                      </span>
+                    </div>
+
+                    <div className="relative w-full h-10 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex items-center px-1">
+                      {/* Interval Bands (if investigation report found intervals) */}
+                      {report?.timeline_intervals?.map((interval) => {
+                        const leftPct = Math.min(100, Math.max(0, (interval.suspect_start_sec / totalTimelineDuration) * 100));
+                        const widthPct = Math.min(100 - leftPct, Math.max(2, (interval.duration_sec / totalTimelineDuration) * 100));
+
+                        return (
+                          <div
+                            key={interval.interval_id}
+                            style={{
+                              left: `${leftPct}%`,
+                              width: `${widthPct}%`,
+                              background: "rgba(249, 115, 22, 0.25)",
+                              borderLeft: "2px solid #f97316",
+                              borderRight: "2px solid #f97316",
+                            }}
+                            title={`Interval ${interval.interval_id}: ${interval.duration_sec.toFixed(1)}s (${interval.continuity_status})`}
+                            className="absolute top-1 bottom-1 rounded-sm pointer-events-none"
+                          />
+                        );
+                      })}
+
+                      {/* Match Markers */}
+                      {selectedIncident.frame_matches.map((fm) => {
+                        const ts = fm.submitted_frame.timestamp_sec;
+                        const pct = Math.min(99, Math.max(1, (ts / totalTimelineDuration) * 100));
+                        const isSelected = selectedFrameMatch?.submitted_frame.filename === fm.submitted_frame.filename;
+                        const isConfirmed = fm.best_match?.match_confirmed;
+                        const hasCandidate = fm.best_match !== null;
+
+                        return (
+                          <button
+                            key={fm.submitted_frame.filename}
+                            onClick={() => handleMarkerClick(fm)}
+                            style={{
+                              left: `${pct}%`,
+                              transform: "translateX(-50%)",
+                            }}
+                            title={`Seek ${ts}s | ${isConfirmed ? "Confirmed Match" : hasCandidate ? "Candidate Match" : "Clean Frame"}`}
+                            className={`absolute z-10 w-3 h-6 rounded-sm flex items-center justify-center transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-orange-500 scale-125 ring-2 ring-white z-20 shadow-lg"
+                                : isConfirmed
+                                ? "bg-red-500 hover:scale-110"
+                                : hasCandidate
+                                ? "bg-amber-500/80 hover:scale-110"
+                                : "bg-slate-700 hover:bg-slate-600"
+                            }`}
+                          >
+                            <span className="w-1 h-3 bg-white/70 rounded-full" />
+                          </button>
+                        );
+                      })}
+
+                      {/* Continuous Progress Scrubber Input */}
+                      <input
+                        type="range"
+                        min={0}
+                        max={totalTimelineDuration || 10}
+                        step={0.1}
+                        value={suspectCurrentTime}
+                        onChange={(e) => handleTimelineScrub(parseFloat(e.target.value))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30"
+                      />
+
+                      {/* Visible Playhead Bar */}
+                      <div
+                        style={{
+                          left: `${Math.min(100, Math.max(0, (suspectCurrentTime / totalTimelineDuration) * 100))}%`,
+                        }}
+                        className="absolute top-0 bottom-0 w-0.5 bg-cyan-400 z-15 pointer-events-none shadow-[0_0_8px_rgba(34,211,238,0.8)]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Forensic Frame Inspection & Difference Blend Mode */}
+                  <div className="pt-4 border-t border-slate-800 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-[12px] font-bold uppercase tracking-wider text-slate-300 m-0">
+                          Forensic Evidence Frame Inspection
+                        </h4>
+                        <p className="text-[10px] text-slate-400 m-0">
+                          Inspect corresponding keyframes with side-by-side or pixel-difference opacity blend
+                        </p>
+                      </div>
+
+                      {/* Mode Toggle */}
+                      <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px]">
+                        <button
+                          onClick={() => setOverlayMode("side-by-side")}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            overlayMode === "side-by-side"
+                              ? "bg-slate-800 text-white shadow-sm"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          <SplitSquareVertical size={13} />
+                          <span>Side-by-Side</span>
+                        </button>
+                        <button
+                          onClick={() => setOverlayMode("difference")}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            overlayMode === "difference"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          <Sliders size={13} />
+                          <span>Difference Blend Overlay</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {selectedFrameMatch ? (
+                      <div className="space-y-4">
+                        {overlayMode === "side-by-side" ? (
+                          /* Side-by-Side Comparison Box */
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Suspect Frame / Thumbnail */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-amber-400 uppercase">
+                                  {selectedIncident.investigation_type === "URL_SCREENING"
+                                    ? "Screened Public Thumbnail"
+                                    : "Suspect Video Frame"}
+                                </span>
+                                <span className="text-slate-400 font-mono text-[10px]">
+                                  {selectedIncident.investigation_type === "URL_SCREENING"
+                                    ? `Platform: ${selectedIncident.platform || "Web"}`
+                                    : `Timestamp: ${selectedFrameMatch.submitted_frame.timestamp_sec}s`}
+                                </span>
+                              </div>
+                              <div
+                                style={{ background: "#000000", borderRadius: 12 }}
+                                className="aspect-video overflow-hidden border border-amber-500/30 flex items-center justify-center bg-black"
+                              >
+                                <img
+                                  src={
+                                    selectedIncident.investigation_type === "URL_SCREENING"
+                                      ? (selectedIncident.suspect_thumbnail_preview_url
+                                          ? `${API_BASE}${selectedIncident.suspect_thumbnail_preview_url}`
+                                          : selectedIncident.thumbnail_url || "")
+                                      : `${API_BASE}/api/vault/assets/${selectedIncident.submitted_asset_id}/frames/${selectedFrameMatch.submitted_frame.filename}`
+                                  }
+                                  alt="Suspect frame or thumbnail"
+                                  className="max-h-full max-w-full object-contain"
+                                  onError={(e) => {
+                                    if (
+                                      selectedIncident.thumbnail_url &&
+                                      (e.target as HTMLElement).getAttribute("src") !== selectedIncident.thumbnail_url
+                                    ) {
+                                      (e.target as HTMLImageElement).src = selectedIncident.thumbnail_url;
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-mono truncate">
+                                {selectedIncident.investigation_type === "URL_SCREENING"
+                                  ? (selectedIncident.metadata?.title || selectedIncident.suspect_filename)
+                                  : selectedFrameMatch.submitted_frame.filename}
+                              </p>
+                            </div>
+
+                            {/* Matched Reference Frame */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-teal-400 uppercase">
+                                  Vaulted Reference Frame
+                                </span>
+                                <span className="text-slate-400 font-mono text-[10px]">
+                                  Timestamp:{" "}
+                                  {selectedFrameMatch.best_match
+                                    ? `${selectedFrameMatch.best_match.source_timestamp_sec}s`
+                                    : "No match"}
+                                </span>
+                              </div>
+                              <div
+                                style={{ background: "#000000", borderRadius: 12 }}
+                                className="aspect-video overflow-hidden border border-teal-500/30 flex items-center justify-center bg-black"
+                              >
+                                {selectedFrameMatch.best_match?.source_asset_id ? (
+                                  <img
+                                    src={`${API_BASE}/api/vault/assets/${selectedFrameMatch.best_match.source_asset_id}/frames/${selectedFrameMatch.best_match.source_filename}`}
+                                    alt="Matched reference frame"
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                ) : (
+                                  <div className="text-slate-600 text-[12px]">
+                                    No reference match candidate
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-mono truncate">
+                                {selectedFrameMatch.best_match?.source_filename || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Difference Blend Overlay Viewer */
+                          <div className="space-y-3">
+                            <div
+                              style={{ background: "#000000", borderRadius: 12 }}
+                              className="w-full aspect-video max-w-2xl mx-auto overflow-hidden border border-indigo-500/40 relative flex items-center justify-center bg-black shadow-2xl"
+                            >
+                              {/* Base: Suspect Frame */}
                               <img
-                                src={`${API_BASE}/api/vault/assets/${selectedFrameMatch.best_match.source_asset_id}/frames/${selectedFrameMatch.best_match.source_filename}`}
-                                alt="Matched reference frame"
-                                className="max-h-full max-w-full object-contain"
+                                src={
+                                  selectedIncident.investigation_type === "URL_SCREENING"
+                                    ? (selectedIncident.suspect_thumbnail_preview_url
+                                        ? `${API_BASE}${selectedIncident.suspect_thumbnail_preview_url}`
+                                        : selectedIncident.thumbnail_url || "")
+                                    : `${API_BASE}/api/vault/assets/${selectedIncident.submitted_asset_id}/frames/${selectedFrameMatch.submitted_frame.filename}`
+                                }
+                                alt="Base Suspect Frame"
+                                className="absolute inset-0 w-full h-full object-contain"
                               />
-                            ) : (
-                              <div className="text-slate-600 text-[12px]">
-                                No reference match candidate
+
+                              {/* Layer 2: Matched Reference Frame with Opacity and Mix-Blend Mode */}
+                              {selectedFrameMatch.best_match?.source_asset_id && (
+                                <img
+                                  src={`${API_BASE}/api/vault/assets/${selectedFrameMatch.best_match.source_asset_id}/frames/${selectedFrameMatch.best_match.source_filename}`}
+                                  alt="Reference Overlay Frame"
+                                  style={{
+                                    opacity: overlayOpacity / 100,
+                                    mixBlendMode: blendDifference ? "difference" : "normal",
+                                  }}
+                                  className="absolute inset-0 w-full h-full object-contain transition-opacity duration-75"
+                                />
+                              )}
+
+                              <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-sm text-[10px] font-mono text-indigo-300 border border-indigo-500/30">
+                                Mode: {blendDifference ? "mix-blend-mode: difference" : "Alpha Opacity Blend"} | Opacity: {overlayOpacity}%
+                              </div>
+                            </div>
+
+                            {/* Overlay Controls */}
+                            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 max-w-2xl mx-auto space-y-2 text-[11px]">
+                              <div className="flex items-center justify-between text-slate-300">
+                                <span className="font-semibold flex items-center gap-1.5">
+                                  <Sliders size={13} className="text-indigo-400" />
+                                  Overlay Balance:
+                                </span>
+                                <div className="flex items-center gap-3">
+                                  <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={blendDifference}
+                                      onChange={(e) => setBlendDifference(e.target.checked)}
+                                      className="rounded bg-slate-800 text-indigo-500 border-slate-700"
+                                    />
+                                    <span className="text-[10px]">Difference Mode (Black = Exact Match)</span>
+                                  </label>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-amber-400 font-mono shrink-0">Suspect (0%)</span>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={overlayOpacity}
+                                  onChange={(e) => setOverlayOpacity(parseInt(e.target.value))}
+                                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                                <span className="text-[10px] text-teal-400 font-mono shrink-0">Reference (100%)</span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 m-0 leading-tight">
+                                In difference blend mode, identical aligned pixels cancel to pure black. Crops, logos, or alterations highlight vividly.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Technical Evidence & Verification Panel */}
+                        {selectedFrameMatch.best_match && (
+                          <div className="space-y-3">
+                            <div
+                              style={{ background: "#1e293b", borderRadius: 12 }}
+                              className="p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]"
+                            >
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Raw L2 Distance</span>
+                                <span className="font-mono font-bold text-white text-[13px]">
+                                  {selectedFrameMatch.best_match.l2_distance.toFixed(4)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Visual Feature Sim</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-teal-400 text-[13px]">
+                                    {selectedFrameMatch.best_match.visual_similarity_score !== undefined
+                                      ? `${selectedFrameMatch.best_match.visual_similarity_score}%`
+                                      : `${selectedFrameMatch.best_match.confidence_score}%`}
+                                  </span>
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                                    {selectedFrameMatch.best_match.score_version || "v1.1"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">pHash Forensic Distance</span>
+                                <span className="font-mono font-bold text-amber-400 text-[13px]">
+                                  {selectedFrameMatch.best_match.phash_evidence
+                                    ? `${selectedFrameMatch.best_match.phash_evidence.hamming_distance}/64 (${selectedFrameMatch.best_match.phash_match ? "Match" : "Diff"})`
+                                    : selectedFrameMatch.best_match.phash_match
+                                    ? "Match"
+                                    : "Non-identical"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Target Vault Asset</span>
+                                <button
+                                  onClick={() =>
+                                    onNavigateToVault(selectedFrameMatch.best_match?.source_asset_id)
+                                  }
+                                  className="font-mono text-indigo-400 hover:underline truncate block cursor-pointer"
+                                >
+                                  {selectedFrameMatch.best_match.source_asset_id.slice(0, 8)}...
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Nemotron Vision Verification Card (Milestone 2.2) */}
+                            {selectedFrameMatch.best_match.vision_verification && (
+                              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-indigo-500/30 space-y-2.5 text-[11px]">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Sparkles size={14} className="text-indigo-400" />
+                                    <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+                                      Nemotron Vision Verification Assessment
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                                        selectedFrameMatch.best_match.vision_verification.visual_correspondence === "HIGH_CORRESPONDENCE"
+                                          ? "bg-emerald-950 text-emerald-300 border border-emerald-500/40"
+                                          : selectedFrameMatch.best_match.vision_verification.visual_correspondence === "POSSIBLE_REUSE"
+                                          ? "bg-amber-950 text-amber-300 border border-amber-500/40"
+                                          : selectedFrameMatch.best_match.vision_verification.visual_correspondence === "UNRELATED_SCENE"
+                                          ? "bg-rose-950 text-rose-300 border border-rose-500/40"
+                                          : "bg-slate-800 text-slate-300"
+                                      }`}
+                                    >
+                                      {selectedFrameMatch.best_match.vision_verification.visual_correspondence?.replace(/_/g, " ") || "UNVERIFIED"}
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-mono">
+                                      {selectedFrameMatch.best_match.vision_verification.model_id || "nvidia/Nemotron-3.5-Super-VL"}
+                                    </span>
+                                    {selectedFrameMatch.best_match.vision_verification.cached && (
+                                      <span className="text-[9px] bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 px-1.5 py-0.2 rounded font-mono">
+                                        cached
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {selectedFrameMatch.best_match.vision_verification.reasoning_summary && (
+                                  <p className="text-slate-300 text-[11px] leading-relaxed m-0">
+                                    {selectedFrameMatch.best_match.vision_verification.reasoning_summary}
+                                  </p>
+                                )}
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[10px]">
+                                  {selectedFrameMatch.best_match.vision_verification.supporting_visible_features &&
+                                    selectedFrameMatch.best_match.vision_verification.supporting_visible_features.length > 0 && (
+                                      <div className="space-y-1">
+                                        <span className="text-emerald-400 font-semibold block">Supporting Scene Elements:</span>
+                                        <ul className="list-disc pl-3 text-slate-300 space-y-0.5 m-0">
+                                          {selectedFrameMatch.best_match.vision_verification.supporting_visible_features.map((f, i) => (
+                                            <li key={i}>{f}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                  {selectedFrameMatch.best_match.vision_verification.contradictions &&
+                                    selectedFrameMatch.best_match.vision_verification.contradictions.length > 0 && (
+                                      <div className="space-y-1">
+                                        <span className="text-rose-400 font-semibold block">Contradictions & Anomalies:</span>
+                                        <ul className="list-disc pl-3 text-slate-300 space-y-0.5 m-0">
+                                          {selectedFrameMatch.best_match.vision_verification.contradictions.map((c, i) => (
+                                            <li key={i}>{c}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                </div>
+
+                                {selectedFrameMatch.best_match.vision_verification.uncertainty_notes && (
+                                  <div className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800">
+                                    Uncertainty & Limitations: {selectedFrameMatch.best_match.vision_verification.uncertainty_notes}
+                                  </div>
+                                )}
                               </div>
                             )}
+
+                            {/* MANDATORY METRIC CALIBRATION NOTICE */}
+                            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[10px] text-slate-400 leading-relaxed flex items-center gap-2">
+                              <Info size={13} className="text-amber-400 shrink-0" />
+                              <span>
+                                <strong className="text-amber-300">Calibration Disclosure:</strong> Visual similarity measurements are not calibrated probabilities of infringement.
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-[10px] text-slate-500 font-mono truncate">
-                            {selectedFrameMatch.best_match?.source_filename || "—"}
-                          </p>
+                        )}
+
+                        {/* Frame Match Selector Timeline */}
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                            Switch Analyzed Frame ({selectedIncident.frame_matches.length} keyframes)
+                          </span>
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {selectedIncident.frame_matches.map((fm) => {
+                              const isSelected =
+                                selectedFrameMatch?.submitted_frame.filename ===
+                                fm.submitted_frame.filename;
+                              const isConfirmed = fm.best_match?.match_confirmed;
+
+                              return (
+                                <button
+                                  key={fm.submitted_frame.filename}
+                                  onClick={() => handleMarkerClick(fm)}
+                                  style={{
+                                    border: isSelected
+                                      ? "2px solid #f97316"
+                                      : `1px solid ${isConfirmed ? "#ef4444" : "#334155"}`,
+                                    background: isConfirmed
+                                      ? "rgba(239, 68, 68, 0.15)"
+                                      : "#1e293b",
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg text-left shrink-0 transition-all text-[11px] text-white cursor-pointer"
+                                >
+                                  <span className="font-bold">
+                                    {fm.submitted_frame.timestamp_sec}s
+                                  </span>
+                                  <span className="block text-[9px] text-slate-400">
+                                    {isConfirmed
+                                      ? `Match (${fm.best_match?.visual_similarity_score ?? fm.best_match?.confidence_score}%)`
+                                      : "Clean"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Technical Scores for this Frame */}
-                      {selectedFrameMatch.best_match && (
-                        <div
-                          style={{ background: "#1e293b", borderRadius: 12 }}
-                          className="p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]"
-                        >
-                          <div>
-                            <span className="text-slate-400 block mb-0.5">L2 Distance</span>
-                            <span className="font-mono font-bold text-white text-[13px]">
-                              {selectedFrameMatch.best_match.l2_distance.toFixed(4)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block mb-0.5">Confidence Score</span>
-                            <span className="font-mono font-bold text-teal-400 text-[13px]">
-                              {selectedFrameMatch.best_match.confidence_score}%
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block mb-0.5">pHash Match</span>
-                            <span className="font-mono font-bold text-amber-400 text-[13px]">
-                              {selectedFrameMatch.best_match.phash_match ? "Confirmed" : "Non-identical"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block mb-0.5">Target Asset</span>
-                            <button
-                              onClick={() =>
-                                onNavigateToVault(selectedFrameMatch.best_match?.source_asset_id)
-                              }
-                              className="font-mono text-indigo-400 hover:underline truncate block"
-                            >
-                              {selectedFrameMatch.best_match.source_asset_id.slice(0, 8)}...
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Frame Match Selector Timeline */}
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                          Switch Analyzed Frame ({selectedIncident.frame_matches.length} keyframes)
-                        </span>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {selectedIncident.frame_matches.map((fm) => {
-                            const isSelected =
-                              selectedFrameMatch?.submitted_frame.filename ===
-                              fm.submitted_frame.filename;
-                            const isConfirmed = fm.best_match?.match_confirmed;
-
-                            return (
-                              <button
-                                key={fm.submitted_frame.filename}
-                                onClick={() => setSelectedFrameMatch(fm)}
-                                style={{
-                                  border: isSelected
-                                    ? "2px solid #f97316"
-                                    : `1px solid ${isConfirmed ? "#ef4444" : "#334155"}`,
-                                  background: isConfirmed
-                                    ? "rgba(239, 68, 68, 0.15)"
-                                    : "#1e293b",
-                                }}
-                                className="px-3 py-1.5 rounded-lg text-left shrink-0 transition-all text-[11px] text-white cursor-pointer"
-                              >
-                                <span className="font-bold">
-                                  {fm.submitted_frame.timestamp_sec}s
-                                </span>
-                                <span className="block text-[9px] text-slate-400">
-                                  {isConfirmed
-                                    ? `Match (${fm.best_match?.confidence_score}%)`
-                                    : "Clean"}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                    ) : (
+                      <div className="text-center py-8 text-slate-500 text-[12px]">
+                        No frame matches available for this incident.
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-slate-500 text-[12px]">
-                      No frame matches available for this incident.
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Legal Limitation Notice */}

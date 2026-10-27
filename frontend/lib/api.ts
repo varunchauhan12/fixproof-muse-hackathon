@@ -306,4 +306,10 @@ export async function verifyEvidencePackage(
   return res.json();
 }
 
+export function getAssetVideoUrl(assetId: string): string {
+  return `${API_BASE}/api/vault/assets/${encodeURIComponent(assetId)}/video`;
+}
 
+export function getAssetFrameUrl(assetId: string, filename: string): string {
+  return `${API_BASE}/api/vault/assets/${encodeURIComponent(assetId)}/frames/${encodeURIComponent(filename)}`;
+}

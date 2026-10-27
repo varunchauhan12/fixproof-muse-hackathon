@@ -60,10 +60,12 @@ class FrameEvidence(BaseModel):
     source_timestamp_sec: Optional[float] = None
     source_filename: Optional[str] = None
     l2_distance: Optional[float] = None
+    visual_similarity_score: Optional[float] = None
     phash_distance: Optional[int] = None
     phash_score: Optional[int] = None
     phash_match: Optional[bool] = None
     similarity_status: Literal["CONFIRMED_MATCH", "SUSPECT_MATCH", "NO_MATCH", "UNVERIFIED"] = "UNVERIFIED"
+    vision_verification: Optional[Dict[str, Any]] = None
     raw_details: Optional[Dict[str, Any]] = None
 
 
@@ -233,6 +235,11 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
             else:
                 status = "NO_MATCH"
                 
+            vis_score = best.get("visual_similarity_score")
+            if vis_score is None and best.get("confidence_score") is not None:
+                vis_score = float(best["confidence_score"])
+            vision_ver = best.get("vision_verification")
+                
             evidences.append(
                 FrameEvidence(
                     evidence_id=ev_id,
@@ -243,10 +250,12 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
                     source_timestamp_sec=src_ts,
                     source_filename=src_fn,
                     l2_distance=l2_dist,
+                    visual_similarity_score=vis_score,
                     phash_distance=phash_dist,
                     phash_score=phash_score,
                     phash_match=phash_match,
                     similarity_status=status,
+                    vision_verification=vision_ver,
                     raw_details={"vector_id": best.get("vector_id")},
                 )
             )

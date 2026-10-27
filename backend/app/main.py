@@ -231,6 +231,7 @@ def get_single_asset(asset_id: str):
 def stream_asset_frame(asset_id: str, frame_filename: str):
     """
     Safely streams an extracted video frame to the client.
+    Supports both reference asset IDs and incident IDs / suspect asset IDs.
     Strictly checks path containment and character safety.
     In cloud mode, streams from Supabase Storage reference-frames bucket.
     """
@@ -239,8 +240,17 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
     if not SAFE_FRAME_REGEX.match(frame_filename):
         raise HTTPException(status_code=400, detail="Invalid frame filename.")
 
+    # Check if asset_id is an incident_id
+    from app.registry import get_incident_by_id
+    incident = get_incident_by_id(asset_id)
+    resolved_id = asset_id
+    if incident:
+        resolved_id = incident.get("submitted_asset_id") or asset_id
+
     # Check suspect frames directory first
-    suspect_frame_path = (SUSPECTS_FRAMES_DIR / asset_id / frame_filename).resolve()
+    suspect_frame_path = (SUSPECTS_FRAMES_DIR / resolved_id / frame_filename).resolve()
+    if not suspect_frame_path.is_file() and resolved_id != asset_id:
+        suspect_frame_path = (SUSPECTS_FRAMES_DIR / asset_id / frame_filename).resolve()
     suspect_base = SUSPECTS_FRAMES_DIR.resolve()
 
     if suspect_frame_path.is_relative_to(suspect_base) and suspect_frame_path.is_file():
@@ -256,7 +266,7 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
             / "storage"
             / "cloud_cache"
             / "frames"
-            / asset_id
+            / resolved_id
             / frame_filename
         ).resolve()
         if cloud_cache_file.is_file():
@@ -268,7 +278,7 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
 
         try:
             storage_client = SupabaseStorageClient()
-            frame_bytes = storage_client.download_file("reference-frames", f"{asset_id}/{frame_filename}")
+            frame_bytes = storage_client.download_file("reference-frames", f"{resolved_id}/{frame_filename}")
             cloud_cache_file.parent.mkdir(parents=True, exist_ok=True)
             cloud_cache_file.write_bytes(frame_bytes)
             return Response(
@@ -282,7 +292,9 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
             raise HTTPException(status_code=502, detail=f"Failed to retrieve frame from storage: {e}")
 
     # Local mode fallback
-    frame_path = (FRAMES_DIR / asset_id / frame_filename).resolve()
+    frame_path = (FRAMES_DIR / resolved_id / frame_filename).resolve()
+    if not frame_path.is_file() and resolved_id != asset_id:
+        frame_path = (FRAMES_DIR / asset_id / frame_filename).resolve()
     base_dir = FRAMES_DIR.resolve()
 
     if frame_path.is_relative_to(base_dir) and frame_path.is_file():
@@ -299,13 +311,28 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
 def stream_asset_video(asset_id: str):
     """
     Safely streams the original uploaded video for an asset.
+    Supports both reference asset IDs and incident IDs / suspect asset IDs.
     In cloud mode, generates a short-lived authenticated signed URL.
     """
     if not SAFE_ID_REGEX.match(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID format.")
 
-    # Check suspect videos first
-    suspect_matches = list(SUSPECTS_VIDEOS_DIR.glob(f"{asset_id}.*"))
+    # 1. Check if asset_id is an incident_id
+    from app.registry import get_incident_by_id
+    incident = get_incident_by_id(asset_id)
+    resolved_id = asset_id
+    if incident:
+        if incident.get("investigation_type") == "URL_SCREENING":
+            raise HTTPException(
+                status_code=404,
+                detail="No video stream available for URL-screened threats. Preliminary screening evaluated public preview thumbnail only per platform restrictions.",
+            )
+        resolved_id = incident.get("submitted_asset_id") or asset_id
+
+    # 2. Check suspect videos first
+    suspect_matches = list(SUSPECTS_VIDEOS_DIR.glob(f"{resolved_id}.*"))
+    if not suspect_matches and resolved_id != asset_id:
+        suspect_matches = list(SUSPECTS_VIDEOS_DIR.glob(f"{asset_id}.*"))
     if suspect_matches:
         target_video = suspect_matches[0].resolve()
         suspect_base = SUSPECTS_VIDEOS_DIR.resolve()
@@ -316,10 +343,10 @@ def stream_asset_video(asset_id: str):
     if is_cloud_mode():
         row = default_db_manager.fetch_one(
             "SELECT filename, storage_path FROM reference_assets WHERE asset_id = %s",
-            (asset_id,),
+            (resolved_id,),
         )
         if not row:
-            raise HTTPException(status_code=404, detail=f"Video for asset '{asset_id}' not found.")
+            raise HTTPException(status_code=404, detail=f"Video for asset '{resolved_id}' not found.")
         storage_path = row["storage_path"]
         bucket = "reference-assets"
         if storage_path.startswith(f"{bucket}/"):
@@ -331,11 +358,13 @@ def stream_asset_video(asset_id: str):
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Failed to generate streaming URL: {e}")
 
-    # Local mode fallback
-    matches = list(STORAGE_DIR.glob(f"{asset_id}.*"))
+    # 3. Local mode fallback
+    matches = list(STORAGE_DIR.glob(f"{resolved_id}.*"))
+    if not matches and resolved_id != asset_id:
+        matches = list(STORAGE_DIR.glob(f"{asset_id}.*"))
     base_dir = STORAGE_DIR.resolve()
     if not matches:
-        raise HTTPException(status_code=404, detail=f"Video for asset '{asset_id}' not found.")
+        raise HTTPException(status_code=404, detail=f"Video for asset '{resolved_id}' not found.")
 
     target_video = matches[0].resolve()
     if not target_video.is_relative_to(base_dir):
