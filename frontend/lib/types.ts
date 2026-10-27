@@ -1,0 +1,191 @@
+export interface FrameRecord {
+  frame_index: number;
+  timestamp_sec: number;
+  filename: string;
+  url: string;
+}
+
+export interface AssetRecord {
+  asset_id: string;
+  filename: string;
+  uploaded_at: string;
+  duration_seconds: number;
+  frame_count: number;
+  file_size: number;
+  indexed: boolean;
+  indexed_vectors: number;
+  sample_interval_seconds: number;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  frames: FrameRecord[];
+}
+
+export interface VaultStatus {
+  status: "ready" | "empty";
+  vault_size: number;
+  embedding_dim: number;
+  total_indexed_assets: number;
+  indexed_assets: string[];
+  total_registered_assets?: number;
+  total_protected_assets?: number;
+  index_file?: string;
+  metadata_file?: string;
+  db_mode?: "local" | "supabase" | string;
+  is_cloud?: boolean;
+}
+
+export interface MatchCandidate {
+  vector_id: number;
+  source_asset_id: string;
+  source_frame_id: number;
+  source_timestamp_sec: number;
+  source_filename: string;
+  source_frame_path: string;
+  l2_distance: number;
+  confidence_score: number;
+  severity: "CRITICAL" | "WARNING" | "INFO";
+  match_confirmed: boolean;
+  phash_match?: boolean;
+  phash_score?: number;
+  phash_evidence?: {
+    suspect_phash: string;
+    matched_phash: string;
+    hamming_distance: number;
+    phash_score: number;
+    phash_match: boolean;
+  } | null;
+}
+
+export interface FrameMatchDetail {
+  submitted_frame: {
+    frame_index: number;
+    timestamp_sec: number;
+    filename: string;
+    frame_path: string;
+  };
+  best_match: MatchCandidate | null;
+  top_candidates: MatchCandidate[];
+}
+
+export interface MatchAnalysisResult {
+  incident_id?: string;
+  investigation_type?: "FULL_VIDEO_SCAN" | "URL_SCREENING";
+  submitted_asset_id: string;
+  suspect_filename?: string;
+  suspect_url?: string;
+  source_url?: string;
+  platform?: string;
+  metadata?: Record<string, any>;
+  thumbnail_url?: string;
+  suspect_thumbnail_preview_url?: string;
+  disclaimer: string;
+  limitations?: string[];
+  recommended_action?: string;
+  status_message?: string;
+  total_frames_analyzed: number;
+  candidate_matches_found: number;
+  highest_confidence: number;
+  lowest_l2_distance: number | null;
+  overall_status: "CANDIDATE_MATCH" | "SUSPECT" | "CLEAN" | "NO_REFERENCE_DATA" | "NEEDS_FULL_VIDEO_REVIEW";
+  message?: string;
+  matched_assets: string[];
+  frame_matches: FrameMatchDetail[];
+  scanned_at?: string;
+  file_size?: number;
+  duration_seconds?: number;
+  frame_count?: number;
+}
+
+export type ScanLifecycleState =
+  | "idle"
+  | "uploading"
+  | "processing"
+  | "matching"
+  | "finalizing"
+  | "completed"
+  | "failed";
+
+export type RecommendedAction =
+  | "ESCALATE_LEGAL_TAKEDOWN"
+  | "FLAG_FOR_BROKER_LICENSING"
+  | "DISMISS_FAIR_USE"
+  | "NEEDS_FULL_VIDEO_REVIEW"
+  | "MONITOR_ACCOUNT";
+
+export type ConfidenceAssessment =
+  | "HIGH_CONFIDENCE_MATCH"
+  | "MODERATE_PROBABILITY"
+  | "INCONCLUSIVE_DATA"
+  | "CONFIRMED_DISTINCT";
+
+export type ContinuityStatus =
+  | "CONTINUOUS_MATCH"
+  | "SPARSE_MATCH"
+  | "SINGLETON";
+
+export type FindingCategory =
+  | "TIMELINE_CORRESPONDENCE"
+  | "PERCEPTUAL_SIMILARITY"
+  | "ANOMALY_OR_DISCREPANCY"
+  | "LIMITATION";
+
+export interface TimelineInterval {
+  interval_id: string;
+  source_asset_id: string;
+  suspect_start_sec: number;
+  suspect_end_sec: number;
+  source_start_sec: number;
+  source_end_sec: number;
+  duration_sec: number;
+  frame_count: number;
+  mean_l2_distance: number;
+  min_l2_distance: number;
+  phash_match_ratio: number;
+  continuity_status: ContinuityStatus;
+  evidence_ids: string[];
+}
+
+export interface InvestigationFinding {
+  finding_id: string;
+  category: FindingCategory;
+  statement: string;
+  evidence_ids: string[];
+  measured_metrics?: Record<string, unknown>;
+}
+
+export interface OperationalMetadata {
+  model_id?: string;
+  latency_ms?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  finish_reason?: string;
+  validation_status: "VALIDATED" | "FAILED_VALIDATION";
+  failure_type?: string | null;
+  errors?: string[];
+  created_at?: string;
+}
+
+export interface InvestigationReport {
+  report_id: string;
+  incident_id: string;
+  model_id: string;
+  prompt_version: string;
+  summary: string;
+  recommended_action: RecommendedAction;
+  confidence_assessment: ConfidenceAssessment;
+  human_review_required: boolean;
+  timeline_intervals: TimelineInterval[];
+  findings: InvestigationFinding[];
+  unresolved_questions: string[];
+  contradictions_detected: string[];
+  limitations_disclosed: string[];
+  evidence_references: string[];
+  operational_metadata: OperationalMetadata;
+}
+
+export interface InvestigateIncidentPayload {
+  force_refresh?: boolean;
+  model_override?: string | null;
+}
+

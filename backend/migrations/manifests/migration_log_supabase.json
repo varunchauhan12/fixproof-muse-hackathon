@@ -1,0 +1,25 @@
+{
+  "migration_version": "1.0.0",
+  "migrated_at": "2026-10-26T15:38:55.406060+00:00",
+  "cloud_provider": "Supabase",
+  "database_counts": {
+    "reference_assets": 5,
+    "reference_frames": 12,
+    "reference_vectors": 12,
+    "vault_snapshots": 1,
+    "incidents": 100
+  },
+  "storage_buckets": {
+    "reference-assets": 5,
+    "reference-frames": 12,
+    "vault-snapshots": 2
+  },
+  "target_assets": [
+    "46aef41b-b790-442e-a302-e8fc2fd05af1",
+    "505891a4-6c21-43c2-a76b-f3c3079795bf",
+    "6387dfcd-0cb5-4b33-9ac8-1e66060fce2e",
+    "6cde9054-8935-49a3-aa8f-6fa8308cbe32",
+    "c7fd5fed-eb3f-493d-a4b4-26a511751289"
+  ],
+  "integrity_verified": true
+}

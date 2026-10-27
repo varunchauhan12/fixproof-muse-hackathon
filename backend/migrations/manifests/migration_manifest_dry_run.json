@@ -1,0 +1,1944 @@
+{
+  "manifest_version": "1.0.0",
+  "generated_at": "2026-10-26T15:15:28.943486+00:00",
+  "environment": "local_dry_run",
+  "target_cloud_provider": "Supabase",
+  "summary": {
+    "total_evaluated_assets": 77,
+    "status_counts": {
+      "Safe to migrate": 4,
+      "Requires explicit repair": 7,
+      "Requires user decision": 1,
+      "Excluded from migration until resolved": 65
+    },
+    "total_videos_on_disk": 11,
+    "total_frame_directories_on_disk": 13,
+    "total_faiss_vectors": 35,
+    "total_incidents_in_log": 100
+  },
+  "assets": [
+    {
+      "asset_id": "03881bb7-9865-40fb-ac60-ea4c985de4aa",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "04526898-c5ce-4b8a-9d66-f879b769d8fe",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "bfafee81-b759-4357-9bd9-f82089a4dd5f"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "07813e63-1764-44fc-bfff-d0988a14f0b2",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "074b695e-1563-4609-9a43-555457ee5681"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "0d0ae318-7a3e-4bbd-9a63-da90c09e1935",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "61dfa698-f3f8-4fbf-999b-a0758d858bf1"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "0e175378-4685-4595-879a-ca172e965bc4",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "afedad2b-a983-415d-bbd4-1df2bed1211f",
+        "df6fede5-e099-4b94-8670-fcccfc300371"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "0f3fb05c-1bc5-4301-8d9d-655843d9c5a2",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "4e13235f-34ee-456b-838c-a5c80b237356"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "105f49d4-06e6-4c7a-952e-c0a429efd51f",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "122cc893-15a5-4104-a0af-d0b793f577d1",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "abc1abe1-79d3-4737-a182-0f14832c34c3"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "17762f71-265c-48bd-8e6b-3d8724767177",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "1838b2fe-91bc-47e1-b6fb-296e8004d7f6",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "09e650a6-68f4-4541-9cf4-06d1f2b53816"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "1c148971-f170-4cb5-9bb1-051bead0def9",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "836d585e-0440-47b6-845f-bf6e792b031d"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "1d8c9ada-0265-4b25-8500-008983dc972d",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "22d3a6b3-3567-48db-9f56-fd1c8ef3f6e9",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "26ad9de0-3014-4b82-b79b-69c0951cd116",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "2c10b8ec-bd8b-40c6-b98b-736fb64dc6b0",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "2ee3458b-43a7-40f3-a8e2-5429db48c37d",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "3335eb35-e54a-4b01-8702-fd813917e3d7",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "76202550-7dda-4d8f-8298-2ae56b597d61"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "378172b4-36a9-4e02-b542-ff8eb2d2f235",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "a8cf97ee-a9f2-4650-9ccd-f74e2736c92f"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "38af3063-c875-4083-8e6e-fc2684145f07",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "3b26e076-08c4-46b8-b81e-ed8d8e23746f",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "4c701a15-d4df-4d22-ad7f-087748e02b98"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "41561120-2efb-489e-94fa-098c8bd913bd",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "43650227-463e-4588-bcb7-c1b82ea3ec45",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "61c218b3-6da6-4a38-bf54-aaafe5d83b12",
+        "b55343f4-4913-4509-97e9-0f30e6cb70a7"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "453c0d6c-4acf-40f7-994a-c37e152c66e6",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "46aef41b-b790-442e-a302-e8fc2fd05af1",
+      "filename": "46aef41b-b790-442e-a302-e8fc2fd05af1.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/46aef41b-b790-442e-a302-e8fc2fd05af1.mp4",
+      "intended_storage_video_key": "reference-assets/46aef41b-b790-442e-a302-e8fc2fd05af1/46aef41b-b790-442e-a302-e8fc2fd05af1.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 0,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Reference video exists on disk and is registered, but frame directory is missing. Repair action: Run frame extractor on video to regenerate frames.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "49723469-54ab-4d36-b793-5a4996c5e519",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "7b69d5a0-dec5-4b0f-a0bf-4d6c178313bf",
+        "eeeb46bb-4cee-405c-b2e7-081dcdc48cea"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "49f5d13c-163e-44f1-856d-dee267ef4b07",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "76308e86-493f-4d8d-8da0-3125d412a3d7",
+        "dc67b24f-8a38-473b-ae7d-88fed4e23348"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "505891a4-6c21-43c2-a76b-f3c3079795bf",
+      "filename": "sample-10s-2160p.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/505891a4-6c21-43c2-a76b-f3c3079795bf.mp4",
+      "intended_storage_video_key": "reference-assets/505891a4-6c21-43c2-a76b-f3c3079795bf/sample-10s-2160p.mp4",
+      "file_size_bytes": 25148899,
+      "sha256_hash": "cee9a5a347013b669940e4aa6a0c9243d0b03a8003c5d134f958094637c371a3",
+      "duration_seconds": 10.0,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/505891a4-6c21-43c2-a76b-f3c3079795bf/frame_0000s.jpg",
+        "reference-frames/505891a4-6c21-43c2-a76b-f3c3079795bf/frame_0005s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 2,
+      "faiss_vector_ids": [
+        20,
+        21
+      ],
+      "associated_incident_ids": [],
+      "classification": "Safe to migrate",
+      "classification_reason": "Complete reference asset with verified video, extracted frames, and metadata entry.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "52548e05-99fb-4b1e-ae84-d716382f05d6",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "530304c7-5a31-4c76-8b1b-5465a06cee51",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "53c77b43-9d67-45e7-ab90-a48818b53f5d",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "560bd322-8b38-4ff2-b434-d32cae5ccade",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "bbe2473e-3334-4d3a-bea5-2a1e5fef5fcc"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "57dc009d-5cea-4d88-a068-b8796f1db613",
+      "filename": "57dc009d-5cea-4d88-a068-b8796f1db613.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/57dc009d-5cea-4d88-a068-b8796f1db613.mp4",
+      "intended_storage_video_key": "reference-assets/57dc009d-5cea-4d88-a068-b8796f1db613/57dc009d-5cea-4d88-a068-b8796f1db613.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/57dc009d-5cea-4d88-a068-b8796f1db613/frame_0000s.jpg",
+        "reference-frames/57dc009d-5cea-4d88-a068-b8796f1db613/frame_0005s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "58e97821-1f60-4135-8333-6f39ed7d5b77",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "590caaff-64ba-4fe7-9c26-507ddf8f842d",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "5e953c30-67e3-4136-be21-9c00dc2fdcca",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "6093f2f4-aa9f-4729-9f18-91ffae660ccf",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "038fe4db-9c50-4308-b0eb-12c3f9760502",
+        "08ec8837-54ae-4c5d-b5f7-4deea88e23c6"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "618dcd80-0b76-4477-aacf-da59bf65c794",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "6387dfcd-0cb5-4b33-9ac8-1e66060fce2e",
+      "filename": "sample_match_highlight.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/6387dfcd-0cb5-4b33-9ac8-1e66060fce2e.mp4",
+      "intended_storage_video_key": "reference-assets/6387dfcd-0cb5-4b33-9ac8-1e66060fce2e/sample_match_highlight.mp4",
+      "file_size_bytes": 127519,
+      "sha256_hash": "f91aacc0d2e974fc9498b38ce918010fedcb0aa85a03f64d356bbe0f6c5a72c6",
+      "duration_seconds": 12.0,
+      "frame_count": 3,
+      "expected_frame_keys": [
+        "reference-frames/6387dfcd-0cb5-4b33-9ac8-1e66060fce2e/frame_0000s.jpg",
+        "reference-frames/6387dfcd-0cb5-4b33-9ac8-1e66060fce2e/frame_0005s.jpg",
+        "reference-frames/6387dfcd-0cb5-4b33-9ac8-1e66060fce2e/frame_0010s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 3,
+      "faiss_vector_ids": [
+        10,
+        11,
+        12
+      ],
+      "associated_incident_ids": [],
+      "classification": "Safe to migrate",
+      "classification_reason": "Complete reference asset with verified video, extracted frames, and metadata entry.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "6c49799a-ed1a-4b01-8db4-be9bd0b766a4",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "bb4aef58-a8e4-4084-9d34-99a1b51fc951"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "6cd897ef-d619-44b4-80e8-c2c8c97c6cb9",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "6cde9054-8935-49a3-aa8f-6fa8308cbe32",
+      "filename": "sample-5s.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/6cde9054-8935-49a3-aa8f-6fa8308cbe32.mp4",
+      "intended_storage_video_key": "reference-assets/6cde9054-8935-49a3-aa8f-6fa8308cbe32/sample-5s.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": 5.7,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/6cde9054-8935-49a3-aa8f-6fa8308cbe32/frame_0000s.jpg",
+        "reference-frames/6cde9054-8935-49a3-aa8f-6fa8308cbe32/frame_0005s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 2,
+      "faiss_vector_ids": [
+        18,
+        19
+      ],
+      "associated_incident_ids": [],
+      "classification": "Safe to migrate",
+      "classification_reason": "Complete reference asset with verified video, extracted frames, and metadata entry.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "6e98f684-6849-4812-8ed8-21c55811af06",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "703fd440-815b-4a3c-b6df-b5a90aff19b7",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "7073185c-1c76-41bd-b6d1-4a5a3d1cb8e3",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "97290b0a-028a-41a6-905e-7e2d1dc1bcc8",
+        "d3206537-830a-4b33-99df-3d1e328fbd4c"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "73764a4b-2c3c-4398-a317-b8f6c206da2e",
+      "filename": "73764a4b-2c3c-4398-a317-b8f6c206da2e.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/73764a4b-2c3c-4398-a317-b8f6c206da2e.mp4",
+      "intended_storage_video_key": "reference-assets/73764a4b-2c3c-4398-a317-b8f6c206da2e/73764a4b-2c3c-4398-a317-b8f6c206da2e.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/73764a4b-2c3c-4398-a317-b8f6c206da2e/frame_0000s.jpg",
+        "reference-frames/73764a4b-2c3c-4398-a317-b8f6c206da2e/frame_0005s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "7fb5eaa1-0bec-4a46-8225-07862c222941",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "06b0b35b-1665-46a2-ac2d-72a503f4fcc6"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "868fd0c2-f375-44ae-b3cd-34947dbd3849",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "63bcca31-2fa4-4811-b23b-a5d682308bc9",
+        "cf48ea41-d94d-4fed-bf2d-1ad00ba063ff"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "87ddeaaa-e0d4-4cdf-99c9-6984529f3712",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "8853c663-5f7d-4dd5-b662-5bada174e695",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "8a3fdab1-82de-4c9d-afde-4c169bd9ebd8",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "933453ee-965f-4ce6-9d5f-b0dc2785afb6",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "1e359e6c-f62a-4395-b7cb-88776da30d44"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "953dd1ab-0b20-4f99-a200-13e15cd6c2ba",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "9f20229b-d785-4212-a8c9-06b470f7a1d7",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "a14ded00-6d32-458a-b8b4-ce108decf7e8",
+      "filename": "a14ded00-6d32-458a-b8b4-ce108decf7e8.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/a14ded00-6d32-458a-b8b4-ce108decf7e8.mp4",
+      "intended_storage_video_key": "reference-assets/a14ded00-6d32-458a-b8b4-ce108decf7e8/a14ded00-6d32-458a-b8b4-ce108decf7e8.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/a14ded00-6d32-458a-b8b4-ce108decf7e8/frame_0000s.jpg",
+        "reference-frames/a14ded00-6d32-458a-b8b4-ce108decf7e8/frame_0005s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "a3d349d0-7479-4e05-9e56-72b5b8d0075c",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "a5fb5cbf-4769-47d7-a120-8f2fdc7a4aa2",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "api-index-test-asset",
+      "filename": "asset_api-inde.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": null,
+      "sha256_hash": null,
+      "duration_seconds": null,
+      "frame_count": 0,
+      "expected_frame_keys": [],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 19,
+      "faiss_vector_ids": [
+        0,
+        1,
+        4,
+        7,
+        8,
+        9,
+        13,
+        14,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "associated_incident_ids": [
+        "0dc0fc85-0d6b-454b-a5f8-e4c5071b5811",
+        "1205bfe0-1360-4780-a257-7268e891f197",
+        "4cadff47-8320-400f-a587-2bb45a0084bc",
+        "4f7062d2-eff1-46fc-975d-1f8713280b84",
+        "77ae81e7-bdad-470e-8fc0-063ded3f6556",
+        "9aced842-c53e-4a01-ad2f-c05c0fd6dd97",
+        "b3c622b2-ba9a-4e4d-973c-6a59028361d6",
+        "ec3af352-6b03-4f13-b744-4709fab905ef"
+      ],
+      "classification": "Requires user decision",
+      "classification_reason": "Asset has 19 indexed vectors in FAISS vault, but zero video or frame files on disk. User decision: Purge orphaned vectors from FAISS or create placeholder frames.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "be7a434a-81d8-460e-90ee-2ebf70f08f3a",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "24b6fda9-d0cc-40ed-aa19-865186820141"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "c1773b71-50e7-4611-b028-cd94c2411d36",
+      "filename": "c1773b71-50e7-4611-b028-cd94c2411d36.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/c1773b71-50e7-4611-b028-cd94c2411d36.mp4",
+      "intended_storage_video_key": "reference-assets/c1773b71-50e7-4611-b028-cd94c2411d36/c1773b71-50e7-4611-b028-cd94c2411d36.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/c1773b71-50e7-4611-b028-cd94c2411d36/frame_0000s.jpg",
+        "reference-frames/c1773b71-50e7-4611-b028-cd94c2411d36/frame_0005s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 2,
+      "faiss_vector_ids": [
+        22,
+        23
+      ],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "c206dcef-c5b6-4da3-ae04-9b5964a9b731",
+      "filename": "c206dcef-c5b6-4da3-ae04-9b5964a9b731.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/c206dcef-c5b6-4da3-ae04-9b5964a9b731.mp4",
+      "intended_storage_video_key": "reference-assets/c206dcef-c5b6-4da3-ae04-9b5964a9b731/c206dcef-c5b6-4da3-ae04-9b5964a9b731.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/c206dcef-c5b6-4da3-ae04-9b5964a9b731/frame_0000s.jpg",
+        "reference-frames/c206dcef-c5b6-4da3-ae04-9b5964a9b731/frame_0005s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 2,
+      "faiss_vector_ids": [
+        5,
+        6
+      ],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "c7fd5fed-eb3f-493d-a4b4-26a511751289",
+      "filename": "acceptance_ref_broadcast.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/c7fd5fed-eb3f-493d-a4b4-26a511751289.mp4",
+      "intended_storage_video_key": "reference-assets/c7fd5fed-eb3f-493d-a4b4-26a511751289/acceptance_ref_broadcast.mp4",
+      "file_size_bytes": 185314,
+      "sha256_hash": "07781e7bd89b9f9e8d8cc6da7b8ceafc786bca0a7e55564237a29bbe03318b55",
+      "duration_seconds": 15.0,
+      "frame_count": 3,
+      "expected_frame_keys": [
+        "reference-frames/c7fd5fed-eb3f-493d-a4b4-26a511751289/frame_0000s.jpg",
+        "reference-frames/c7fd5fed-eb3f-493d-a4b4-26a511751289/frame_0005s.jpg",
+        "reference-frames/c7fd5fed-eb3f-493d-a4b4-26a511751289/frame_0010s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 3,
+      "faiss_vector_ids": [
+        15,
+        16,
+        17
+      ],
+      "associated_incident_ids": [],
+      "classification": "Safe to migrate",
+      "classification_reason": "Complete reference asset with verified video, extracted frames, and metadata entry.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "caab4dc5-cf13-4563-87fb-012434e93290",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "cbe05ee9-85a0-47b6-b341-0c141399515e",
+      "filename": "cbe05ee9-85a0-47b6-b341-0c141399515e.mp4",
+      "local_video_path": "/Users/varunchauhan/projects/FIXPROOF/backend/storage/videos/cbe05ee9-85a0-47b6-b341-0c141399515e.mp4",
+      "intended_storage_video_key": "reference-assets/cbe05ee9-85a0-47b6-b341-0c141399515e/cbe05ee9-85a0-47b6-b341-0c141399515e.mp4",
+      "file_size_bytes": 2848208,
+      "sha256_hash": "05bd857af7f70bf51b6aac1144046973bf3325c9101a554bc27dc9607dbbd8f5",
+      "duration_seconds": null,
+      "frame_count": 2,
+      "expected_frame_keys": [
+        "reference-frames/cbe05ee9-85a0-47b6-b341-0c141399515e/frame_0000s.jpg",
+        "reference-frames/cbe05ee9-85a0-47b6-b341-0c141399515e/frame_0005s.jpg"
+      ],
+      "indexing_status": "INDEXED",
+      "indexed_vector_count": 2,
+      "faiss_vector_ids": [
+        2,
+        3
+      ],
+      "associated_incident_ids": [],
+      "classification": "Requires explicit repair",
+      "classification_reason": "Video and frames exist on disk (and FAISS vectors if indexed), but asset is missing from assets_metadata.json. Repair action: Register asset in metadata before migration.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": true,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": true
+      }
+    },
+    {
+      "asset_id": "cfc02f3a-66c3-4bef-b842-4926509e8ffe",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "cfc62835-637a-48fb-b0d9-0855e6bdb844",
+      "filename": "ref_stripes.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "d086dac0-afd7-4f95-9149-e47e43a8331b",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "d9c468d7-ab01-4eea-93e9-96202c0272e4",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "dc4f80d7-3144-45e3-b68c-ae9f1e0ebc5b",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55842,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "0ba41ce5-b4ee-445a-b264-167a6143256b"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "debug-asset-123",
+      "filename": "asset_debug-as.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": null,
+      "sha256_hash": null,
+      "duration_seconds": null,
+      "frame_count": 1,
+      "expected_frame_keys": [
+        "reference-frames/debug-asset-123/frame_0000s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Orphaned frame directory on disk with no underlying reference video file. Excluded from migration until source video is provided or directory is cleaned.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "debug-direct-123",
+      "filename": "asset_debug-di.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": null,
+      "sha256_hash": null,
+      "duration_seconds": null,
+      "frame_count": 1,
+      "expected_frame_keys": [
+        "reference-frames/debug-direct-123/frame_0000s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Orphaned frame directory on disk with no underlying reference video file. Excluded from migration until source video is provided or directory is cleaned.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "e5c67e36-42e1-4d4d-8632-3e5cd0fa630e",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "bde7423d-645a-4efe-82e1-ac3b93a7226a"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "f0884623-43cd-4789-b6d9-916bdbd17409",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "f2296e03-bdff-4f0b-ac03-678ca86694a6",
+      "filename": "asset_f2296e03.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": null,
+      "sha256_hash": null,
+      "duration_seconds": null,
+      "frame_count": 3,
+      "expected_frame_keys": [
+        "reference-frames/f2296e03-bdff-4f0b-ac03-678ca86694a6/frame_0000s.jpg",
+        "reference-frames/f2296e03-bdff-4f0b-ac03-678ca86694a6/frame_0005s.jpg",
+        "reference-frames/f2296e03-bdff-4f0b-ac03-678ca86694a6/frame_0010s.jpg"
+      ],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Orphaned frame directory on disk with no underlying reference video file. Excluded from migration until source video is provided or directory is cleaned.",
+      "presence": {
+        "in_metadata_json": false,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": true,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "f24159c6-41f9-4053-a53f-8d7d962f9238",
+      "filename": "ref_iso.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "55ea107a-0a4a-41b4-b99c-ee87f70fb4ce"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "f4cc3472-57a8-4f37-b44d-63712d207c15",
+      "filename": "official_match_ref.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 7821,
+      "sha256_hash": null,
+      "duration_seconds": 6.0,
+      "frame_count": 2,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "fa588ad3-8fcd-4e5c-92c2-a8b0ce7712df",
+      "filename": "ref_official.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 55451,
+      "sha256_hash": null,
+      "duration_seconds": 5.0,
+      "frame_count": 1,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [
+        "26693dcf-1824-407b-88cc-b45a7cdf5305",
+        "ce272e34-9fb9-4730-8b37-3c10945fee28"
+      ],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    },
+    {
+      "asset_id": "ff1c440e-99fb-4fbc-b59a-efe9b93f5c1d",
+      "filename": "synthetic_match.mp4",
+      "local_video_path": null,
+      "intended_storage_video_key": null,
+      "file_size_bytes": 65240,
+      "sha256_hash": null,
+      "duration_seconds": 11.0,
+      "frame_count": 3,
+      "expected_frame_keys": [],
+      "indexing_status": "UNINDEXED",
+      "indexed_vector_count": 0,
+      "faiss_vector_ids": [],
+      "associated_incident_ids": [],
+      "classification": "Excluded from migration until resolved",
+      "classification_reason": "Stale JSON metadata entry with zero video files, zero frames, and zero vectors on disk (test artifact with status DELETED or unlinked). Excluded from migration.",
+      "presence": {
+        "in_metadata_json": true,
+        "video_file_on_disk": false,
+        "frames_dir_on_disk": false,
+        "indexed_in_faiss": false
+      }
+    }
+  ]
+}

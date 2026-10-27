@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bg-lavender: #f6f7fc;
+  --card-white: #ffffff;
+  --border-subtle: rgba(148, 163, 184, 0.2);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  --teal-primary: #0d9488;
+  --teal-accent: #2dd4bf;
+  --teal-glow: rgba(13, 148, 136, 0.2);
+}
+
+body {
+  font-family: var(--font-inter);
+  background: var(--bg-lavender);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Pulse animation */
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.animate-pulse-subtle {
+  animation: pulseSubtle 1.8s ease-in-out infinite;
+}
+
+/* Spin animation */
+@keyframes spinSmooth {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-smooth {
+  animation: spinSmooth 0.9s linear infinite;
+}
+
+/* Ripple cell — GSSoC teal */
+@keyframes cellRipple {
+  0%   { background-color: transparent; }
+  28%  { background-color: rgba(20,184,166,0.20); box-shadow: inset 0 0 16px rgba(20,184,166,0.14); }
+  100% { background-color: transparent; }
+}
+.animate-cell-ripple {
+  animation: cellRipple var(--duration, 360ms) var(--delay, 0ms) ease-out both;
+}
+
+/* Cell Pulse */
+@keyframes cellPulse {
+  0%   { background-color: transparent; }
+  30%  { background-color: rgba(13,148,136,0.15); }
+  100% { background-color: transparent; }
+}
+
+/* Animated gradient text */
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+/* Floating animation */
+@keyframes floatAnimation {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+.animate-float {
+  animation: floatAnimation 6s ease-in-out infinite;
+}
+
+/* Globe canvas */
+canvas {
+  image-rendering: pixelated;
+}
+
+html {
+  scroll-behavior: smooth;
+}
