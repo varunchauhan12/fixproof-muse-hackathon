@@ -242,3 +242,102 @@ export interface PackageVerificationResult {
   verified_at: string;
 }
 
+export interface NemotronStatus {
+  status: "ready" | "degraded";
+  configured_model: string;
+  vision_model: string;
+  text_reasoning_available: boolean;
+  vision_verification_available: boolean;
+  email_delivery_available: boolean;
+  email_provider: string;
+  email_from: string | null;
+  supported_documents: string[];
+  supported_jurisdictions: string[];
+}
+
+export interface DraftDocumentPayload {
+  incident_id: string;
+  document_type: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER";
+  rights_holder?: string;
+  authorized_rep?: string;
+  contact_email?: string;
+  work_title?: string;
+  recipient_name?: string;
+  recipient_email?: string;
+  jurisdiction?: string;
+  custom_notes?: string;
+  rev_share_pct?: number;
+  commercial_terms?: string;
+  response_deadline_days?: number;
+  use_ai_synthesis?: boolean;
+}
+
+export interface DraftDocumentResult {
+  document_id: string;
+  incident_id: string;
+  document_type: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER";
+  status: "READY_FOR_REVIEW" | "INCOMPLETE_EVIDENCE";
+  subject: string;
+  body: string;
+  facts_imported: {
+    incident_id: string;
+    suspect_filename?: string;
+    suspect_url?: string;
+    platform: string;
+    scanned_at: string;
+    matched_assets: string[];
+    candidate_matches_found: number;
+    highest_confidence: number;
+    lowest_l2_distance: number | null;
+    overall_status: string;
+    frame_correlations: Array<{
+      frame_index: number;
+      suspect_timestamp_sec: number;
+      source_timestamp_sec: number;
+      source_asset_id: string;
+      l2_distance: number | null;
+      phash_match: boolean;
+    }>;
+  };
+  user_inputs: Record<string, any>;
+  missing_fields: string[];
+  ai_enhanced: boolean;
+  model_id: string;
+  declarations_required: string[];
+  created_at: string;
+}
+
+export interface SendEmailPayload {
+  incident_id: string;
+  document_type: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER";
+  recipient_email: string;
+  subject: string;
+  body: string;
+  cc_emails?: string[];
+  user_confirmed: boolean;
+  rights_declaration_confirmed: boolean;
+}
+
+export interface SendEmailResult {
+  success: boolean;
+  status: "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
+  delivery_id?: string | null;
+  audit_id: string;
+  message: string;
+}
+
+export interface EmailAuditEntry {
+  audit_id: string;
+  timestamp: string;
+  incident_id: string;
+  document_type: string;
+  recipient_email: string;
+  subject: string;
+  status: "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
+  provider: string;
+  delivery_id?: string | null;
+  session_id?: string | null;
+  error?: string | null;
+}
+
+

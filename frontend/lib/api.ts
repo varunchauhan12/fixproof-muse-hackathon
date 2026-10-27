@@ -6,6 +6,12 @@ import {
   InvestigateIncidentPayload,
   ReportHistoryItem,
   PackageVerificationResult,
+  NemotronStatus,
+  DraftDocumentPayload,
+  DraftDocumentResult,
+  SendEmailPayload,
+  SendEmailResult,
+  EmailAuditEntry,
 } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -325,3 +331,71 @@ export function getAssetVideoUrl(assetId: string): string {
 export function getAssetFrameUrl(assetId: string, filename: string): string {
   return `${API_BASE}/api/vault/assets/${encodeURIComponent(assetId)}/frames/${encodeURIComponent(filename)}`;
 }
+
+export async function getNemotronStatus(): Promise<NemotronStatus> {
+  const res = await fetchNoCache(`${API_BASE}/api/nemotron/status`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch Nemotron status (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function draftNemotronDocument(
+  payload: DraftDocumentPayload
+): Promise<DraftDocumentResult> {
+  const res = await fetch(`${API_BASE}/api/nemotron/draft-document`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Client-Session-ID": getClientSessionId(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to draft document (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function sendNemotronEmail(
+  payload: SendEmailPayload
+): Promise<SendEmailResult> {
+  const res = await fetch(`${API_BASE}/api/nemotron/send-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Client-Session-ID": getClientSessionId(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to send email (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function getEmailStatus(): Promise<{
+  configured: boolean;
+  provider: string;
+  from_email: string | null;
+}> {
+  const res = await fetchNoCache(`${API_BASE}/api/nemotron/email-status`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch email status (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function getEmailAuditLog(
+  incidentId?: string
+): Promise<EmailAuditEntry[]> {
+  const q = incidentId ? `?incident_id=${encodeURIComponent(incidentId)}` : "";
+  const res = await fetchNoCache(`${API_BASE}/api/nemotron/email-audit-log${q}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch email audit log (${res.status})`);
+  }
+  return res.json();
+}
+

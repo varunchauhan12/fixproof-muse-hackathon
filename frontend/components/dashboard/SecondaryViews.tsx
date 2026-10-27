@@ -7,9 +7,13 @@ import { MatchAnalysisResult, AssetRecord } from "@/lib/types";
 interface SecondaryProps {
   incidents: MatchAnalysisResult[];
   assets: AssetRecord[];
+  onNavigateToNemotron?: (
+    incident: MatchAnalysisResult,
+    docType: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER"
+  ) => void;
 }
 
-export const EnforcementView: React.FC<SecondaryProps> = ({ incidents }) => {
+export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigateToNemotron }) => {
   const matchIncidents = incidents.filter((i) => i.candidate_matches_found > 0);
 
   return (
@@ -76,13 +80,25 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents }) => {
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => alert(`Notice drafted for review: ${inc.suspect_filename}`)}
+                  onClick={() => {
+                    if (onNavigateToNemotron) {
+                      onNavigateToNemotron(inc, "COPYRIGHT_NOTICE");
+                    } else {
+                      alert(`Notice drafted for review: ${inc.suspect_filename}`);
+                    }
+                  }}
                   className="px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-[#f4efe6] text-[11px] font-bold transition-colors cursor-pointer"
                 >
                   Draft Notice
                 </button>
                 <button
-                  onClick={() => alert(`Licensing contract drafted for: ${inc.suspect_filename}`)}
+                  onClick={() => {
+                    if (onNavigateToNemotron) {
+                      onNavigateToNemotron(inc, "REVENUE_SHARE_OFFER");
+                    } else {
+                      alert(`Licensing contract drafted for: ${inc.suspect_filename}`);
+                    }
+                  }}
                   style={{
                     background: "#eee7db",
                     color: "#141312",

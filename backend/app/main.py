@@ -86,6 +86,14 @@ from app.nemotron_engine import (
     normalize_model_override,
     DEFAULT_MODEL,
 )
+from app.nemotron_action import (
+    get_email_config,
+    load_email_audit_log,
+    extract_incident_evidence_facts,
+    generate_copyright_notice_draft,
+    generate_rev_share_proposal_draft,
+    send_nemotron_document_email,
+)
 from typing import Optional, Dict, Any
 
 class ScreenUrlRequest(BaseModel):
@@ -101,6 +109,32 @@ class InvestigateIncidentRequest(BaseModel):
         description="Optional model ID override. Leave empty or null to use 'nvidia/Nemotron-3_5-Lightning'. Allowed: nvidia/Nemotron-3_5-Lightning, nvidia/Nemotron-3.5-Super-VL.",
         json_schema_extra={"example": None},
     )
+
+class DraftDocumentRequest(BaseModel):
+    incident_id: str
+    document_type: str = Field(..., description="COPYRIGHT_NOTICE or REVENUE_SHARE_OFFER")
+    rights_holder: Optional[str] = None
+    authorized_rep: Optional[str] = None
+    contact_email: Optional[str] = None
+    work_title: Optional[str] = None
+    recipient_name: Optional[str] = None
+    recipient_email: Optional[str] = None
+    jurisdiction: Optional[str] = "US_DMCA"
+    custom_notes: Optional[str] = None
+    rev_share_pct: Optional[float] = 50.0
+    commercial_terms: Optional[str] = None
+    response_deadline_days: Optional[int] = 14
+    use_ai_synthesis: Optional[bool] = True
+
+class SendDocumentEmailRequest(BaseModel):
+    incident_id: str
+    document_type: str
+    recipient_email: str
+    subject: str
+    body: str
+    cc_emails: Optional[List[str]] = None
+    user_confirmed: bool = False
+    rights_declaration_confirmed: bool = False
 
 
 def is_valid_completed_report(report: Dict[str, Any]) -> bool:
@@ -1153,3 +1187,155 @@ def diagnose(request: DiagnoseRequest):
             status_code=502,
             detail="The model request failed. Check the backend logs.",
         )
+
+
+# ==============================================================================
+# Phase 3.5: Nemotron Intelligence & Action Center Endpoints
+# ==============================================================================
+
+@app.get("/api/nemotron/status")
+def get_nemotron_status_endpoint():
+    """Returns runtime status and capability overview for Nemotron and email dispatch."""
+    configured, _, from_email = get_email_config()
+    nebius_key = bool(os.getenv("NEBIUS_API_KEY"))
+    return {
+        "status": "ready" if nebius_key else "degraded",
+        "configured_model": DEFAULT_MODEL,
+        "vision_model": "nvidia/Nemotron-3.5-Super-VL",
+        "text_reasoning_available": nebius_key,
+        "vision_verification_available": nebius_key,
+        "email_delivery_available": configured,
+        "email_provider": "Resend",
+        "email_from": from_email if configured else None,
+        "supported_documents": ["COPYRIGHT_NOTICE", "REVENUE_SHARE_OFFER"],
+        "supported_jurisdictions": ["US_DMCA", "EU_DSA", "UK_CDPA", "GENERAL"],
+    }
+
+
+@app.post("/api/nemotron/draft-document")
+def draft_nemotron_document_endpoint(
+    req: DraftDocumentRequest,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Generates an evidence-grounded draft document (Copyright Notice or Rev-Share Offer)
+    using verified incident facts, user-supplied declarations, and optional Nemotron AI polishing.
+    """
+    if not SAFE_ID_REGEX.match(req.incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(req.incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied drafting for incident {req.incident_id}: session mismatch"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
+    doc_type = (req.document_type or "").upper()
+    if doc_type not in ("COPYRIGHT_NOTICE", "REVENUE_SHARE_OFFER"):
+        raise HTTPException(status_code=400, detail=f"Unsupported document type: {req.document_type}")
+
+    try:
+        user_inputs = {
+            "rights_holder_name": req.rights_holder,
+            "authorized_rep": req.authorized_rep,
+            "representative_name": req.authorized_rep,
+            "contact_email": req.contact_email,
+            "work_title": req.work_title,
+            "recipient_name": req.recipient_name,
+            "recipient_email": req.recipient_email,
+            "jurisdiction": req.jurisdiction or "US_DMCA",
+            "additional_notes": req.custom_notes,
+            "proposed_rev_share_pct": float(req.rev_share_pct or 50.0),
+            "commercial_terms": req.commercial_terms,
+            "response_deadline_days": int(req.response_deadline_days or 14),
+        }
+        if doc_type == "COPYRIGHT_NOTICE":
+            draft = generate_copyright_notice_draft(
+                incident=incident,
+                user_inputs=user_inputs,
+                use_ai_synthesis=bool(req.use_ai_synthesis),
+            )
+        else:
+            draft = generate_rev_share_proposal_draft(
+                incident=incident,
+                user_inputs=user_inputs,
+                use_ai_synthesis=bool(req.use_ai_synthesis),
+            )
+        return draft
+    except Exception as e:
+        logger.error(f"[NemotronAction] Error drafting document: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to draft document: {e}")
+
+
+@app.post("/api/nemotron/send-email")
+def send_nemotron_email_endpoint(
+    req: SendDocumentEmailRequest,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Dispatches a reviewed document email via Resend API.
+    Enforces mandatory human review confirmation, statutory declaration confirmation,
+    and minimal persistent audit logging.
+    """
+    if not SAFE_ID_REGEX.match(req.incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(req.incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied sending email for incident {req.incident_id}: session mismatch"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
+    try:
+        result = send_nemotron_document_email(
+            incident_id=req.incident_id,
+            document_type=req.document_type,
+            recipient_email=req.recipient_email,
+            subject=req.subject,
+            body=req.body,
+            cc_emails=req.cc_emails,
+            user_confirmed=req.user_confirmed,
+            rights_declaration_confirmed=req.rights_declaration_confirmed,
+            client_session_id=x_client_session_id,
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[NemotronAction] Exception sending email: {e}")
+        raise HTTPException(status_code=500, detail=f"Email dispatch error: {e}")
+
+
+@app.get("/api/nemotron/email-status")
+def get_email_status_endpoint():
+    """Returns server-side email dispatch configuration status."""
+    configured, _, from_email = get_email_config()
+    return {
+        "configured": configured,
+        "provider": "Resend",
+        "from_email": from_email if configured else None,
+    }
+
+
+@app.get("/api/nemotron/email-audit-log")
+def get_email_audit_log_endpoint(
+    incident_id: Optional[str] = None,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """Retrieves email audit logs filtered by incident and session isolation."""
+    logs = load_email_audit_log()
+    if incident_id:
+        logs = [entry for entry in logs if entry.get("incident_id") == incident_id]
+    if x_client_session_id and x_client_session_id != "demo-showcase":
+        logs = [entry for entry in logs if entry.get("session_id") in (x_client_session_id, None, "demo-showcase")]
+    return logs

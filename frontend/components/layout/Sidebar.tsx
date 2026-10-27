@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
+  Cpu,
 } from "lucide-react";
 
 export type NavTab =
@@ -21,6 +22,7 @@ export type NavTab =
   | "vault"
   | "hunter"
   | "incidents"
+  | "nemotron"
   | "intelligence"
   | "enforcer"
   | "notifications"
@@ -46,6 +48,7 @@ const NAV_ITEMS: {
   { id: "vault", label: "Asset Vault", icon: Database },
   { id: "hunter", label: "Threat Hunter", icon: Search },
   { id: "incidents", label: "Incidents", icon: ShieldAlert },
+  { id: "nemotron", label: "Nemotron", icon: Cpu },
   { id: "intelligence", label: "Intelligence", icon: BarChart3 },
   { id: "enforcer", label: "Enforce & License", icon: Gavel },
   { id: "notifications", label: "Swarm Logs", icon: Bell },

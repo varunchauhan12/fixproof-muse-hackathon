@@ -8,6 +8,7 @@ import { ThreatHunter } from "@/components/dashboard/ThreatHunter";
 import { IncidentResponse } from "@/components/dashboard/IncidentResponse";
 import { Overview } from "@/components/dashboard/Overview";
 import { Intelligence } from "@/components/dashboard/Intelligence";
+import { NemotronCenter } from "@/components/dashboard/NemotronCenter";
 import {
   EnforcementView,
   SwarmLogsView,
@@ -28,6 +29,7 @@ const PAGE_TITLES: Record<NavTab, string> = {
   vault: "Digital Asset Vault",
   hunter: "Sentinel Threat Hunter",
   incidents: "Incident Response",
+  nemotron: "Nemotron Intelligence & Action Center",
   intelligence: "Intelligence & Analytics",
   enforcer: "Enforcement & Licensing",
   notifications: "Forensics Swarm Logs",
@@ -92,9 +94,24 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
     return () => clearInterval(interval);
   }, [loadBackendState]);
 
+  const [nemotronPreselectedIncident, setNemotronPreselectedIncident] =
+    useState<MatchAnalysisResult | null>(null);
+  const [nemotronPreselectedDocType, setNemotronPreselectedDocType] = useState<
+    "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER" | null
+  >(null);
+
   const handleNavigateToIncidents = (incident: MatchAnalysisResult) => {
     setSelectedIncidentForInspection(incident);
     setActiveTab("incidents");
+  };
+
+  const handleNavigateToNemotron = (
+    incident?: MatchAnalysisResult,
+    docType?: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER"
+  ) => {
+    if (incident) setNemotronPreselectedIncident(incident);
+    if (docType) setNemotronPreselectedDocType(docType);
+    setActiveTab("nemotron");
   };
 
   const currentTitle = PAGE_TITLES[activeTab] || "Command Center";
@@ -103,6 +120,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
     "vault",
     "hunter",
     "incidents",
+    "nemotron",
     "intelligence",
     "enforcer",
     "notifications",
@@ -213,6 +231,16 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
             />
           )}
 
+          {activeTab === "nemotron" && (
+            <NemotronCenter
+              incidents={incidents}
+              assets={assets}
+              preselectedIncident={nemotronPreselectedIncident}
+              preselectedDocType={nemotronPreselectedDocType}
+              onNavigateToIncidents={handleNavigateToIncidents}
+            />
+          )}
+
           {activeTab === "intelligence" && (
             <Intelligence
               assets={assets}
@@ -224,7 +252,11 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
           )}
 
           {activeTab === "enforcer" && (
-            <EnforcementView incidents={incidents} assets={assets} />
+            <EnforcementView
+              incidents={incidents}
+              assets={assets}
+              onNavigateToNemotron={handleNavigateToNemotron}
+            />
           )}
 
           {activeTab === "notifications" && (
