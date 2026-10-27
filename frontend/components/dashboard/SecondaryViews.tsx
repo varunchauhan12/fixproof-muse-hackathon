@@ -100,52 +100,8 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents }) => {
   );
 };
 
-export const SwarmLogsView: React.FC<SecondaryProps> = ({ incidents, assets }) => (
-  <div
-    style={{
-      background: "#171615",
-      borderRadius: 20,
-      border: "1px solid rgba(238, 231, 219, 0.08)",
-    }}
-    className="p-6 text-[#ded7cb] max-w-7xl mx-auto space-y-6 font-mono text-[12px]"
-  >
-    <div className="flex items-center justify-between pb-4 border-b border-[rgba(238,231,219,0.08)]">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="w-2 h-2 rounded-full bg-[#eee7db]" />
-          <h2 className="text-[17px] font-extrabold text-[#f4efe6] m-0 font-sans">
-            Forensics Telemetry & Swarm Logs
-          </h2>
-        </div>
-        <p className="text-[12px] text-[#8e887d] m-0 font-sans">
-          Immutable execution log of vault indexing, frame extractions, and similarity matches.
-        </p>
-      </div>
-    </div>
+export { SwarmLogsView } from "./SwarmLogsView";
 
-    <div
-      style={{
-        background: "#121211",
-        border: "1px solid rgba(238, 231, 219, 0.08)",
-        borderRadius: 14,
-      }}
-      className="p-4 space-y-2 max-h-[500px] overflow-y-auto"
-    >
-      <div className="text-[#eee7db]">[SYSTEM READY] FixProof Forensics Swarm initialized.</div>
-      <div className="text-[#8e887d]">[VAULT] Reference storage connected: {assets.length} items detected.</div>
-      {assets.map((a) => (
-        <div key={a.asset_id} className="text-[#ded7cb]">
-          [ARCHIVIST] Reference &quot;{a.filename}&quot; — {a.frame_count} frames, {a.indexed_vectors} vectors ({a.indexed ? "INDEXED" : "UNINDEXED"}).
-        </div>
-      ))}
-      {incidents.map((inc, i) => (
-        <div key={inc.incident_id || i} className={inc.candidate_matches_found > 0 ? "text-[#d4a373]" : "text-[#aba497]"}>
-          [SENTINEL] Scan complete: {inc.suspect_filename} → {inc.overall_status} (Conf: {inc.highest_confidence}%).
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 export const SettingsView: React.FC = () => (
   <div

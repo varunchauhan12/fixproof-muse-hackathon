@@ -1,27 +1,29 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
   BarChart3,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Cpu,
   Database,
+  ExternalLink,
+  FileArchive,
+  FileVideo,
+  Filter,
+  Globe,
+  Info,
+  Layers,
+  RefreshCw,
   Search,
   ShieldAlert,
-  ExternalLink,
-  Layers,
-  FileVideo,
-  CheckCircle2,
-  Clock,
-  ArrowUpRight,
-  Activity,
-  Info,
-  Sliders,
-  Cpu,
-  Globe,
-  RefreshCw,
-  FileArchive,
   ShieldCheck,
-  ChevronRight,
-  AlertTriangle,
+  Sliders,
+  X,
 } from "lucide-react";
 import { AssetRecord, VaultStatus, MatchAnalysisResult } from "@/lib/types";
 import { formatBytes } from "@/lib/api";
@@ -41,6 +43,9 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
   onNavigateToTab,
   onSelectIncident,
 }) => {
+  // Interactive outcome filter
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string | null>(null);
+
   // Aggregate KPIs
   const totalAssets = assets.length;
   const indexedCount = assets.filter((a) => a.indexed).length;
@@ -76,11 +81,23 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
 
   // Chronologically sorted incidents for trend timeline
   const chronologicalIncidents = useMemo(() => {
-    return [...incidents]
-      .filter((i) => i.scanned_at)
+    let list = [...incidents].filter((i) => i.scanned_at);
+    if (selectedStatusFilter) {
+      list = list.filter((i) => i.overall_status === selectedStatusFilter);
+    }
+    return list
       .sort((a, b) => new Date(a.scanned_at!).getTime() - new Date(b.scanned_at!).getTime())
-      .slice(-12);
-  }, [incidents]);
+      .slice(-14);
+  }, [incidents, selectedStatusFilter]);
+
+  // Filtered recent investigations list
+  const visibleRecentIncidents = useMemo(() => {
+    let list = [...incidents];
+    if (selectedStatusFilter) {
+      list = list.filter((i) => i.overall_status === selectedStatusFilter);
+    }
+    return list.slice(0, 8);
+  }, [incidents, selectedStatusFilter]);
 
   // Asset exposure: mapping how many incidents matched against each asset
   const assetMatchCounts = useMemo(() => {
@@ -96,13 +113,17 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
     return map;
   }, [incidents]);
 
+  const toggleFilter = (status: string) => {
+    setSelectedStatusFilter((prev) => (prev === status ? null : status));
+  };
+
   return (
     <div
       style={{
         background: "#121211",
         color: "#ded7cb",
       }}
-      className="p-5 md:p-6 max-w-7xl mx-auto space-y-6"
+      className="p-5 md:p-6 max-w-7xl mx-auto space-y-6 font-sans"
     >
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[rgba(238,231,219,0.08)]">
@@ -119,6 +140,21 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {selectedStatusFilter && (
+            <button
+              onClick={() => setSelectedStatusFilter(null)}
+              style={{
+                background: "rgba(238, 231, 219, 0.08)",
+                border: "1px solid rgba(238, 231, 219, 0.16)",
+                color: "#f4efe6",
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono hover:bg-[#242220] transition-colors cursor-pointer"
+            >
+              <span>Filter: {selectedStatusFilter.replace(/_/g, " ")}</span>
+              <X size={12} className="text-[#aba497]" />
+            </button>
+          )}
+
           <button
             onClick={() => onNavigateToTab("hunter")}
             style={{
@@ -133,40 +169,68 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
         </div>
       </div>
 
-      {/* ─── A. KPI Header Row (4 Compact Cards) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ─── A. Top KPI Row (6 Compact Cards) ─── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           {
-            label: "Protected Reference Assets",
+            label: "Registered Assets",
             value: totalAssets.toString(),
-            sub: `${indexedCount} indexed in FAISS (${totalAssets > 0 ? Math.round((indexedCount / totalAssets) * 100) : 0}%)`,
-            desc: `${totalFrames.toLocaleString()} extracted frames`,
+            sub: `${indexedCount} in FAISS (${totalAssets > 0 ? Math.round((indexedCount / totalAssets) * 100) : 0}%)`,
+            desc: `${totalFrames.toLocaleString()} frames`,
             icon: Database,
             onClick: () => onNavigateToTab("vault"),
+            active: false,
           },
           {
-            label: "FAISS Feature Vectors",
+            label: "FAISS Vectors",
             value: totalVectors.toLocaleString(),
-            sub: `${vaultStatus?.embedding_dim || 576}-dim L2 normalized`,
-            desc: `MobileNetV3 feature space`,
+            sub: `${vaultStatus?.embedding_dim || 576}-dim L2 norm`,
+            desc: "MobileNetV3 feature space",
             icon: Cpu,
             onClick: () => onNavigateToTab("vault"),
+            active: false,
           },
           {
-            label: "Total Investigations",
+            label: "Total Inquiries",
             value: incidents.length.toString(),
-            sub: `${videoScansCount} video scans · ${urlScreeningsCount} screenings`,
-            desc: "Recorded forensic inquiries",
+            sub: `${videoScansCount} video · ${urlScreeningsCount} URL`,
+            desc: "Recorded scan records",
             icon: Activity,
-            onClick: () => onNavigateToTab("incidents"),
+            onClick: () => {
+              setSelectedStatusFilter(null);
+              onNavigateToTab("incidents");
+            },
+            active: selectedStatusFilter === null,
           },
           {
-            label: "Candidate Matches Flagged",
+            label: "Candidate Matches",
             value: matchCount.toString(),
-            sub: `${suspectCount} visual proximity · ${cleanCount} clean`,
-            desc: `${reviewNeededCount} awaiting full review`,
+            sub: "Confirmed similarity",
+            desc: "L2 < 0.15 + pHash match",
             icon: ShieldAlert,
-            onClick: () => onNavigateToTab("incidents"),
+            onClick: () => toggleFilter("CANDIDATE_MATCH"),
+            active: selectedStatusFilter === "CANDIDATE_MATCH",
+            highlight: "#dfa974",
+          },
+          {
+            label: "Clean Inquiries",
+            value: cleanCount.toString(),
+            sub: "No match detected",
+            desc: "Zero correlated vectors",
+            icon: CheckCircle2,
+            onClick: () => toggleFilter("CLEAN"),
+            active: selectedStatusFilter === "CLEAN",
+            highlight: "#eee7db",
+          },
+          {
+            label: "Review Needed",
+            value: reviewNeededCount.toString(),
+            sub: "Single-frame screens",
+            desc: "Awaiting video review",
+            icon: AlertTriangle,
+            onClick: () => toggleFilter("NEEDS_FULL_VIDEO_REVIEW"),
+            active: selectedStatusFilter === "NEEDS_FULL_VIDEO_REVIEW",
+            highlight: "#aba497",
           },
         ].map((card, idx) => {
           const Icon = card.icon;
@@ -175,24 +239,42 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
               key={idx}
               onClick={card.onClick}
               style={{
-                background: "#171615",
-                border: "1px solid rgba(238, 231, 219, 0.08)",
+                background: card.active ? "#1f1e1c" : "#171615",
+                border: `1px solid ${
+                  card.active
+                    ? "rgba(238, 231, 219, 0.28)"
+                    : "rgba(238, 231, 219, 0.08)"
+                }`,
                 borderRadius: 14,
                 cursor: "pointer",
               }}
-              className="p-4 transition-all hover:bg-[#1c1b19] hover:border-[rgba(238,231,219,0.16)] group"
+              className="p-3 transition-all hover:bg-[#1c1b19] hover:border-[rgba(238,231,219,0.18)] group"
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#aba497]">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#aba497] truncate">
                   {card.label}
                 </span>
-                <Icon size={14} className="text-[#736d62] group-hover:text-[#eee7db] transition-colors" />
+                <Icon
+                  size={13}
+                  className={
+                    card.active
+                      ? "text-[#eee7db]"
+                      : "text-[#736d62] group-hover:text-[#eee7db] transition-colors"
+                  }
+                />
               </div>
-              <span className="text-2xl font-bold tracking-tight text-[#f4efe6] block my-0.5 font-mono">
+              <span
+                style={{
+                  color: card.highlight && card.active ? card.highlight : "#f4efe6",
+                }}
+                className="text-xl font-bold tracking-tight block my-0.5 font-mono"
+              >
                 {card.value}
               </span>
-              <span className="text-[11px] text-[#ded7cb] font-semibold block">{card.sub}</span>
-              <span className="text-[9.5px] text-[#736d62] block mt-0.5">{card.desc}</span>
+              <span className="text-[10px] text-[#ded7cb] font-semibold block truncate">
+                {card.sub}
+              </span>
+              <span className="text-[9px] text-[#736d62] block mt-0.5 truncate">{card.desc}</span>
             </div>
           );
         })}
@@ -212,10 +294,10 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
           <div className="flex items-center justify-between pb-2 border-b border-[rgba(238,231,219,0.06)]">
             <div>
               <h4 className="text-[13px] font-bold text-[#f4efe6] m-0">
-                Investigation Outcome Breakdown
+                Investigation Outcome Distribution
               </h4>
               <p className="text-[10.5px] text-[#aba497] m-0 mt-0.5">
-                Distribution of candidate match criteria and visual similarity outcomes.
+                Distribution of candidate match criteria and visual similarity outcomes. Click bar to filter feed.
               </p>
             </div>
             <span className="text-[10px] font-mono text-[#736d62]">
@@ -231,30 +313,35 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
             <div className="space-y-3 pt-1">
               {[
                 {
+                  statusKey: "CANDIDATE_MATCH",
                   label: "Candidate Match (Infringement Risk)",
                   count: matchCount,
                   color: "#dfa974",
                   desc: "L2 distance < 0.15 + confirmed perceptual hash match",
                 },
                 {
+                  statusKey: "SUSPECT",
                   label: "Suspect Visual Proximity",
                   count: suspectCount,
                   color: "rgba(212, 163, 115, 0.6)",
-                  desc: "Cosine proximity detected, secondary human review suggested",
+                  desc: "Cosine proximity detected, secondary review suggested",
                 },
                 {
+                  statusKey: "NEEDS_FULL_VIDEO_REVIEW",
                   label: "Single-Frame Screen (Full Review Needed)",
                   count: reviewNeededCount,
                   color: "#aba497",
-                  desc: "Static thumbnail screened; underlying video stream uninspected",
+                  desc: "Static thumbnail screened; underlying video uninspected",
                 },
                 {
+                  statusKey: "CLEAN",
                   label: "Clean / Distinct Visual Features",
                   count: cleanCount,
                   color: "#eee7db",
                   desc: "Zero correlated vectors above sensitivity threshold",
                 },
                 {
+                  statusKey: "NO_REFERENCE_DATA",
                   label: "No Reference Data in Vault",
                   count: noReferenceCount,
                   color: "#736d62",
@@ -264,10 +351,27 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
                 .filter((item) => item.count > 0 || incidents.length === 0)
                 .map((item) => {
                   const pct = incidents.length > 0 ? (item.count / incidents.length) * 100 : 0;
+                  const isSelected = selectedStatusFilter === item.statusKey;
+
                   return (
-                    <div key={item.label} className="space-y-1">
+                    <div
+                      key={item.statusKey}
+                      onClick={() => toggleFilter(item.statusKey)}
+                      style={{
+                        background: isSelected ? "rgba(238, 231, 219, 0.05)" : "transparent",
+                        borderRadius: 8,
+                        padding: isSelected ? "4px 8px" : "0",
+                      }}
+                      className="space-y-1 cursor-pointer transition-colors"
+                    >
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-[#ded7cb] font-semibold">{item.label}</span>
+                        <span
+                          style={{ color: isSelected ? "#f4efe6" : "#ded7cb" }}
+                          className="font-semibold flex items-center gap-1.5"
+                        >
+                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#eee7db]" />}
+                          <span>{item.label}</span>
+                        </span>
                         <span className="font-bold text-[#f4efe6] font-mono">
                           {item.count} ({pct.toFixed(0)}%)
                         </span>
@@ -290,7 +394,7 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
 
               {/* Modality Ratio Footer */}
               <div className="pt-3 border-t border-[rgba(238,231,219,0.06)] flex items-center justify-between text-[10.5px] text-[#aba497] font-mono">
-                <span>Modality:</span>
+                <span>Modality Breakdown:</span>
                 <span>
                   {videoScansCount} Video File Scans • {urlScreeningsCount} URL Screenings
                 </span>
@@ -314,20 +418,20 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
                 Chronological Similarity Telemetry
               </h4>
               <p className="text-[10.5px] text-[#aba497] m-0 mt-0.5">
-                Observed feature similarity percentages and lowest L2 distances across recent scans.
+                Observed feature similarity percentages and lowest L2 distances across genuine scan history.
               </p>
             </div>
             <span className="text-[10px] font-mono text-[#736d62]">
-              Latest {chronologicalIncidents.length} scans
+              {chronologicalIncidents.length} recorded scans
             </span>
           </div>
 
           {chronologicalIncidents.length === 0 ? (
             <div className="text-center py-10 text-[#736d62] text-[11.5px]">
-              No scan history available to plot timeline telemetry.
+              No scan history available matching selected filter.
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               {chronologicalIncidents.map((inc, i) => {
                 const isMatch = inc.overall_status === "CANDIDATE_MATCH";
                 const isSuspect = inc.overall_status === "SUSPECT";
@@ -542,13 +646,13 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
           </button>
         </div>
 
-        {incidents.length === 0 ? (
+        {visibleRecentIncidents.length === 0 ? (
           <div className="text-center py-10 text-[#736d62] text-[11.5px]">
-            No investigation records available yet.
+            No investigation records available matching selected filter.
           </div>
         ) : (
           <div className="space-y-2">
-            {incidents.slice(0, 6).map((inc, idx) => {
+            {visibleRecentIncidents.map((inc, idx) => {
               const isMatch = inc.overall_status === "CANDIDATE_MATCH";
               const isUrl = inc.investigation_type === "URL_SCREENING";
 

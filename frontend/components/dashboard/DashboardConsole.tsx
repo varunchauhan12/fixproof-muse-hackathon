@@ -228,7 +228,14 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
           )}
 
           {activeTab === "notifications" && (
-            <SwarmLogsView incidents={incidents} assets={assets} />
+            <SwarmLogsView
+              incidents={incidents}
+              assets={assets}
+              vaultStatus={vaultStatus}
+              backendOnline={backendOnline}
+              onNavigateToTab={setActiveTab}
+              onSelectIncident={handleNavigateToIncidents}
+            />
           )}
 
           {activeTab === "settings" && <SettingsView />}
