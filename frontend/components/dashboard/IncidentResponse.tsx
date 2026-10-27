@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -21,12 +21,14 @@ import {
   AlertCircle,
   Info,
   Cpu,
+  History,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
   FrameMatchDetail,
   AssetRecord,
   InvestigationReport,
+  ReportHistoryItem,
   TimelineInterval,
   InvestigationFinding,
   RecommendedAction,
@@ -36,6 +38,8 @@ import {
   API_BASE,
   getIncidentsList,
   getIncidentLatestReport,
+  getIncidentReportHistory,
+  getReportById,
   investigateIncident,
 } from "@/lib/api";
 
@@ -63,6 +67,12 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [report, setReport] = useState<InvestigationReport | null>(null);
   const [reportLoading, setReportLoading] = useState<boolean>(false);
   const [reportError, setReportError] = useState<string | null>(null);
+
+  // Investigation Report History state
+  const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const activeIncidentIdRef = useRef<string | null>(null);
 
   // Copy feedback state
   const [copiedIncidentId, setCopiedIncidentId] = useState<boolean>(false);
@@ -118,32 +128,94 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     setReportError(null);
     try {
       const existingReport = await getIncidentLatestReport(incidentId);
-      setReport(existingReport);
+      if (activeIncidentIdRef.current === incidentId) {
+        setReport(existingReport);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load investigation report.";
-      setReportError(msg);
-      setReport(null);
+      if (activeIncidentIdRef.current === incidentId) {
+        const msg = err instanceof Error ? err.message : "Failed to load investigation report.";
+        setReportError(msg);
+        setReport(null);
+      }
     } finally {
-      setReportLoading(false);
+      if (activeIncidentIdRef.current === incidentId) {
+        setReportLoading(false);
+      }
     }
   }, []);
 
-  // Run Nemotron investigation (user-triggered via button)
-  const handleRunInvestigation = async (forceRefresh: boolean = false) => {
-    if (!selectedIncident?.incident_id) return;
+  // Safe read-only report history fetcher (does NOT trigger new model investigation)
+  const fetchHistoryForIncident = useCallback(async (incidentId: string) => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const history = await getIncidentReportHistory(incidentId);
+      if (activeIncidentIdRef.current === incidentId) {
+        setReportHistory(history);
+      }
+    } catch (err: unknown) {
+      if (activeIncidentIdRef.current === incidentId) {
+        const msg = err instanceof Error ? err.message : "Failed to load report history.";
+        setHistoryError(msg);
+        setReportHistory([]);
+      }
+    } finally {
+      if (activeIncidentIdRef.current === incidentId) {
+        setHistoryLoading(false);
+      }
+    }
+  }, []);
+
+  // Safe selection of a specific saved report (loads by ID, NEVER triggers model)
+  const handleSelectReport = async (reportId: string) => {
+    if (!reportId || reportId === report?.report_id) return;
+    const currentIncidentId = selectedIncident?.incident_id;
+    if (!currentIncidentId) return;
+
     setReportLoading(true);
     setReportError(null);
     try {
-      const generatedReport = await investigateIncident(selectedIncident.incident_id, {
+      const loadedReport = await getReportById(reportId);
+      if (activeIncidentIdRef.current === currentIncidentId) {
+        setReport(loadedReport);
+      }
+    } catch (err: unknown) {
+      if (activeIncidentIdRef.current === currentIncidentId) {
+        const msg = err instanceof Error ? err.message : `Failed to load report ${reportId}.`;
+        setReportError(msg);
+      }
+    } finally {
+      if (activeIncidentIdRef.current === currentIncidentId) {
+        setReportLoading(false);
+      }
+    }
+  };
+
+  // Run Nemotron investigation (user-triggered via button)
+  const handleRunInvestigation = async (forceRefresh: boolean = false) => {
+    const incidentId = selectedIncident?.incident_id;
+    if (!incidentId) return;
+    setReportLoading(true);
+    setReportError(null);
+    try {
+      const generatedReport = await investigateIncident(incidentId, {
         force_refresh: forceRefresh,
         model_override: null,
       });
-      setReport(generatedReport);
+      if (activeIncidentIdRef.current === incidentId) {
+        setReport(generatedReport);
+        // Refresh history after a successful new investigation
+        fetchHistoryForIncident(incidentId);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Investigation failed to execute.";
-      setReportError(msg);
+      if (activeIncidentIdRef.current === incidentId) {
+        const msg = err instanceof Error ? err.message : "Investigation failed to execute.";
+        setReportError(msg);
+      }
     } finally {
-      setReportLoading(false);
+      if (activeIncidentIdRef.current === incidentId) {
+        setReportLoading(false);
+      }
     }
   };
 
@@ -158,6 +230,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   }, [initialIncident]);
 
   useEffect(() => {
+    const incidentId = selectedIncident?.incident_id || null;
+    activeIncidentIdRef.current = incidentId;
+
     if (selectedIncident && selectedIncident.frame_matches.length > 0) {
       const firstWithMatch = selectedIncident.frame_matches.find(
         (f) => f.best_match?.match_confirmed
@@ -167,14 +242,17 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       setSelectedFrameMatch(null);
     }
 
-    // Fetch existing report when selected incident changes
-    if (selectedIncident?.incident_id) {
-      fetchReportForIncident(selectedIncident.incident_id);
+    // Fetch existing report and history when selected incident changes
+    if (incidentId) {
+      fetchReportForIncident(incidentId);
+      fetchHistoryForIncident(incidentId);
     } else {
       setReport(null);
       setReportError(null);
+      setReportHistory([]);
+      setHistoryError(null);
     }
-  }, [selectedIncident, fetchReportForIncident]);
+  }, [selectedIncident, fetchReportForIncident, fetchHistoryForIncident]);
 
   return (
     <div
@@ -506,6 +584,110 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         </button>
                       )}
                     </div>
+                  </div>
+
+                  {/* Investigation Report History Bar */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History size={14} className="text-cyan-400" />
+                        <span className="text-[11px] font-bold text-slate-200">
+                          Investigation History
+                        </span>
+                        {reportHistory.length > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-500/30">
+                            {reportHistory.length} {reportHistory.length === 1 ? "report" : "reports"}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => selectedIncident?.incident_id && fetchHistoryForIncident(selectedIncident.incident_id)}
+                        disabled={historyLoading}
+                        title="Refresh history"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw size={10} className={historyLoading ? "animate-spin-smooth" : ""} />
+                        <span>Refresh</span>
+                      </button>
+                    </div>
+
+                    {historyLoading && reportHistory.length === 0 ? (
+                      <div className="py-2 text-[11px] text-slate-500 flex items-center gap-2">
+                        <RefreshCw size={11} className="animate-spin-smooth text-cyan-400" />
+                        <span>Loading report history...</span>
+                      </div>
+                    ) : historyError && reportHistory.length === 0 ? (
+                      <div className="py-1 text-[11px] text-rose-400 flex items-center gap-2">
+                        <AlertCircle size={11} />
+                        <span>{historyError}</span>
+                      </div>
+                    ) : reportHistory.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 m-0 py-0.5">
+                        No previous investigation reports on record for this incident.
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
+                        {reportHistory.map((item) => {
+                          const isSelected = item.report_id === report?.report_id;
+                          const timeStr = item.created_at
+                            ? new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                            : "N/A";
+                          const dateStr = item.created_at
+                            ? new Date(item.created_at).toLocaleDateString([], { month: "short", day: "numeric" })
+                            : "";
+
+                          return (
+                            <button
+                              key={item.report_id}
+                              onClick={() => handleSelectReport(item.report_id)}
+                              disabled={reportLoading}
+                              className={`shrink-0 flex items-center gap-2.5 px-3 py-1.5 rounded-lg border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-cyan-950/70 border-cyan-400 text-cyan-100 shadow-sm shadow-cyan-950/50"
+                                  : "bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white"
+                              }`}
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-mono font-bold text-slate-200">
+                                    {item.report_id.slice(0, 14)}...
+                                  </span>
+                                  {isSelected && (
+                                    <span className="px-1 py-0.2 rounded text-[8px] font-black uppercase bg-cyan-500 text-slate-950">
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                                  <span>{dateStr} {timeStr}</span>
+                                  {item.validation_status && (
+                                    <span
+                                      className={`px-1 py-0.2 rounded font-bold uppercase ${
+                                        item.validation_status === "VALIDATED"
+                                          ? "text-emerald-400"
+                                          : "text-rose-400"
+                                      }`}
+                                    >
+                                      {item.validation_status === "VALIDATED" ? "VALID" : "WARN"}
+                                    </span>
+                                  )}
+                                  {item.recommended_action && (
+                                    <span className="font-semibold text-slate-300">
+                                      {item.recommended_action}
+                                    </span>
+                                  )}
+                                  {item.confidence_assessment && (
+                                    <span className="font-mono text-cyan-400/90">
+                                      {item.confidence_assessment}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* LOADING STATE */}

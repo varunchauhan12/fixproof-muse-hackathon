@@ -145,6 +145,35 @@ class InvestigationReport(BaseModel):
     operational_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ReportHistoryItem(BaseModel):
+    """
+    Compact summary record of a persisted investigation report for history listings.
+    """
+    report_id: str
+    incident_id: str
+    created_at: str = ""
+    model_id: str = "nvidia/Nemotron-3_5-Lightning"
+    recommended_action: RecommendedAction = "NEEDS_FULL_VIDEO_REVIEW"
+    confidence_assessment: ConfidenceAssessment = "INCONCLUSIVE_DATA"
+    validation_status: str = "VALIDATED"
+    human_review_required: bool = False
+    summary: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_from_raw_report(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "validation_status" not in data or not data["validation_status"]:
+                op_meta = data.get("operational_metadata") or {}
+                data["validation_status"] = (
+                    op_meta.get("validation_status") or "VALIDATED"
+                )
+            if "created_at" not in data or not data["created_at"]:
+                op_meta = data.get("operational_metadata") or {}
+                data["created_at"] = str(op_meta.get("created_at") or "")
+        return data
+
+
 def validate_report_evidence_references(
     report: InvestigationReport,
     valid_evidence_ids: Set[str],

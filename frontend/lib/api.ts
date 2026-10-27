@@ -4,6 +4,7 @@ import {
   MatchAnalysisResult,
   InvestigationReport,
   InvestigateIncidentPayload,
+  ReportHistoryItem,
 } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -217,6 +218,21 @@ export async function getIncidentLatestReport(
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.detail || `Failed to fetch report for incident ${incidentId}`);
+  }
+  return res.json();
+}
+
+export async function getIncidentReportHistory(
+  incidentId: string
+): Promise<ReportHistoryItem[]> {
+  const safeId = encodeURIComponent(incidentId.trim());
+  const res = await fetchNoCache(`${API_BASE}/api/threats/${safeId}/reports`);
+  if (res.status === 404) {
+    return [];
+  }
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to fetch report history for incident ${incidentId}`);
   }
   return res.json();
 }

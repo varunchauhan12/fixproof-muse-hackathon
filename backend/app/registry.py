@@ -596,6 +596,7 @@ def load_nemotron_reports() -> List[Dict[str, Any]]:
                 if isinstance(full_json, dict):
                     full_json["report_id"] = str(row["report_id"])
                     full_json["incident_id"] = str(row["incident_id"])
+                    full_json["created_at"] = str(row.get("created_at") or "")
                     reports.append(full_json)
                 else:
                     reports.append({
@@ -646,6 +647,12 @@ def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
     rid = str(record.get("report_id") or uuid.uuid4())
     iid = str(record.get("incident_id"))
     record["report_id"] = rid
+
+    if not record.get("created_at"):
+        op_meta = record.get("operational_metadata") or {}
+        record["created_at"] = op_meta.get("created_at") or datetime.now(timezone.utc).isoformat()
+        if "operational_metadata" in record and isinstance(record["operational_metadata"], dict):
+            record["operational_metadata"].setdefault("created_at", record["created_at"])
 
     if is_cloud_mode():
         model_id = str(record.get("model_id") or "nvidia/Nemotron-3_5-Lightning")
@@ -741,10 +748,45 @@ def get_nemotron_report_by_id(report_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_nemotron_reports_for_incident(incident_id: str) -> List[Dict[str, Any]]:
-    """Retrieves all Nemotron reports generated for a specific incident."""
+    """Retrieves all Nemotron reports generated for a specific incident, ordered newest first."""
     matching = []
     for rep in load_nemotron_reports():
         if rep.get("incident_id") == str(incident_id):
             matching.append(rep)
+
+    def _get_ts(r: Dict[str, Any]) -> str:
+        return str(r.get("created_at") or (r.get("operational_metadata") or {}).get("created_at") or "")
+
+    matching.sort(key=_get_ts, reverse=True)
     return matching
+
+
+def get_nemotron_report_history(incident_id: str) -> List[Dict[str, Any]]:
+    """
+    Returns compact report history records for an incident, ordered newest first.
+    Guarantees strict incident isolation.
+    """
+    reports = get_nemotron_reports_for_incident(incident_id)
+    history = []
+    for rep in reports:
+        # Guarantee incident isolation
+        if str(rep.get("incident_id")) != str(incident_id):
+            continue
+
+        op_meta = rep.get("operational_metadata") or {}
+        val_status = op_meta.get("validation_status") or rep.get("validation_status") or "VALIDATED"
+        ts = str(rep.get("created_at") or op_meta.get("created_at") or "")
+
+        history.append({
+            "report_id": str(rep.get("report_id")),
+            "incident_id": str(incident_id),
+            "created_at": ts,
+            "model_id": str(rep.get("model_id") or "nvidia/Nemotron-3_5-Lightning"),
+            "recommended_action": str(rep.get("recommended_action") or "NEEDS_FULL_VIDEO_REVIEW"),
+            "confidence_assessment": str(rep.get("confidence_assessment") or "INCONCLUSIVE_DATA"),
+            "validation_status": str(val_status),
+            "human_review_required": bool(rep.get("human_review_required", False)),
+            "summary": str(rep.get("summary") or ""),
+        })
+    return history
 

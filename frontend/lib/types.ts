@@ -189,3 +189,15 @@ export interface InvestigateIncidentPayload {
   model_override?: string | null;
 }
 
+export interface ReportHistoryItem {
+  report_id: string;
+  incident_id: string;
+  created_at: string;
+  model_id: string;
+  recommended_action: RecommendedAction;
+  confidence_assessment: ConfidenceAssessment;
+  validation_status: "VALIDATED" | "FAILED_VALIDATION" | "PARTIALLY_VALIDATED";
+  human_review_required: boolean;
+  summary: string;
+}
+

@@ -2,7 +2,7 @@ import mimetypes
 import os
 import re
 from datetime import datetime, timezone
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 # Prevent OpenMP duplicate runtime abort on macOS between PyTorch and FAISS
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -62,11 +62,13 @@ from app.registry import (
     save_nemotron_report,
     get_nemotron_report_by_id,
     get_nemotron_reports_for_incident,
+    get_nemotron_report_history,
     is_cloud_mode,
 )
 from app.evidence_models import (
     build_frame_evidence_from_matches,
     build_investigation_input_from_incident,
+    ReportHistoryItem,
 )
 from app.timeline import cluster_frame_matches
 from app.nemotron_engine import (
@@ -779,6 +781,26 @@ def get_incident_latest_report(incident_id: str):
     if not reports:
         raise HTTPException(status_code=404, detail="No investigation report found for this incident.")
     return reports[0]
+
+
+@app.get("/api/threats/{incident_id}/reports", response_model=List[ReportHistoryItem])
+def get_incident_reports_history(incident_id: str):
+    """
+    Retrieves all forensic investigation reports for an incident, ordered newest first.
+    Returns compact report history records suitable for list selection.
+    """
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    try:
+        return get_nemotron_report_history(incident_id)
+    except Exception as e:
+        logger.error(f"[API] Error loading report history for incident {incident_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load report history: {e}")
 
 
 @app.get("/api/threats/reports/{report_id}")
