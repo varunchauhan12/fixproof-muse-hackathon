@@ -192,6 +192,14 @@ SAFE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-]+$")
 SAFE_FRAME_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+\.(jpg|jpeg|png)$", re.IGNORECASE)
 
 
+def is_valid_uuid(val: Any) -> bool:
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 class DiagnoseRequest(BaseModel):
     issue_description: str
 
@@ -296,7 +304,6 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
             except Exception as e:
                 logger.warning(f"[StreamFrame] Error checking bucket {bkt}: {e}")
 
-        raise HTTPException(status_code=404, detail="Frame not found in cloud storage.")
 
     # Local mode fallback
     frame_path = (FRAMES_DIR / resolved_id / frame_filename).resolve()
@@ -355,7 +362,7 @@ def stream_asset_video(asset_id: str):
         # Check suspect video first if it's an incident or suspect asset
         if incident or suspect_path_from_meta:
             target_path = suspect_path_from_meta
-            if not target_path:
+            if not target_path and is_valid_uuid(resolved_id):
                 inc_row = default_db_manager.fetch_one(
                     "SELECT suspect_storage_path FROM incidents WHERE incident_id = %s OR submitted_asset_id = %s LIMIT 1",
                     (resolved_id, resolved_id),
@@ -376,10 +383,12 @@ def stream_asset_video(asset_id: str):
                 logger.warning(f"[StreamVideo] Failed suspect signed URL: {e}")
 
         # Check reference_assets table
-        row = default_db_manager.fetch_one(
-            "SELECT filename, storage_path FROM reference_assets WHERE asset_id = %s",
-            (resolved_id,),
-        )
+        row = None
+        if is_valid_uuid(resolved_id):
+            row = default_db_manager.fetch_one(
+                "SELECT filename, storage_path FROM reference_assets WHERE asset_id = %s",
+                (resolved_id,),
+            )
         if row:
             storage_path = row["storage_path"]
             bucket = "reference-assets"
@@ -391,7 +400,6 @@ def stream_asset_video(asset_id: str):
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"Failed to generate streaming URL: {e}")
 
-        raise HTTPException(status_code=404, detail=f"Video for asset '{resolved_id}' not found.")
 
     # 3. Local mode fallback
     matches = list(STORAGE_DIR.glob(f"{resolved_id}.*"))
@@ -683,24 +691,12 @@ async def scan_suspect_video(
             preflight_info=probe_info,
         )
 
-        if is_cloud_mode() and default_vault.vector_db.ntotal == 0:
-            raise HTTPException(
-                status_code=503,
-                detail="Cloud reference vault is uninitialized or empty. Scanning aborted.",
-            )
-
         match_results = analyze_asset_matches(
             submitted_asset_id=suspect_id,
             frames_dir=suspect_frames_dir,
             vault=default_vault,
             k_candidates=3,
         )
-
-        if is_cloud_mode() and match_results.get("overall_status") == "NO_REFERENCE_DATA":
-            raise HTTPException(
-                status_code=503,
-                detail="Cloud reference vault has no reference data. Scanning cannot produce valid verdict.",
-            )
 
         suspect_storage_path = None
         if is_cloud_mode():
@@ -818,18 +814,31 @@ def get_incidents_list(x_client_session_id: Optional[str] = Header(None)):
 
 
 @app.get("/api/incidents/{incident_id}")
-def get_single_incident(incident_id: str):
-    """Returns details for a specific incident."""
-    for inc in load_incidents():
-        if inc.get("incident_id") == incident_id:
-            return inc
-    raise HTTPException(status_code=404, detail="Incident not found.")
+def get_single_incident(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None),
+):
+    """Returns details for a specific incident with session scoping."""
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+    inc = get_incident_by_id(incident_id)
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+    inc_sess = inc.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied to incident {incident_id}: "
+            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    return inc
 
 
 @app.post("/api/threats/{incident_id}/investigate")
 def investigate_threat_incident(
     incident_id: str,
     payload: Optional[InvestigateIncidentRequest] = None,
+    x_client_session_id: Optional[str] = Header(None),
 ):
     """
     Executes a bounded, evidence-grounded Nemotron investigation for an incident.
@@ -856,6 +865,18 @@ def investigate_threat_incident(
 
     target_model = normalized_model or os.getenv("NEBIUS_MODEL", DEFAULT_MODEL)
 
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied to incident {incident_id}: "
+            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
     # Check for existing valid report if not forcing refresh
     if not force_refresh:
         existing_reports = get_nemotron_reports_for_incident(incident_id)
@@ -866,10 +887,6 @@ def investigate_threat_incident(
         ]
         if valid_reports:
             return valid_reports[0]
-
-    incident = get_incident_by_id(incident_id)
-    if not incident:
-        raise HTTPException(status_code=404, detail="Incident not found.")
 
     frames_ev = build_frame_evidence_from_matches(incident.get("frame_matches") or [])
     intervals = cluster_frame_matches(frames_ev)
@@ -887,10 +904,19 @@ def investigate_threat_incident(
 
 
 @app.get("/api/threats/{incident_id}/report")
-def get_incident_latest_report(incident_id: str):
+def get_incident_latest_report(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None),
+):
     """Retrieves the latest generated Nemotron report for a threat incident."""
     if not SAFE_ID_REGEX.match(incident_id):
         raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
     reports = get_nemotron_reports_for_incident(incident_id)
     if not reports:
         raise HTTPException(status_code=404, detail="No investigation report found for this incident.")
@@ -898,7 +924,10 @@ def get_incident_latest_report(incident_id: str):
 
 
 @app.get("/api/threats/{incident_id}/reports", response_model=List[ReportHistoryItem])
-def get_incident_reports_history(incident_id: str):
+def get_incident_reports_history(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None),
+):
     """
     Retrieves all forensic investigation reports for an incident, ordered newest first.
     Returns compact report history records suitable for list selection.
@@ -909,6 +938,10 @@ def get_incident_reports_history(incident_id: str):
     incident = get_incident_by_id(incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
         return get_nemotron_report_history(incident_id)
@@ -929,7 +962,10 @@ def get_report_by_id_endpoint(report_id: str):
 
 
 @app.get("/api/threats/{incident_id}/reports/export")
-def export_incident_evidence_package_endpoint(incident_id: str):
+def export_incident_evidence_package_endpoint(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None),
+):
     """
     Exports a cryptographically signed forensic evidence package for an incident's report history.
     Includes canonical manifest, Ed25519 signature, public key, chain of custody, ReportLab summary PDF,
@@ -941,6 +977,14 @@ def export_incident_evidence_package_endpoint(incident_id: str):
     incident = get_incident_by_id(incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied to incident {incident_id}: "
+            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     reports = get_nemotron_reports_for_incident(incident_id)
 

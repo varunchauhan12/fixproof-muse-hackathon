@@ -603,26 +603,33 @@ def screen_video_url(
             }
 
             if best_match:
+                if "low_entropy_flag" in best_match:
+                    is_low_entropy = bool(best_match["low_entropy_flag"])
+                elif best_match.get("match_confirmed"):
+                    is_low_entropy = False
+
                 conf = float(best_match.get("confidence_score") or 0.0)
                 dist = float(best_match.get("l2_distance")) if best_match.get("l2_distance") is not None else None
 
-                if conf > highest_confidence:
-                    highest_confidence = conf
-                if dist is not None and (lowest_l2_distance is None or dist < lowest_l2_distance):
-                    lowest_l2_distance = dist
+                # Only non-low-entropy frames contribute to candidate match findings
+                if not is_low_entropy:
+                    if conf > highest_confidence:
+                        highest_confidence = conf
+                    if dist is not None and (lowest_l2_distance is None or dist < lowest_l2_distance):
+                        lowest_l2_distance = dist
 
-                if best_match.get("match_confirmed"):
-                    candidate_matches_found += 1
-                    matched_asset_ids.add(best_match.get("source_asset_id"))
-                elif dist is not None and dist < SUSPECT_THRESHOLD:
-                    matched_asset_ids.add(best_match.get("source_asset_id"))
+                    if best_match.get("match_confirmed"):
+                        candidate_matches_found += 1
+                        matched_asset_ids.add(best_match.get("source_asset_id"))
+                    elif dist is not None and dist < SUSPECT_THRESHOLD:
+                        matched_asset_ids.add(best_match.get("source_asset_id"))
 
                 # Shortlist for Nemotron vision verification if passing CV gates
                 if (
                     dist is not None
                     and dist < SUSPECT_THRESHOLD
                     and not is_low_entropy
-                    and (best_match.get("phash_match") or best_match.get("phash_score", 0) >= 30)
+                    and (best_match.get("match_confirmed") or best_match.get("phash_match") or best_match.get("phash_score", 0) >= 30 or dist < MATCH_THRESHOLD)
                 ):
                     comp_rank = 0.6 * (1.0 - min(1.0, dist)) + 0.4 * (best_match.get("phash_score", 0) / 100.0)
                     candidate_pairs_to_verify.append({
@@ -671,6 +678,25 @@ def screen_video_url(
                     )
                     fm_idx = cand["frame_match_idx"]
                     frame_matches[fm_idx]["best_match"]["vision_verification"] = v_res
+                else:
+                    reason = "Reference frame unavailable" if not ref_pil else "Suspect preview image unavailable"
+                    unverified_res = {
+                        "candidate_pair_index": pair_idx,
+                        "suspect_timestamp_sec": float(cand.get("suspect_timestamp_sec", 0.0)),
+                        "reference_timestamp_sec": float(best.get("source_timestamp_sec", 0.0)),
+                        "source_asset_id": str(best.get("source_asset_id", "")),
+                        "visual_correspondence": "UNVERIFIED",
+                        "confidence_assessment": "INCONCLUSIVE",
+                        "matching_features": [],
+                        "contradictions": [],
+                        "reasoning": f"Vision verification unavailable: {reason}.",
+                        "uncertainty_factors": [reason],
+                        "validation_status": "VERIFICATION_UNAVAILABLE",
+                        "model_id": "nvidia/Nemotron-3.5-Super-VL",
+                        "verified_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    fm_idx = cand["frame_match_idx"]
+                    frame_matches[fm_idx]["best_match"]["vision_verification"] = unverified_res
         except Exception as e:
             logger.warning(f"[URL Screener] Vision verification stage encountered error: {e}")
 

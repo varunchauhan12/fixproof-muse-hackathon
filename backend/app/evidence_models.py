@@ -212,8 +212,8 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
         sub = item.get("submitted_frame") or {}
         best = item.get("best_match")
         
-        frame_idx = sub.get("frame_index", idx)
-        ts_sec = float(sub.get("timestamp_sec") or 0.0)
+        frame_idx = sub.get("frame_index") if sub.get("frame_index") is not None else item.get("frame_idx", idx)
+        ts_sec = float(sub.get("timestamp_sec") if sub.get("timestamp_sec") is not None else item.get("timestamp_sec", 0.0))
         ev_id = f"frame_{frame_idx}_t{int(ts_sec)}s"
         
         if best:
@@ -228,7 +228,9 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
             phash_score = best.get("phash_score")
             phash_match = best.get("phash_match")
             
-            if best.get("match_confirmed"):
+            if best.get("low_entropy_flag"):
+                status = "NO_MATCH"
+            elif best.get("match_confirmed"):
                 status = "CONFIRMED_MATCH"
             elif l2_dist is not None and l2_dist < 0.75:
                 status = "SUSPECT_MATCH"

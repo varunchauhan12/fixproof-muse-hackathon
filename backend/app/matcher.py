@@ -12,6 +12,7 @@ Features:
 - All outputs represent candidate visual similarity, not definitive legal findings.
 """
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
@@ -205,6 +206,7 @@ def match_single_frame(
 
         # Do not confirm match if frame is blank/low-entropy
         match_confirmed = bool(l2_dist < MATCH_THRESHOLD and not is_low_entropy)
+        effective_similarity = 0.0 if is_low_entropy else visual_similarity
 
         candidates.append({
             "vector_id": int(idx),
@@ -214,11 +216,11 @@ def match_single_frame(
             "source_filename": meta.get("filename", ""),
             "source_frame_path": meta.get("frame_path", ""),
             "l2_distance": l2_dist,
-            "visual_similarity_score": visual_similarity,
-            "confidence_score": visual_similarity,  # Legacy alias
+            "visual_similarity_score": effective_similarity,
+            "confidence_score": effective_similarity,  # Legacy alias
             "score_calibration_notice": VISUAL_SIMILARITY_NOTICE,
             "score_version": SCORE_VERSION,
-            "severity": severity_from_confidence(visual_similarity),
+            "severity": "INFO" if is_low_entropy else severity_from_confidence(visual_similarity),
             "match_confirmed": match_confirmed,
             "entropy": entropy_val,
             "low_entropy_flag": is_low_entropy,
@@ -244,7 +246,17 @@ def match_single_frame(
 
     best["phash_match"] = phash_evidence["phash_match"] if phash_evidence else False
     best["phash_score"] = phash_evidence["phash_score"] if phash_evidence else 0
+    best["phash_distance"] = phash_evidence["hamming_distance"] if phash_evidence else None
     best["phash_evidence"] = phash_evidence
+
+    if is_low_entropy:
+        best["similarity_status"] = "NO_MATCH"
+    elif best["match_confirmed"]:
+        best["similarity_status"] = "CONFIRMED_MATCH"
+    elif best["l2_distance"] < SUSPECT_THRESHOLD:
+        best["similarity_status"] = "SUSPECT_MATCH"
+    else:
+        best["similarity_status"] = "NO_MATCH"
 
     return {
         "best_match": best,
@@ -346,23 +358,25 @@ def analyze_asset_matches(
             conf = best["confidence_score"]
             dist = best["l2_distance"]
 
-            if conf > highest_confidence:
-                highest_confidence = conf
-            if dist < lowest_l2_distance:
-                lowest_l2_distance = dist
+            # Only informative non-blank frames contribute to incident similarity scores
+            if not best.get("low_entropy_flag"):
+                if conf > highest_confidence:
+                    highest_confidence = conf
+                if dist < lowest_l2_distance:
+                    lowest_l2_distance = dist
 
-            if best["match_confirmed"]:
-                confirmed_match_count += 1
-                matched_asset_ids.add(best["source_asset_id"])
-            elif dist < SUSPECT_THRESHOLD:
-                matched_asset_ids.add(best["source_asset_id"])
+                if best["match_confirmed"]:
+                    confirmed_match_count += 1
+                    matched_asset_ids.add(best["source_asset_id"])
+                elif dist < SUSPECT_THRESHOLD:
+                    matched_asset_ids.add(best["source_asset_id"])
 
             # Candidate selection for vision verification:
             # Must pass CV gates: dist < SUSPECT_THRESHOLD, not low-entropy
             if (
                 dist < SUSPECT_THRESHOLD
                 and not best.get("low_entropy_flag")
-                and (best.get("phash_match") or (best.get("phash_score", 0) >= 30))
+                and (best.get("match_confirmed") or best.get("phash_match") or (best.get("phash_score", 0) >= 30) or dist < MATCH_THRESHOLD)
             ):
                 composite_rank = 0.6 * (1.0 - min(1.0, dist)) + 0.4 * (best.get("phash_score", 0) / 100.0)
                 candidate_pairs_to_verify.append({
@@ -421,6 +435,25 @@ def analyze_asset_matches(
                         # Attach verification to the best_match in frame_matches
                         fm_idx = candidate["frame_match_idx"]
                         frame_matches[fm_idx]["best_match"]["vision_verification"] = v_res
+                else:
+                    reason = "Reference frame unavailable" if not ref_pil else "Suspect frame file missing"
+                    unverified_res = {
+                        "candidate_pair_index": pair_idx,
+                        "suspect_timestamp_sec": float(candidate["suspect_timestamp_sec"]),
+                        "reference_timestamp_sec": float(best.get("source_timestamp_sec", 0.0)),
+                        "source_asset_id": str(best.get("source_asset_id", "")),
+                        "visual_correspondence": "UNVERIFIED",
+                        "confidence_assessment": "INCONCLUSIVE",
+                        "matching_features": [],
+                        "contradictions": [],
+                        "reasoning": f"Vision verification unavailable: {reason}.",
+                        "uncertainty_factors": [reason],
+                        "validation_status": "VERIFICATION_UNAVAILABLE",
+                        "model_id": "nvidia/Nemotron-3.5-Super-VL",
+                        "verified_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    fm_idx = candidate["frame_match_idx"]
+                    frame_matches[fm_idx]["best_match"]["vision_verification"] = unverified_res
         except Exception as e:
             logger.warning(f"[Matcher] Vision verification stage encountered error: {e}")
 

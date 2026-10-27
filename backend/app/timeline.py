@@ -50,6 +50,8 @@ def _is_match_candidate(frame: FrameEvidence, threshold_l2: float) -> bool:
         return False
     if frame.source_timestamp_sec is None:
         return False
+    if frame.similarity_status == "NO_MATCH":
+        return False
     if frame.similarity_status in ("CONFIRMED_MATCH", "SUSPECT_MATCH"):
         return True
     if frame.l2_distance is not None and frame.l2_distance < threshold_l2:

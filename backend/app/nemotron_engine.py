@@ -125,7 +125,11 @@ CRITICAL OPERATIONAL RULES:
    - You MUST include a limitation noting that the video content remains unverified.
 5. Do NOT call an L2 distance or similarity score a probability. Do NOT invent confidence percentages.
 6. Clearly state what cannot be determined from the available data in "unresolved_questions" and "limitations_disclosed".
-7. Return ONLY a single valid JSON object strictly matching the required schema. No markdown fences.
+7. If "vision_verification" is present on matching frames:
+   - Report whether the multimodal vision model found "HIGH_CORRESPONDENCE", "POSSIBLE_REUSE", "UNRELATED_SCENE", or "UNVERIFIED".
+   - If visual_correspondence is "UNVERIFIED", note that visual verification was unavailable or inconclusive; do NOT claim verified visual correspondence.
+   - Clearly separate measured computer-vision metrics (L2 distance, pHash) from model-generated visual correspondence findings.
+8. Return ONLY a single valid JSON object strictly matching the required schema. No markdown fences.
 """
 
 # Reusable client singleton with connection pooling
@@ -175,7 +179,7 @@ def build_user_prompt(input_data: InvestigationInput) -> str:
     matching_frames = []
     for f in input_data.frames_evidence:
         if f.similarity_status in ("CONFIRMED_MATCH", "SUSPECT_MATCH") or (f.l2_distance is not None and f.l2_distance < 0.75):
-            matching_frames.append({
+            f_item = {
                 "evidence_id": f.evidence_id,
                 "suspect_timestamp_sec": f.suspect_timestamp_sec,
                 "source_asset_id": f.source_asset_id,
@@ -183,7 +187,17 @@ def build_user_prompt(input_data: InvestigationInput) -> str:
                 "l2_distance": f.l2_distance,
                 "phash_match": f.phash_match,
                 "similarity_status": f.similarity_status,
-            })
+            }
+            if f.vision_verification:
+                f_item["vision_verification"] = {
+                    "visual_correspondence": f.vision_verification.get("visual_correspondence"),
+                    "confidence_assessment": f.vision_verification.get("confidence_assessment"),
+                    "matching_features": f.vision_verification.get("matching_features", []),
+                    "contradictions": f.vision_verification.get("contradictions", []),
+                    "reasoning": f.vision_verification.get("reasoning", ""),
+                    "validation_status": f.vision_verification.get("validation_status"),
+                }
+            matching_frames.append(f_item)
 
     payload = {
         "incident_id": input_data.incident_id,

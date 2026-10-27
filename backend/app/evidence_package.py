@@ -411,7 +411,12 @@ def generate_evidence_summary_pdf(
 
     # Section 1: Subject Incident & Media Verification
     elements.append(Paragraph("1. Incident Evidence Overview", h2_style))
-    target_asset = incident.get("target_asset_id", "N/A")
+    target_asset = (
+        incident.get("target_asset_id")
+        or incident.get("submitted_asset_id")
+        or incident.get("incident_id")
+        or "N/A"
+    )
     matches = incident.get("frame_matches") or []
     confirmed_matches = sum(1 for f in matches if (f.get("best_match") or {}).get("match_confirmed"))
 
@@ -492,13 +497,18 @@ def generate_evidence_summary_pdf(
             elements.append(Paragraph(f"<b>Synthesized Source Timeline Intervals ({len(intervals)}):</b>", body_style))
             int_rows = [["Interval ID", "Suspect Range", "Asset Match Range", "Duration", "Confidence"]]
             for intv in intervals[:5]:  # Show up to 5 intervals in summary
-                dur = intv.get("duration_seconds", 0)
+                dur = intv.get("duration_sec") if intv.get("duration_sec") is not None else intv.get("duration_seconds", 0)
+                s_start = intv.get("suspect_start_sec") if intv.get("suspect_start_sec") is not None else intv.get("suspect_start_seconds", 0)
+                s_end = intv.get("suspect_end_sec") if intv.get("suspect_end_sec") is not None else intv.get("suspect_end_seconds", 0)
+                ref_start = intv.get("source_start_sec") if intv.get("source_start_sec") is not None else intv.get("source_asset_start_seconds", 0)
+                ref_end = intv.get("source_end_sec") if intv.get("source_end_sec") is not None else intv.get("source_asset_end_seconds", 0)
+                conf_val = intv.get("continuity_status") or intv.get("confidence") or "CONTINUOUS_MATCH"
                 int_rows.append([
                     Paragraph(str(intv.get("interval_id", "")), code_style),
-                    Paragraph(f"{intv.get('suspect_start_seconds', 0):.1f}s - {intv.get('suspect_end_seconds', 0):.1f}s", body_style),
-                    Paragraph(f"{intv.get('source_asset_start_seconds', 0):.1f}s - {intv.get('source_asset_end_seconds', 0):.1f}s", body_style),
+                    Paragraph(f"{s_start:.1f}s - {s_end:.1f}s", body_style),
+                    Paragraph(f"{ref_start:.1f}s - {ref_end:.1f}s", body_style),
                     Paragraph(f"{dur:.1f}s", body_style),
-                    Paragraph(str(intv.get("confidence", "HIGH")), body_style),
+                    Paragraph(str(conf_val), body_style),
                 ])
             int_table = Table(int_rows, colWidths=[1.5 * inch, 1.5 * inch, 1.5 * inch, 1.0 * inch, 1.5 * inch])
             int_table.setStyle(
@@ -517,8 +527,8 @@ def generate_evidence_summary_pdf(
         if findings:
             elements.append(Paragraph(f"<b>Forensic Findings ({len(findings)}):</b>", body_style))
             for f in findings[:6]:
-                ftitle = f.get("title") or "Finding"
-                fdesc = f.get("description") or ""
+                ftitle = f.get("title") or f.get("category") or "Finding"
+                fdesc = f.get("description") or f.get("statement") or ""
                 elements.append(Paragraph(f"• <b>{ftitle}:</b> {fdesc}", body_style))
                 elements.append(Spacer(1, 2))
 

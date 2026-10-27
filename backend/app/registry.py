@@ -189,6 +189,26 @@ def list_registered_assets(vault: Any) -> List[Dict[str, Any]]:
                 "thumbnail_url": frames[0]["url"] if frames else None,
                 "frames": frames,
             })
+        existing_ids = {a["asset_id"] for a in asset_list}
+        for d in FRAMES_DIR.iterdir():
+            if d.is_dir() and not d.name.startswith(".") and not d.name.startswith("suspect_") and d.name not in existing_ids:
+                local_frames = get_asset_frames_list(d.name)
+                if local_frames:
+                    v_count = vector_counts.get(d.name, 0)
+                    asset_list.append({
+                        "asset_id": d.name,
+                        "filename": f"{d.name}.mp4",
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "duration_seconds": 0.0,
+                        "frame_count": len(local_frames),
+                        "file_size": 0,
+                        "indexed": v_count > 0,
+                        "indexed_vectors": v_count,
+                        "sample_interval_seconds": 5,
+                        "video_url": f"/api/vault/assets/{d.name}/video",
+                        "thumbnail_url": local_frames[0]["url"] if local_frames else None,
+                        "frames": local_frames,
+                    })
         return asset_list
 
     # Local Mode: Source of truth is persistent assets_metadata.json, indexed vault assets,
@@ -284,7 +304,15 @@ def get_asset_detail(asset_id: str, vault: Any) -> Optional[Dict[str, Any]]:
 
 def delete_asset_record(asset_id: str, vault: Any) -> bool:
     """Removes an asset from storage, frame cache, and FAISS vault in local or cloud mode."""
-    if is_cloud_mode():
+    import uuid as _uuid
+    is_uuid = False
+    try:
+        _uuid.UUID(str(asset_id))
+        is_uuid = True
+    except (ValueError, TypeError, AttributeError):
+        is_uuid = False
+
+    if is_cloud_mode() and is_uuid:
         # Query storage path before deletion
         row = default_db_manager.fetch_one(
             "SELECT storage_path FROM reference_assets WHERE asset_id = %s;",
@@ -392,7 +420,7 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                        matched_asset_ids, cv_evidence_dossier, scanned_at,
                        score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
                 FROM incidents
-                WHERE (session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')
+                WHERE (session_id = %s OR session_id = 'demo-showcase')
                 ORDER BY scanned_at DESC
                 LIMIT 100;
                 """,
@@ -407,6 +435,7 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                        matched_asset_ids, cv_evidence_dossier, scanned_at,
                        score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
                 FROM incidents
+                WHERE (session_id IS NULL OR session_id = 'demo-showcase')
                 ORDER BY scanned_at DESC
                 LIMIT 100;
                 """
@@ -482,9 +511,12 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
             if session_id:
                 return [
                     inc for inc in all_local
-                    if inc.get("session_id") == session_id or not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
+                    if inc.get("session_id") == session_id or inc.get("session_id") == "demo-showcase"
                 ]
-            return all_local
+            return [
+                inc for inc in all_local
+                if not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
+            ]
     except Exception as e:
         logger.error(f"[Registry] Failed to read {INCIDENTS_FILE}: {e}")
         return []

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 VISION_MODEL_ID = "nvidia/Nemotron-3.5-Super-VL"
 DEFAULT_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/")
+PROMPT_VERSION = "v1.1-forensic"
 MAX_IMAGE_DIM = 512
 VERIFICATION_TIMEOUT_SEC = 15.0
 MAX_CANDIDATE_PAIRS = 3
@@ -91,8 +92,9 @@ def compute_pair_cache_key(
     suspect_bytes: bytes,
     ref_bytes: bytes,
     model_id: str = VISION_MODEL_ID,
+    prompt_version: str = PROMPT_VERSION,
 ) -> str:
-    """Computes a deterministic SHA-256 cache key from input evidence bytes and model ID."""
+    """Computes a deterministic SHA-256 cache key from input evidence bytes, model ID, and prompt version."""
     hasher = hashlib.sha256()
     hasher.update(b"suspect:")
     hasher.update(suspect_bytes)
@@ -100,6 +102,8 @@ def compute_pair_cache_key(
     hasher.update(ref_bytes)
     hasher.update(b"|model:")
     hasher.update(model_id.encode("utf-8"))
+    hasher.update(b"|prompt:")
+    hasher.update(prompt_version.encode("utf-8"))
     return hasher.hexdigest()
 
 
@@ -288,7 +292,7 @@ def verify_candidate_pair(
         }
 
     # 2. Check cache
-    cache_key = compute_pair_cache_key(suspect_bytes, ref_bytes, model_id)
+    cache_key = compute_pair_cache_key(suspect_bytes, ref_bytes, model_id, PROMPT_VERSION)
     cached = get_cached_verification(cache_key)
     if cached:
         res = dict(cached)
@@ -355,15 +359,54 @@ def verify_candidate_pair(
         )
         latency_ms = int((time.time() - t0) * 1000)
         raw_content = response.choices[0].message.content or "{}"
-        parsed = json.loads(raw_content)
+        try:
+            parsed = json.loads(raw_content)
+        except (json.JSONDecodeError, TypeError) as jde:
+            logger.warning(f"[VisionVerifier] Unparseable JSON from {model_id}: {jde}")
+            return {
+                "candidate_pair_index": candidate_pair_index,
+                "suspect_timestamp_sec": suspect_timestamp_sec,
+                "reference_timestamp_sec": reference_timestamp_sec,
+                "source_asset_id": source_asset_id,
+                "visual_correspondence": "UNVERIFIED",
+                "confidence_assessment": "INCONCLUSIVE",
+                "matching_features": [],
+                "contradictions": [],
+                "reasoning": f"Vision model response was not valid JSON: {jde}",
+                "uncertainty_factors": ["Unparseable model output"],
+                "validation_status": "FAILED",
+                "model_id": model_id,
+                "latency_ms": latency_ms,
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        correspondence = parsed.get("visual_correspondence")
-        if correspondence not in ("HIGH_CORRESPONDENCE", "POSSIBLE_REUSE", "UNRELATED_SCENE", "UNVERIFIED"):
-            correspondence = "POSSIBLE_REUSE" if "match" in str(parsed).lower() else "UNVERIFIED"
+        is_schema_valid = bool(
+            parsed.get("visual_correspondence") in ("HIGH_CORRESPONDENCE", "POSSIBLE_REUSE", "UNRELATED_SCENE", "UNVERIFIED")
+            and parsed.get("confidence_assessment") in ("HIGH", "MODERATE", "LOW", "INCONCLUSIVE")
+            and bool(str(parsed.get("reasoning") or "").strip())
+        )
 
-        conf_assess = parsed.get("confidence_assessment")
-        if conf_assess not in ("HIGH", "MODERATE", "LOW", "INCONCLUSIVE"):
-            conf_assess = "MODERATE"
+        if not is_schema_valid:
+            logger.warning(f"[VisionVerifier] Pair {candidate_pair_index} output violated schema: {parsed}")
+            return {
+                "candidate_pair_index": candidate_pair_index,
+                "suspect_timestamp_sec": suspect_timestamp_sec,
+                "reference_timestamp_sec": reference_timestamp_sec,
+                "source_asset_id": source_asset_id,
+                "visual_correspondence": "UNVERIFIED",
+                "confidence_assessment": "INCONCLUSIVE",
+                "matching_features": [],
+                "contradictions": [],
+                "reasoning": "Vision model output violated expected forensic schema: missing or invalid keys.",
+                "uncertainty_factors": ["Schema validation failure"],
+                "validation_status": "SCHEMA_VIOLATION",
+                "model_id": model_id,
+                "latency_ms": latency_ms,
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        correspondence = parsed["visual_correspondence"]
+        conf_assess = parsed["confidence_assessment"]
 
         result = {
             "candidate_pair_index": candidate_pair_index,
