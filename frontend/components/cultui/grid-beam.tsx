@@ -423,7 +423,11 @@ export function GridBeam({
       style={{ borderRadius, ...style }}
       {...props}
     >
-      <GridBeamDividers cols={c} rows={r} />
+      <GridBeamDividers
+        cols={c}
+        rows={r}
+        dividerStroke={theme === "light" ? "rgba(220, 213, 201, 0.9)" : "rgba(238, 231, 219, 0.08)"}
+      />
       <GridBeamCanvas borderRadius={borderRadius} ref={canvasRef} />
       <GridBeamContent>{children}</GridBeamContent>
     </div>

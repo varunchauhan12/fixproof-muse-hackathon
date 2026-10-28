@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { useInView, useReducedMotion } from "framer-motion";
 import {
   Database,
   Radar,
@@ -201,23 +201,23 @@ function AgentPanel({
     <div
       id={`agent-panel-${agent.id}`}
       ref={panelRef}
-      className="scroll-mt-40 relative rounded-3xl border border-slate-800/80 bg-[#0f1118]/90 backdrop-blur-xl p-6 sm:p-8 lg:p-10 shadow-2xl transition-all duration-300 hover:border-slate-700/80"
+      className="scroll-mt-36 relative rounded-3xl border border-[#DCD5C9] bg-[#FFFEFA] p-6 sm:p-8 lg:p-10 shadow-[0_4px_24px_rgba(23,23,23,0.04)] transition-all duration-300 hover:border-[#b8b0a1]"
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Left Column: Details & Technical Specifications */}
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center gap-3">
-            <span className="text-4xl sm:text-5xl font-black font-mono text-slate-800">
+            <span className="text-4xl sm:text-5xl font-black font-mono text-[#DCD5C9]">
               {agent.number}
             </span>
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider border",
                 agent.status === "live"
-                  ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                  ? "bg-[#009E91]/10 text-[#009E91] border-[#009E91]/30"
                   : agent.status === "targeted"
-                  ? "bg-sky-500/10 text-sky-300 border-sky-500/30"
-                  : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                  ? "bg-[#0284c7]/10 text-[#0284c7] border-[#0284c7]/30"
+                  : "bg-[#d97706]/10 text-[#d97706] border-[#d97706]/30"
               )}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -226,19 +226,19 @@ function AgentPanel({
           </div>
 
           <div>
-            <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-1">
+            <h3 className="text-2xl sm:text-3xl font-black text-[#171717] tracking-tight mb-1">
               {agent.name}
             </h3>
-            <p className="text-sm font-mono text-teal-400 font-medium">
+            <p className="text-sm font-mono text-[#009E91] font-semibold">
               {agent.role}
             </p>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-            <div className="text-sm font-bold text-slate-200 mb-1">
+          <div className="p-3.5 rounded-xl bg-[#EDE7DC]/70 border border-[#DCD5C9]">
+            <div className="text-sm font-bold text-[#171717] mb-1">
               &ldquo;{agent.tagline}&rdquo;
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#68645D] leading-relaxed">
               {agent.description}
             </p>
           </div>
@@ -247,15 +247,15 @@ function AgentPanel({
             {agent.technicalSpecs.map((spec) => (
               <div
                 key={spec.label}
-                className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-slate-700/80 transition-colors"
+                className="p-2.5 rounded-lg bg-[#EDE7DC]/50 border border-[#DCD5C9]"
               >
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-0.5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-[#68645D] mb-0.5">
                   {spec.label}
                 </div>
-                <div className="text-xs font-bold text-slate-200 font-mono truncate">
+                <div className="text-xs font-bold text-[#171717] font-mono truncate">
                   {spec.value}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                <div className="text-[10px] text-[#68645D] mt-0.5 leading-tight">
                   {spec.desc}
                 </div>
               </div>
@@ -263,25 +263,25 @@ function AgentPanel({
           </div>
 
           {agent.implementationDisclaimer && (
-            <div className="text-[11px] text-slate-400 italic flex items-start gap-1.5 pt-1">
-              <span className="text-teal-400 font-bold not-italic">Note:</span>
+            <div className="text-[11px] text-[#68645D] italic flex items-start gap-1.5 pt-1">
+              <span className="text-[#009E91] font-bold not-italic">Note:</span>
               <span>{agent.implementationDisclaimer}</span>
             </div>
           )}
         </div>
 
-        {/* Right Column: Visual Stage with Cult UI Illustrations & Shaders */}
+        {/* Right Column: Visual Stage with Selective Near-Black Technical Contrast */}
         <div className="lg:col-span-7 relative flex items-center justify-center min-h-[360px] lg:min-h-[420px]">
-          <div className="relative w-full rounded-2xl border border-slate-800/90 bg-[#0a0c12]/95 backdrop-blur-xl p-4 sm:p-6 shadow-2xl overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
-            {/* Conditional Shader Backdrops - Only active when this panel is in view */}
+          <div className="relative w-full rounded-2xl border border-[#2a2c2a] bg-[#171918] p-4 sm:p-6 shadow-xl overflow-hidden flex flex-col items-center justify-center min-h-[380px] text-white">
+            {/* Conditional Shader Backdrops - Active only when this panel is in view */}
             {index === 2 && isInView && !shouldReduceMotion && (
-              <div className="absolute inset-0 pointer-events-none opacity-45 overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden rounded-2xl">
                 <RestrainedLiquidMetal />
               </div>
             )}
 
             {index === 3 && isInView && !shouldReduceMotion && (
-              <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 pointer-events-none opacity-35 overflow-hidden rounded-2xl">
                 <RestrainedRadialGradient />
               </div>
             )}
@@ -291,21 +291,21 @@ function AgentPanel({
               {/* Step 01: Archivist -> GatewayEndpoint */}
               {index === 0 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-teal-400 mb-3 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#2dd4bf] mb-3 text-center font-bold">
                     Controlled Reference Ingestion Pipeline
                   </div>
                   <div className="w-full overflow-hidden flex justify-center">
                     <GatewayEndpoint
                       className="max-h-[290px] w-full"
                       backgroundColor="transparent"
-                      circleStrokeColor="#1e293b"
-                      centerCircleStroke="#0d9488"
+                      circleStrokeColor="#2e302e"
+                      centerCircleStroke="#009E91"
                       logoColor="#2dd4bf"
-                      iconBoxFill="#0f172a"
-                      iconBoxStroke="#334155"
+                      iconBoxFill="#202221"
+                      iconBoxStroke="#3d403e"
                     />
                   </div>
-                  <div className="mt-3 text-[11px] font-mono text-slate-400 text-center">
+                  <div className="mt-3 text-[11px] font-mono text-[#ded7cb] text-center">
                     Official Broadcast Stream → MobileNetV3 576-dim Embeddings → FAISS Vault
                   </div>
                 </div>
@@ -314,21 +314,21 @@ function AgentPanel({
               {/* Step 02: Spider -> GatewayRouting */}
               {index === 1 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-sky-400 mb-3 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#38bdf8] mb-3 text-center font-bold">
                     Stream Discovery &amp; Sequential Queue Screening
                   </div>
                   <div className="w-full overflow-hidden flex justify-center">
                     <GatewayRouting
                       className="max-h-[290px] w-full"
                       backgroundColor="transparent"
-                      borderColor="#1e293b"
+                      borderColor="#2e302e"
                       innerCircleColor="#0284c7"
                       logoColor="#38bdf8"
-                      iconBoxFill="#0f172a"
-                      iconBoxStroke="#334155"
+                      iconBoxFill="#202221"
+                      iconBoxStroke="#3d403e"
                     />
                   </div>
-                  <div className="mt-3 text-[11px] font-mono text-slate-400 text-center">
+                  <div className="mt-3 text-[11px] font-mono text-[#ded7cb] text-center">
                     Candidate Feeds (Max 3) → Pre-Filter Storyboards → Threat Hunter Inspection
                   </div>
                 </div>
@@ -337,14 +337,14 @@ function AgentPanel({
               {/* Step 03: Sentinel -> GatewayOverhead + Liquid Metal */}
               {index === 2 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-emerald-400 mb-2 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#34d399] mb-2 text-center font-bold">
                     Dual-Layer Mathematical Verification
                   </div>
                   <div className="w-full overflow-hidden flex justify-center">
                     <GatewayOverhead
                       className="max-h-[280px] w-full"
                       backgroundColor="transparent"
-                      borderColor="#1e293b"
+                      borderColor="#2e302e"
                       centerLineColor="#059669"
                       leftLineColor="#10b981"
                       rightLineColor="#10b981"
@@ -352,7 +352,7 @@ function AgentPanel({
                       showBackgroundGrid={true}
                     />
                   </div>
-                  <div className="mt-2 p-2.5 rounded-lg bg-black/60 border border-emerald-500/30 text-[11px] font-mono text-emerald-300 text-center max-w-md">
+                  <div className="mt-2 p-2.5 rounded-lg bg-black/60 border border-emerald-500/30 text-[11px] font-mono text-[#5eead4] text-center max-w-md">
                     Cross-Verification: L2 Vector Distance (0.00 – 1.00) ∩ 64-bit DCT pHash
                   </div>
                 </div>
@@ -361,35 +361,35 @@ function AgentPanel({
               {/* Step 04: Adjudicator -> Restrained Radial + Reasoning Cards */}
               {index === 3 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-violet-400 mb-3 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#a78bfa] mb-3 text-center font-bold">
                     Nemotron Reasoning &amp; Evidence Triage
                   </div>
-                  <div className="w-full max-w-md p-4 rounded-xl bg-slate-950/90 border border-violet-500/30 shadow-xl space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                      <span className="text-xs font-mono text-slate-400">Model Triage State:</span>
-                      <span className="text-xs font-mono font-bold text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/30">
+                  <div className="w-full max-w-md p-4 rounded-xl bg-[#202221] border border-violet-500/30 shadow-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-zinc-700 pb-2">
+                      <span className="text-xs font-mono text-[#a8a196]">Model Triage State:</span>
+                      <span className="text-xs font-mono font-bold text-violet-300 bg-violet-500/20 px-2 py-0.5 rounded border border-violet-500/30">
                         EVIDENCE_GROUNDED
                       </span>
                     </div>
                     <div className="space-y-2 text-xs font-mono">
-                      <div className="flex justify-between text-slate-300">
+                      <div className="flex justify-between text-[#ded7cb]">
                         <span>Keyframe Verification:</span>
                         <span className="text-emerald-400 font-bold">Nemotron Vision Match</span>
                       </div>
-                      <div className="flex justify-between text-slate-300">
+                      <div className="flex justify-between text-[#ded7cb]">
                         <span>Temporal Alignment:</span>
-                        <span className="text-teal-400 font-bold">00:04:12 – 00:04:28 (16s)</span>
+                        <span className="text-[#2dd4bf] font-bold">00:04:12 – 00:04:28 (16s)</span>
                       </div>
-                      <div className="flex justify-between text-slate-300">
+                      <div className="flex justify-between text-[#ded7cb]">
                         <span>Fair-Use Factor:</span>
                         <span className="text-amber-400 font-bold">Highlight Reuse (Low Transform)</span>
                       </div>
-                      <div className="flex justify-between text-slate-300">
+                      <div className="flex justify-between text-[#ded7cb]">
                         <span>Uncertainty Margin:</span>
-                        <span className="text-slate-400">Within Heuristic Threshold</span>
+                        <span className="text-[#a8a196]">Within Heuristic Threshold</span>
                       </div>
                     </div>
-                    <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 leading-snug">
+                    <div className="pt-2 border-t border-zinc-700 text-[10px] text-[#a8a196] leading-snug">
                       * Synthesizes reasoning chain with explicit caveats for human legal adjudicator.
                     </div>
                   </div>
@@ -399,7 +399,7 @@ function AgentPanel({
               {/* Step 05: Enforcer -> SecurityCheckpoint Approval Barrier */}
               {index === 4 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-rose-400 mb-3 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#fb7185] mb-3 text-center font-bold">
                     Evidence Packaging &amp; Human Approval Gate
                   </div>
                   <div className="w-full overflow-hidden flex justify-center">
@@ -410,7 +410,7 @@ function AgentPanel({
                       className="max-w-md w-full"
                     />
                   </div>
-                  <div className="mt-3 text-[11px] font-mono text-slate-400 text-center">
+                  <div className="mt-3 text-[11px] font-mono text-[#ded7cb] text-center">
                     Court-Ready PDF Synthesis · Ed25519 Sealed ZIP · Zero Automated Takedowns
                   </div>
                 </div>
@@ -419,24 +419,24 @@ function AgentPanel({
               {/* Step 06: Broker -> Dual Path Routing */}
               {index === 5 && (
                 <div className="w-full flex flex-col items-center">
-                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-amber-400 mb-3 text-center">
+                  <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#fbbf24] mb-3 text-center font-bold">
                     Collaborative Licensing &amp; Rev-Share Vision
                   </div>
-                  <div className="w-full max-w-md p-4 rounded-xl bg-slate-950/90 border border-amber-500/30 shadow-xl space-y-3">
+                  <div className="w-full max-w-md p-4 rounded-xl bg-[#202221] border border-amber-500/30 shadow-xl space-y-3">
                     <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
-                      <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 text-rose-300">
+                      <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300">
                         <div className="font-bold mb-0.5">Track A: Takedown</div>
-                        <div className="text-[10px] text-slate-400">Unlicensed Broadcast Stream</div>
+                        <div className="text-[10px] text-[#a8a196]">Unlicensed Broadcast Stream</div>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-emerald-300">
+                      <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300">
                         <div className="font-bold mb-0.5">Track B: Monetize</div>
-                        <div className="text-[10px] text-slate-400">Eligible Fan Highlight Clip</div>
+                        <div className="text-[10px] text-[#a8a196]">Eligible Fan Highlight Clip</div>
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-500/20 text-xs font-mono text-amber-200 leading-relaxed">
+                    <div className="p-3 rounded-lg bg-amber-950/30 border border-amber-500/20 text-xs font-mono text-amber-200 leading-relaxed">
                       <strong>Revenue-Sharing Draft:</strong> Live in Nemotron Center. Rights holders can offer 70/30 revenue splits to creator channels directly from the evidence dashboard.
                     </div>
-                    <div className="text-[10px] font-mono text-slate-400 text-center">
+                    <div className="text-[10px] font-mono text-[#a8a196] text-center">
                       Future Vision: On-chain smart contract escrow &amp; automated creator payouts
                     </div>
                   </div>
@@ -467,42 +467,36 @@ export function AgentScrollStory() {
   return (
     <section
       id="agents"
-      className="relative py-24 px-4 sm:px-6 md:px-10 lg:px-12 bg-[#08090d] text-slate-100 border-t border-slate-800/80"
+      className="scroll-mt-24 relative py-24 px-4 sm:px-6 md:px-10 lg:px-12 bg-[#F5F1E8] text-[#171717] border-t border-[#DCD5C9]"
     >
-      {/* Background radial glow */}
-      <div
-        className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] pointer-events-none rounded-full blur-[160px] opacity-15"
-        style={{ background: "radial-gradient(circle, #0d9488 0%, #3b82f6 40%, transparent 70%)" }}
-      />
-
       <div className="relative z-10 max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/25 mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-            <span className="text-[11px] font-mono font-bold tracking-[0.22em] text-teal-300 uppercase">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EDE7DC] border border-[#DCD5C9] mb-4 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-[#009E91]" />
+            <span className="text-[11px] font-mono font-bold tracking-[0.22em] text-[#009E91] uppercase">
               The MediaGuard Agent Architecture
             </span>
           </div>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.1] mb-5">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#171717] tracking-tight leading-[1.1] mb-5">
             Six specialists. One rights-protection workflow.
           </h2>
 
-          <p className="text-slate-400 text-base sm:text-lg leading-relaxed mb-4">
+          <p className="text-[#68645D] text-base sm:text-lg leading-relaxed mb-4">
             From trusted reference media to evidence-backed decisions, MediaGuard&apos;s original
             vision connects discovery, verification, investigation and action in one coordinated
             system.
           </p>
 
-          <p className="text-xs font-mono text-slate-400">
+          <p className="text-xs font-mono text-[#68645D]">
             * Explains the full intended architecture alongside verified live FixProof capabilities.
           </p>
         </div>
 
-        {/* Compact Sticky Progress & Navigation Rail */}
+        {/* Compact Sticky Progress & Navigation Rail in Warm Neutral Theme */}
         <div className="sticky top-[72px] z-30 mb-12 py-2">
-          <div className="bg-[#0e1119]/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 max-w-5xl mx-auto">
+          <div className="bg-[#FFFEFA]/95 backdrop-blur-md border border-[#DCD5C9] rounded-2xl p-2.5 shadow-[0_4px_24px_rgba(23,23,23,0.06)] flex items-center justify-between gap-2 max-w-5xl mx-auto">
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1 py-0.5">
               {AGENTS.map((agent, idx) => {
                 const isActive = activeStep === idx;
@@ -511,10 +505,10 @@ export function AgentScrollStory() {
                     key={agent.id}
                     onClick={() => handleJumpToAgent(agent.id, idx)}
                     className={cn(
-                      "px-3 py-1.5 rounded-xl text-left transition-all duration-200 border flex items-center gap-2 shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/40",
+                      "px-3 py-1.5 rounded-xl text-left transition-all duration-200 border flex items-center gap-2 shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#009E91]/40",
                       isActive
-                        ? "bg-slate-900 border-teal-500/60 shadow-md shadow-teal-950/40 text-white"
-                        : "bg-slate-950/50 border-slate-800/60 hover:bg-slate-900/60 hover:border-slate-700 text-slate-400 hover:text-slate-200"
+                        ? "bg-[#171918] border-[#171918] text-[#FFFEFA] shadow-md"
+                        : "bg-[#EDE7DC]/70 border-[#DCD5C9] hover:bg-[#EDE7DC] text-[#68645D] hover:text-[#171717]"
                     )}
                     aria-label={`Navigate to Agent ${agent.number}: ${agent.name}`}
                     aria-selected={isActive}
@@ -523,8 +517,8 @@ export function AgentScrollStory() {
                       className={cn(
                         "w-5 h-5 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-colors",
                         isActive
-                          ? "bg-teal-500/20 text-teal-300 border border-teal-500/40"
-                          : "bg-slate-900 text-slate-500"
+                          ? "bg-[#009E91] text-white"
+                          : "bg-[#FFFEFA] text-[#68645D]"
                       )}
                     >
                       {agent.number}
@@ -536,10 +530,10 @@ export function AgentScrollStory() {
                       className={cn(
                         "w-1.5 h-1.5 rounded-full shrink-0",
                         agent.status === "live"
-                          ? "bg-emerald-400"
+                          ? "bg-[#009E91]"
                           : agent.status === "targeted"
-                          ? "bg-sky-400"
-                          : "bg-amber-400"
+                          ? "bg-[#0284c7]"
+                          : "bg-[#d97706]"
                       )}
                     />
                   </button>
@@ -548,10 +542,10 @@ export function AgentScrollStory() {
             </div>
 
             {/* Active Step Progress Indicator */}
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-950/80 border border-slate-800/80 px-3 py-1.5 rounded-xl text-xs font-mono shrink-0">
-              <span className="text-teal-400 font-bold">{AGENTS[activeStep].number}</span>
-              <span className="text-slate-600">/</span>
-              <span className="text-slate-400">06</span>
+            <div className="hidden sm:flex items-center gap-1.5 bg-[#EDE7DC] border border-[#DCD5C9] px-3 py-1.5 rounded-xl text-xs font-mono shrink-0">
+              <span className="text-[#009E91] font-bold">{AGENTS[activeStep].number}</span>
+              <span className="text-[#68645D]">/</span>
+              <span className="text-[#68645D]">06</span>
             </div>
           </div>
         </div>

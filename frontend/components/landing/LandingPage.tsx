@@ -29,6 +29,7 @@ import createGlobe from "cobe";
 import HalftoneBackground from "@/components/kokonutui/halftone-background";
 import { JudgeWelcomeOverlay } from "@/components/ui/JudgeWelcomeOverlay";
 import { CultGlobe } from "@/components/cultui/globe";
+import { HaloButton } from "@/components/cultui/halo-button";
 import GridBeamCapabilities from "./GridBeamCapabilities";
 import AgentScrollStory from "./AgentScrollStory";
 
@@ -96,8 +97,8 @@ export const CobeGlobe = () => {
       mapBrightness: 5,
       mapBaseBrightness: 0.04,
       baseColor: [0.04, 0.14, 0.14],
-      markerColor: [0.1, 0.85, 0.75],
-      glowColor: [0.05, 0.45, 0.42],
+      markerColor: [0.0, 0.62, 0.57],
+      glowColor: [0.0, 0.5, 0.45],
       scale: 1.05,
       markers: [
         { location: [37.78, -122.44], size: 0.05 },
@@ -197,9 +198,9 @@ export const CometCard = ({
           width: 6,
           height: 6,
           borderRadius: "50%",
-          background: "radial-gradient(circle, #2dd4bf 0%, transparent 70%)",
+          background: "radial-gradient(circle, #009E91 0%, transparent 70%)",
           boxShadow:
-            "0 0 12px 6px rgba(45,212,191,0.5), 0 0 40px 16px rgba(45,212,191,0.15)",
+            "0 0 12px 6px rgba(0,158,145,0.45), 0 0 40px 16px rgba(0,158,145,0.15)",
           transform: "translate(-50%, -50%)",
           opacity: 0,
         }}
@@ -208,7 +209,7 @@ export const CometCard = ({
         className="pointer-events-none absolute inset-0 z-10"
         style={{
           background:
-            "radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(45,212,191,0.04) 0%, transparent 60%)",
+            "radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(0,158,145,0.05) 0%, transparent 60%)",
         }}
         ref={(el) => {
           if (!el) return;
@@ -248,7 +249,7 @@ export const RippleGrid = ({
 
   return (
     <div
-      className="absolute inset-0 overflow-hidden z-0"
+      className="absolute inset-0 overflow-hidden z-0 pointer-events-none"
       style={{
         maskImage:
           "radial-gradient(ellipse 100% 80% at 50% 0%, black 20%, transparent 100%)",
@@ -257,7 +258,7 @@ export const RippleGrid = ({
       }}
     >
       <div
-        className="cursor-crosshair"
+        className="cursor-crosshair pointer-events-auto"
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
@@ -281,7 +282,7 @@ export const RippleGrid = ({
           return (
             <div
               key={`${key}-${idx}`}
-              className={`border border-teal-600/10 hover:bg-teal-500/10 transition-colors duration-100 will-change-transform ${
+              className={`border border-[#DCD5C9]/50 hover:bg-[#009E91]/10 transition-colors duration-100 will-change-transform ${
                 clicked ? "animate-cell-ripple" : ""
               }`}
               style={
@@ -331,22 +332,22 @@ export const StatCard = ({
       }}
       whileHover={{
         scale: 1.06,
-        boxShadow: "0 12px 40px rgba(20,184,166,0.18), 0 2px 8px rgba(0,0,0,0.06)",
+        boxShadow: "0 12px 36px rgba(0,158,145,0.15), 0 2px 8px rgba(0,0,0,0.06)",
       }}
-      className="bg-[#0e1118]/95 backdrop-blur-md rounded-2xl p-4 border border-slate-800/90 w-[164px] cursor-default"
+      className="bg-[#FFFEFA]/95 backdrop-blur-md rounded-2xl p-4 border border-[#DCD5C9] w-[164px] cursor-default"
       style={{
-        boxShadow: "0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)",
+        boxShadow: "0 12px 32px rgba(23,23,23,0.08), 0 0 0 1px rgba(0,0,0,0.03)",
         transform: `rotate(${rotate}deg)`,
       }}
     >
-      <div className="w-6 h-[2.5px] bg-teal-400 rounded-full mb-2.5" />
-      <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.22em] mb-0.5">
+      <div className="w-6 h-[2.5px] bg-[#009E91] rounded-full mb-2.5" />
+      <p className="text-[8px] font-black text-[#68645D] uppercase tracking-[0.22em] mb-0.5">
         {label}
       </p>
-      <p className="text-[1.65rem] font-black text-white leading-none mb-1">{value}</p>
-      <p className="text-[10px] text-slate-400 font-medium mb-2.5 leading-snug">{sub}</p>
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-950/40 border border-teal-500/30 rounded-full text-[8px] font-bold text-teal-300 uppercase tracking-wider">
-        <span className="w-1 h-1 rounded-full bg-teal-400 shrink-0" />
+      <p className="text-[1.65rem] font-black text-[#171717] leading-none mb-1">{value}</p>
+      <p className="text-[10px] text-[#68645D] font-medium mb-2.5 leading-snug">{sub}</p>
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EDE7DC] border border-[#DCD5C9] rounded-full text-[8px] font-bold text-[#009E91] uppercase tracking-wider">
+        <span className="w-1 h-1 rounded-full bg-[#009E91] shrink-0" />
         {tag}
       </span>
     </motion.div>
@@ -355,26 +356,25 @@ export const StatCard = ({
 
 // ─── Live Activity Ticker ─────────────────────────────────────────────────────
 const TICKER_EVENTS = [
-  { icon: "🕷️", text: "Spider found 18 suspects on YouTube", time: "2s ago", color: "#818cf8" },
-  { icon: "👁️", text: "Sentinel: CRITICAL match — L2 0.00", time: "8s ago", color: "#fbbf24" },
-  { icon: "⚖️", text: "Adjudicator: SEVERE PIRACY → Enforcer", time: "14s ago", color: "#c084fc" },
-  { icon: "🔨", text: "Enforcer: DMCA drafted for @SportsStream", time: "21s ago", color: "#f87171" },
-  { icon: "💰", text: "Broker: Rev-share contract minted", time: "35s ago", color: "#34d399" },
-  { icon: "✅", text: "Swarm complete — 8 incidents resolved", time: "1m ago", color: "#2dd4bf" },
+  { icon: "🕷️", text: "Spider found 18 suspects on YouTube", time: "2s ago", color: "#6366f1" },
+  { icon: "👁️", text: "Sentinel: CRITICAL match — L2 0.00", time: "8s ago", color: "#d97706" },
+  { icon: "⚖️", text: "Adjudicator: SEVERE PIRACY → Enforcer", time: "14s ago", color: "#9333ea" },
+  { icon: "🔨", text: "Enforcer: DMCA drafted for @SportsStream", time: "21s ago", color: "#e11d48" },
+  { icon: "💰", text: "Broker: Rev-share contract minted", time: "35s ago", color: "#059669" },
+  { icon: "✅", text: "Swarm complete — 8 incidents resolved", time: "1m ago", color: "#009E91" },
 ];
 
 export const LiveTicker = () => (
   <div
-    className="relative overflow-hidden rounded-2xl bg-[#0d1117] border border-slate-800/60 py-2.5"
-    style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.12)" }}
+    className="relative overflow-hidden rounded-2xl bg-[#EDE7DC] border border-[#DCD5C9] py-2.5 shadow-sm"
   >
     <div
       className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to right, #0d1117, transparent)" }}
+      style={{ background: "linear-gradient(to right, #EDE7DC, transparent)" }}
     />
     <div
       className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to left, #0d1117, transparent)" }}
+      style={{ background: "linear-gradient(to left, #EDE7DC, transparent)" }}
     />
     <motion.div
       animate={{ x: ["0%", "-50%"] }}
@@ -387,9 +387,9 @@ export const LiveTicker = () => (
           className="inline-flex items-center gap-2 text-[11px] font-medium whitespace-nowrap"
         >
           <span>{e.icon}</span>
-          <span style={{ color: e.color }}>{e.text}</span>
-          <span className="text-slate-600">{e.time}</span>
-          <span className="text-slate-700 mx-1">·</span>
+          <span style={{ color: e.color }} className="font-semibold">{e.text}</span>
+          <span className="text-[#68645D]">{e.time}</span>
+          <span className="text-[#DCD5C9] mx-1">·</span>
         </span>
       ))}
     </motion.div>
@@ -439,7 +439,7 @@ export const TiltCard = ({
         className="pointer-events-none absolute inset-0 rounded-3xl z-10 transition-opacity duration-300"
         style={{
           opacity: hovered ? 1 : 0,
-          background: `radial-gradient(280px circle at ${glowPos.x}% ${glowPos.y}%, rgba(20,184,166,0.10) 0%, transparent 70%)`,
+          background: `radial-gradient(280px circle at ${glowPos.x}% ${glowPos.y}%, rgba(0,158,145,0.08) 0%, transparent 70%)`,
         }}
       />
       {children}
@@ -447,7 +447,7 @@ export const TiltCard = ({
   );
 };
 
-// ─── Agent Split Card ─────────────────────────────────────────────────────────
+// ─── SplitCard (Legacy Agent Preview) ────────────────────────────────────────
 const SplitCard = ({
   num,
   tag,
@@ -473,35 +473,34 @@ const SplitCard = ({
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={`flex flex-col ${
         reverse ? "md:flex-row-reverse" : "md:flex-row"
-      } rounded-3xl overflow-hidden border border-slate-200/70 bg-white group hover:shadow-xl transition-shadow duration-500`}
+      } rounded-3xl overflow-hidden border border-[#DCD5C9] bg-[#FFFEFA] group hover:shadow-xl transition-shadow duration-500`}
     >
-      <div className="md:w-[40%] bg-gradient-to-br from-[#eef0f8] to-[#e8eef6] relative flex items-center justify-center p-10 min-h-[200px] overflow-hidden">
+      <div className="md:w-[40%] bg-[#EDE7DC] relative flex items-center justify-center p-10 min-h-[200px] overflow-hidden">
         <span
-          className="absolute bottom-0 right-3 text-[110px] font-black leading-none select-none pointer-events-none"
-          style={{ color: "rgba(148,163,184,0.18)" }}
+          className="absolute bottom-0 right-3 text-[110px] font-black leading-none select-none pointer-events-none text-[#DCD5C9]/50"
         >
           {String(num).padStart(2, "0")}
         </span>
         <motion.div
           animate={{ y: [0, -7, 0] }}
           transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: num * 0.3 }}
-          className="relative z-10 px-5 py-2.5 bg-white/75 backdrop-blur-sm border border-slate-200/80 rounded-full shadow-sm"
+          className="relative z-10 px-5 py-2.5 bg-[#FFFEFA]/85 backdrop-blur-sm border border-[#DCD5C9] rounded-full shadow-sm"
         >
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.22em]">
+          <span className="text-[10px] font-black text-[#68645D] uppercase tracking-[0.22em]">
             {tag}
           </span>
         </motion.div>
       </div>
       <div className="md:w-[60%] p-9 flex flex-col justify-center">
-        <p className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.24em] mb-3">
+        <p className="text-[10px] font-bold text-[#009E91] uppercase tracking-[0.24em] mb-3">
           — {String(num).padStart(2, "0")}, {label}
         </p>
-        <h3 className="text-2xl md:text-[1.7rem] font-black text-slate-900 mb-3 leading-tight group-hover:text-teal-700 transition-colors duration-300">
+        <h3 className="text-2xl md:text-[1.7rem] font-black text-[#171717] mb-3 leading-tight group-hover:text-[#009E91] transition-colors duration-300">
           {title}
         </h3>
-        <p className="text-slate-500 leading-relaxed mb-5 text-[14px]">{desc}</p>
+        <p className="text-[#68645D] leading-relaxed mb-5 text-[14px]">{desc}</p>
         <div className="inline-flex">
-          <span className="px-4 py-2 bg-teal-500/[0.08] border border-teal-500/20 rounded-full text-[10px] font-bold text-teal-700 uppercase tracking-[0.16em]">
+          <span className="px-4 py-2 bg-[#009E91]/10 border border-[#009E91]/30 rounded-full text-[10px] font-bold text-[#009E91] uppercase tracking-[0.16em]">
             {cta}
           </span>
         </div>
@@ -575,7 +574,7 @@ const FEATURES = [
     desc: "Digital reference vault with 5s frame sampling, MobileNetV3 vectors, and FAISS.",
     img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=320&h=180&fit=crop&auto=format&q=80",
     action: "launch",
-    accent: "#2dd4bf",
+    accent: "#009E91",
   },
   {
     icon: Radar,
@@ -583,8 +582,8 @@ const FEATURES = [
     desc: "Autonomous visual similarity scan with dual-layer L2 distance and pHash cross-check.",
     img: "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=320&h=180&fit=crop&auto=format&q=80",
     action: "scroll",
-    section: "pipeline",
-    accent: "#818cf8",
+    section: "capabilities",
+    accent: "#0284c7",
   },
   {
     icon: Users,
@@ -593,7 +592,7 @@ const FEATURES = [
     img: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=320&h=180&fit=crop&auto=format&q=80",
     action: "scroll",
     section: "agents",
-    accent: "#34d399",
+    accent: "#059669",
   },
   {
     icon: Mail,
@@ -602,7 +601,7 @@ const FEATURES = [
     img: "https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=320&h=180&fit=crop&auto=format&q=80",
     action: "scroll",
     section: "stack",
-    accent: "#fbbf24",
+    accent: "#d97706",
   },
 ];
 
@@ -631,8 +630,8 @@ const FeaturesDropdown = ({
       <div
         className="absolute -top-[7px] left-1/2 -translate-x-1/2 w-3.5 h-3.5 rotate-45 rounded-tl-sm"
         style={{
-          background: "#13141c",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "#FFFEFA",
+          border: "1px solid #DCD5C9",
           borderBottom: "none",
           borderRight: "none",
         }}
@@ -640,14 +639,14 @@ const FeaturesDropdown = ({
       <div
         className="rounded-2xl overflow-hidden"
         style={{
-          background: "linear-gradient(145deg, #13141c 0%, #0f1018 100%)",
-          border: "1px solid rgba(255,255,255,0.09)",
+          background: "#FFFEFA",
+          border: "1px solid #DCD5C9",
           boxShadow:
-            "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06)",
+            "0 24px 60px rgba(23,23,23,0.12), 0 0 0 1px rgba(0,0,0,0.03)",
         }}
       >
-        <div className="px-5 pt-4 pb-3 border-b border-white/5">
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.28em]">
+        <div className="px-5 pt-4 pb-3 border-b border-[#DCD5C9]">
+          <p className="text-[10px] font-black text-[#68645D] uppercase tracking-[0.28em]">
             Explore FixProof Engine
           </p>
         </div>
@@ -664,23 +663,23 @@ const FeaturesDropdown = ({
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
                 onClick={() => handle(item)}
-                className="relative flex items-start gap-4 p-4 rounded-xl text-left overflow-hidden transition-colors duration-150"
-                style={{ background: isHovered ? "rgba(255,255,255,0.05)" : "transparent" }}
+                className="relative flex items-start gap-4 p-4 rounded-xl text-left overflow-hidden transition-colors duration-150 cursor-pointer"
+                style={{ background: isHovered ? "rgba(237,231,220,0.7)" : "transparent" }}
               >
-                <div className="w-[110px] h-[68px] rounded-xl overflow-hidden shrink-0 border border-white/8 bg-black/40 relative">
+                <div className="w-[110px] h-[68px] rounded-xl overflow-hidden shrink-0 border border-[#DCD5C9] bg-[#EDE7DC] relative">
                   <img
                     src={item.img}
                     alt={item.title}
                     className="w-full h-full object-cover transition-all duration-500"
                     style={{
-                      opacity: isHovered ? 1 : 0.65,
+                      opacity: isHovered ? 1 : 0.75,
                       transform: isHovered ? "scale(1.07)" : "scale(1)",
                     }}
                   />
                   <div
                     className="absolute inset-0 transition-opacity duration-300"
                     style={{
-                      background: `linear-gradient(135deg, ${item.accent}22, transparent)`,
+                      background: `linear-gradient(135deg, ${item.accent}20, transparent)`,
                       opacity: isHovered ? 1 : 0,
                     }}
                   />
@@ -689,30 +688,29 @@ const FeaturesDropdown = ({
                   <div className="flex items-center gap-2 mb-1.5">
                     <Icon
                       className="w-3.5 h-3.5 shrink-0 transition-colors duration-150"
-                      style={{ color: isHovered ? item.accent : "rgba(148,163,184,0.7)" }}
+                      style={{ color: isHovered ? item.accent : "#68645D" }}
                     />
                     <p
-                      className="text-[14px] font-bold leading-tight transition-colors duration-150"
-                      style={{ color: isHovered ? "#fff" : "rgba(226,232,240,0.9)" }}
+                      className="text-[14px] font-bold leading-tight transition-colors duration-150 text-[#171717]"
                     >
                       {item.title}
                     </p>
                   </div>
-                  <p className="text-[11.5px] text-slate-400 leading-relaxed">{item.desc}</p>
+                  <p className="text-[11.5px] text-[#68645D] leading-relaxed">{item.desc}</p>
                 </div>
               </motion.button>
             );
           })}
         </div>
-        <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
-          <p className="text-[11px] text-slate-500">
+        <div className="px-5 py-3 border-t border-[#DCD5C9] flex items-center justify-between bg-[#EDE7DC]/40">
+          <p className="text-[11px] text-[#68645D]">
             MediaGuard AI Video Protection Protocol · 2026
           </p>
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             onClick={onLaunch}
-            className="text-[11px] font-bold text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1"
+            className="text-[11px] font-bold text-[#009E91] hover:text-[#007b71] transition-colors flex items-center gap-1 cursor-pointer"
           >
             Launch Console →
           </motion.button>
@@ -750,7 +748,14 @@ export const LandingNavbar = ({
 
   const scrollTo = (id: string) => {
     setFeaturesOpen(false);
-    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 80);
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        const yOffset = -90;
+        const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+    }, 80);
   };
 
   return (
@@ -758,53 +763,54 @@ export const LandingNavbar = ({
       initial={{ y: -80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 px-4"
+      className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 px-4 pointer-events-none"
     >
       <div
-        className="flex items-center w-full max-w-[820px] rounded-full px-5 py-2.5 transition-all duration-300"
+        className="pointer-events-auto flex items-center w-full max-w-[860px] rounded-full px-5 py-2.5 transition-all duration-300"
         style={{
-          background: scrolled ? "rgba(10,11,16,0.97)" : "rgba(10,11,16,0.88)",
-          border: "1px solid rgba(255,255,255,0.09)",
+          background: scrolled ? "rgba(255,254,250,0.95)" : "rgba(255,254,250,0.88)",
+          border: "1px solid #DCD5C9",
           boxShadow: scrolled
-            ? "0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(45,212,191,0.07)"
-            : "0 4px 24px rgba(0,0,0,0.4)",
+            ? "0 8px 32px rgba(23,23,23,0.08), 0 0 0 1px rgba(0,158,145,0.08)"
+            : "0 4px 24px rgba(23,23,23,0.05)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
       >
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex items-center gap-2.5 shrink-0 group mr-8"
+          className="flex items-center gap-2.5 shrink-0 group mr-4 lg:mr-8 cursor-pointer"
         >
-          <div className="p-1.5 rounded-lg bg-teal-500/15 border border-teal-500/20 group-hover:bg-teal-500/25 transition-colors">
-            <Shield className="w-3.5 h-3.5 text-teal-400" />
+          <div className="p-1.5 rounded-lg bg-[#009E91]/10 border border-[#009E91]/20 group-hover:bg-[#009E91]/20 transition-colors">
+            <Shield className="w-3.5 h-3.5 text-[#009E91]" />
           </div>
-          <span className="text-[14px] font-black text-white tracking-tight">
-            FixProof<span className="text-teal-400">&apos;26</span>
+          <span className="text-[14px] font-black text-[#171717] tracking-tight">
+            FixProof<span className="text-[#009E91]">&apos;26</span>
           </span>
         </button>
 
-        <nav className="flex-1 flex items-center justify-center gap-0.5">
+        {/* Responsive Desktop Navigation Links */}
+        <nav className="hidden md:flex flex-1 items-center justify-center gap-0.5">
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="px-4 py-1.5 text-[13px] font-medium text-slate-300 hover:text-white rounded-full hover:bg-white/5 transition-all duration-150"
+            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Home
           </button>
 
           <div className="relative" onMouseEnter={open} onMouseLeave={close}>
             <button
-              className="flex items-center gap-1 px-4 py-1.5 text-[13px] font-medium rounded-full transition-all duration-150"
+              className="flex items-center gap-1 px-3.5 py-1.5 text-[13px] font-medium rounded-full transition-all duration-150 cursor-pointer"
               style={{
-                color: featuresOpen ? "#fff" : "rgba(203,213,225,0.9)",
-                background: featuresOpen ? "rgba(255,255,255,0.06)" : "transparent",
+                color: featuresOpen ? "#171717" : "#68645D",
+                background: featuresOpen ? "rgba(237,231,220,0.8)" : "transparent",
               }}
             >
               Features
               <motion.svg
                 animate={{ rotate: featuresOpen ? 180 : 0 }}
                 transition={{ duration: 0.22 }}
-                className="w-3 h-3 opacity-50"
+                className="w-3 h-3 opacity-60"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -825,46 +831,47 @@ export const LandingNavbar = ({
 
           <button
             onClick={() => scrollTo("capabilities")}
-            className="px-4 py-1.5 text-[13px] font-medium text-slate-300 hover:text-white rounded-full hover:bg-white/5 transition-all duration-150"
+            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Capabilities
           </button>
 
           <button
             onClick={() => scrollTo("agents")}
-            className="px-4 py-1.5 text-[13px] font-medium text-slate-300 hover:text-white rounded-full hover:bg-white/5 transition-all duration-150"
+            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Agents
           </button>
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0 ml-6">
+        {/* Action Buttons using Cult UI HaloButton */}
+        <div className="flex items-center gap-2.5 shrink-0 ml-auto md:ml-4">
           {onReplayIntro && (
-            <button
-              type="button"
+            <HaloButton
+              variant="secondary"
+              size="sm"
               onClick={onReplayIntro}
-              className="px-3 py-1.5 text-[12px] font-semibold text-teal-300 hover:text-white rounded-full bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500/20 transition-all duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm"
               title="Replay Judge Welcome Intro"
+              className="hidden sm:inline-flex cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+              <Sparkles className="w-3.5 h-3.5 text-[#009E91]" />
               <span>Judge Intro</span>
-            </button>
+            </HaloButton>
           )}
           <button
             onClick={() => scrollTo("stack")}
-            className="text-[13px] font-medium text-slate-300 hover:text-white transition-colors"
+            className="hidden lg:inline-block text-[13px] font-medium text-[#68645D] hover:text-[#171717] transition-colors px-2 py-1 cursor-pointer"
           >
             Technology
           </button>
-          <motion.button
-            whileHover={{ scale: 1.04, boxShadow: "0 0 24px rgba(255,255,255,0.18)" }}
-            whileTap={{ scale: 0.96 }}
+          <HaloButton
+            variant="primary"
+            size="sm"
             onClick={onLaunch}
-            className="px-5 py-2 bg-white hover:bg-slate-100 text-slate-900 text-[13px] font-bold rounded-full transition-colors duration-200 cursor-pointer"
-            style={{ boxShadow: "0 2px 12px rgba(255,255,255,0.12)" }}
+            className="cursor-pointer"
           >
             Launch Console →
-          </motion.button>
+          </HaloButton>
         </div>
       </div>
     </motion.header>
@@ -923,184 +930,194 @@ export const Hero = ({
 }: {
   onLaunch: () => void;
   onReplayIntro?: () => void;
-}) => (
-  <section
-    className="relative min-h-screen overflow-hidden pt-24 bg-[#07090d]"
-    style={{ background: "linear-gradient(180deg, #07090d 0%, #0a0c12 50%, #0d0f15 100%)" }}
-  >
-    <div
-      className="absolute inset-0 pointer-events-none"
-      style={{
-        backgroundImage: "radial-gradient(circle, rgba(45,212,191,0.08) 1px, transparent 1px)",
-        backgroundSize: "28px 28px",
-        opacity: 0.6,
-      }}
-    />
-    <RippleGrid rows={10} cols={24} cellSize={60} />
+}) => {
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const yOffset = -90;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }
+  };
 
-    <div className="relative z-10 max-w-7xl mx-auto px-8 lg:px-12 flex flex-col lg:flex-row items-center gap-8 min-h-[calc(100vh-6rem)]">
-      <div className="flex-none w-full lg:w-[500px] xl:w-[540px] py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/30 mb-7"
-        >
-          <Zap className="w-3 h-3 text-teal-400 fill-teal-400" />
-          <span className="text-[10px] font-mono font-bold text-teal-300 uppercase tracking-[0.22em]">
-            Autonomous IP Protection · MediaGuard-Powered Console
-          </span>
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 28 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-          className="font-black text-white tracking-tight leading-[0.9] mb-5"
-          style={{ fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)" }}
-        >
-          FixProof
-          <br />
-          Sports
-          <br />
-          <span
-            className="text-teal-400"
-            style={{
-              textDecoration: "underline",
-              textDecorationColor: "#2dd4bf",
-              textDecorationThickness: "4px",
-              textUnderlineOffset: "7px",
-            }}
-          >
-            <FlipWords words={WORDS} />
-          </span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="text-[15px] font-bold text-teal-400 mb-4 tracking-wide"
-        >
-          Detect. Adjudicate. Monetize.
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.6 }}
-          className="text-slate-400 leading-relaxed mb-4 text-[15px] max-w-[430px]"
-        >
-          An autonomous forensic pipeline that monitors video streams, flags candidate visual matches with MobileNetV3 embeddings and pHash, and prepares evidence-backed reports and enforcement drafts for human review.
-        </motion.p>
-
-        {/* Heuristic metric disclaimer badge */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.5 }}
-          className="mb-8 p-3 rounded-xl bg-teal-950/25 border border-teal-500/20 max-w-[430px] flex items-start gap-2.5 text-[11.5px] text-slate-300 leading-snug"
-        >
-          <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-          <span>
-            <strong className="text-white">Heuristic Metric:</strong> Similarity scores represent visual vector distances, not calibrated legal proof of infringement. All findings require human review.
-          </span>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.42, duration: 0.55 }}
-          className="flex flex-wrap items-center gap-3"
-        >
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onLaunch}
-            className="px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-sm rounded-full transition-all duration-200 shadow-xl shadow-teal-500/25 flex items-center gap-2 cursor-pointer"
-          >
-            Launch Swarm Console <ArrowRight className="w-4 h-4" />
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() =>
-              document.getElementById("agents")?.scrollIntoView({ behavior: "smooth" })
-            }
-            className="px-6 py-3.5 bg-slate-900/90 border border-slate-700/80 text-slate-200 hover:border-teal-400 hover:text-white font-bold text-sm rounded-full transition-all duration-200 shadow-sm cursor-pointer"
-          >
-            Explore Agents
-          </motion.button>
-          {onReplayIntro && (
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={onReplayIntro}
-              className="px-5 py-3.5 bg-teal-500/10 border border-teal-500/30 text-teal-300 hover:bg-teal-500/20 font-semibold text-sm rounded-full transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
-              title="Open Welcome Overview for Judges"
-            >
-              <Sparkles className="w-4 h-4 text-teal-400" />
-              <span>Judge Intro</span>
-            </motion.button>
-          )}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.58, duration: 0.55 }}
-          className="mt-8 max-w-[430px]"
-        >
-          <LiveTicker />
-        </motion.div>
-      </div>
-
+  return (
+    <section
+      className="relative min-h-screen overflow-hidden pt-28 bg-[#F5F1E8] text-[#171717]"
+    >
       <div
-        className="flex-1 relative hidden lg:flex items-center justify-end pr-4"
-        style={{ minHeight: 600 }}
-      >
-        {/* Kokonut UI Halftone Background Layer behind Globe */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
-          <HalftoneBackground
-            className="!bg-transparent w-full h-full min-h-0 opacity-75"
-            cell={14}
-            inkColor="#0d9488"
-            center={true}
-            loupe={false}
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(circle, #DCD5C9 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+          opacity: 0.7,
+        }}
+      />
+      <RippleGrid rows={10} cols={24} cellSize={60} />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex flex-col lg:flex-row items-center gap-8 min-h-[calc(100vh-7rem)]">
+        <div className="flex-none w-full lg:w-[500px] xl:w-[540px] py-8 lg:py-12">
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#EDE7DC] border border-[#DCD5C9] mb-7 shadow-sm"
           >
-            {null}
-          </HalftoneBackground>
+            <Zap className="w-3 h-3 text-[#009E91] fill-[#009E91]" />
+            <span className="text-[10px] font-mono font-bold text-[#009E91] uppercase tracking-[0.22em]">
+              Autonomous IP Protection · MediaGuard-Powered Console
+            </span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+            className="font-black text-[#171717] tracking-tight leading-[0.92] mb-5"
+            style={{ fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)" }}
+          >
+            FixProof
+            <br />
+            Sports
+            <br />
+            <span
+              className="text-[#009E91]"
+              style={{
+                textDecoration: "underline",
+                textDecorationColor: "#009E91",
+                textDecorationThickness: "4px",
+                textUnderlineOffset: "7px",
+              }}
+            >
+              <FlipWords words={WORDS} />
+            </span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className="text-[15px] font-bold text-[#009E91] mb-4 tracking-wide"
+          >
+            Detect. Adjudicate. Monetize.
+          </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="text-[#68645D] leading-relaxed mb-4 text-[15px] max-w-[430px]"
+          >
+            An autonomous forensic pipeline that monitors video streams, flags candidate visual matches with MobileNetV3 embeddings and pHash, and prepares evidence-backed reports and enforcement drafts for human review.
+          </motion.p>
+
+          {/* Heuristic metric disclaimer badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.5 }}
+            className="mb-8 p-3 rounded-xl bg-[#EDE7DC] border border-[#DCD5C9] max-w-[430px] flex items-start gap-2.5 text-[11.5px] text-[#68645D] leading-snug shadow-sm"
+          >
+            <Info className="w-4 h-4 text-[#009E91] shrink-0 mt-0.5" />
+            <span>
+              <strong className="text-[#171717]">Heuristic Metric:</strong> Similarity scores represent visual vector distances, not calibrated legal proof of infringement. All findings require human review.
+            </span>
+          </motion.div>
+
+          {/* Halo Action Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.42, duration: 0.55 }}
+            className="flex flex-wrap items-center gap-3"
+          >
+            <HaloButton
+              variant="primary"
+              size="lg"
+              onClick={onLaunch}
+              className="cursor-pointer"
+            >
+              Launch Swarm Console <ArrowRight className="w-4 h-4 ml-1" />
+            </HaloButton>
+            <HaloButton
+              variant="secondary"
+              size="lg"
+              onClick={() => scrollTo("agents")}
+              className="cursor-pointer"
+            >
+              Explore Agents
+            </HaloButton>
+            {onReplayIntro && (
+              <HaloButton
+                variant="accent"
+                size="lg"
+                onClick={onReplayIntro}
+                className="cursor-pointer"
+                title="Open Welcome Overview for Judges"
+              >
+                <Sparkles className="w-4 h-4 text-[#009E91]" />
+                <span>Judge Intro</span>
+              </HaloButton>
+            )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.58, duration: 0.55 }}
+            className="mt-8 max-w-[430px]"
+          >
+            <LiveTicker />
+          </motion.div>
         </div>
 
-        <div className="relative z-10 flex items-center justify-center" style={{ width: 560, height: 560 }}>
-          <div
-            className="absolute inset-0 rounded-full pointer-events-none"
-            style={{
-              background: "radial-gradient(circle, rgba(20,184,166,0.18) 0%, transparent 70%)",
-            }}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-            className="relative flex items-center justify-center"
-          >
-            <CultGlobe globeSize={520} />
-          </motion.div>
-          {STAT_CARDS.map((card, i) => (
-            <div key={card.label} className="absolute z-10 pointer-events-auto" style={CARD_POSITIONS[i] as any}>
-              <StatCard {...card} />
-            </div>
-          ))}
+        {/* Right Column: Globe + Halftone + Floating Badges */}
+        <div
+          className="flex-1 relative hidden lg:flex items-center justify-end pr-4"
+          style={{ minHeight: 600 }}
+        >
+          {/* Kokonut UI Halftone Background Layer behind Globe */}
+          <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
+            <HalftoneBackground
+              className="!bg-transparent w-full h-full min-h-0 opacity-70"
+              cell={14}
+              inkColor="#009E91"
+              center={true}
+              loupe={false}
+            >
+              {null}
+            </HalftoneBackground>
+          </div>
+
+          <div className="relative z-10 flex items-center justify-center" style={{ width: 560, height: 560 }}>
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: "radial-gradient(circle, rgba(0,158,145,0.12) 0%, transparent 70%)",
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+              className="relative flex items-center justify-center"
+            >
+              <CultGlobe globeSize={520} />
+            </motion.div>
+            {STAT_CARDS.map((card, i) => (
+              <div key={card.label} className="absolute z-10 pointer-events-auto" style={CARD_POSITIONS[i] as any}>
+                <StatCard {...card} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
-// ─── Agents Section ──────────────────────────────────────────────────────────
+// ─── Agents Section (Legacy reference) ───────────────────────────────────────
 export const AgentsSection = () => (
-  <section id="agents" className="py-28 px-8 bg-[#f6f7fc]">
+  <section id="agents-legacy" className="py-28 px-8 bg-[#EDE7DC] text-[#171717]">
     <div className="max-w-5xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 22 }}
@@ -1109,15 +1126,15 @@ export const AgentsSection = () => (
         transition={{ duration: 0.6 }}
         className="text-center mb-16"
       >
-        <p className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.28em] mb-4">
+        <p className="text-[10px] font-bold text-[#009E91] uppercase tracking-[0.28em] mb-4">
           The Autonomous Swarm
         </p>
-        <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-5">
+        <h2 className="text-5xl md:text-6xl font-black text-[#171717] tracking-tight mb-5">
           6 Agents.
           <br />
-          <span className="text-teal-600">One Pipeline.</span>
+          <span className="text-[#009E91]">One Pipeline.</span>
         </h2>
-        <p className="text-[17px] text-slate-500 max-w-lg mx-auto leading-relaxed">
+        <p className="text-[17px] text-[#68645D] max-w-lg mx-auto leading-relaxed">
           One video ingestion triggers the entire swarm. Each agent hands off to the next
           automatically. Human intervention only at the final approval step.
         </p>
@@ -1131,18 +1148,18 @@ export const AgentsSection = () => (
   </section>
 );
 
-// ─── Pipeline Section ────────────────────────────────────────────────────────
+// ─── Pipeline Section (Legacy reference) ─────────────────────────────────────
 const HOW_STEPS = [
   { icon: Globe, label: "Spider Crawls", desc: "Temporal stream sampling", color: "#6366f1" },
-  { icon: Eye, label: "Sentinel Scans", desc: "MobileNetV3 + pHash dual-layer", color: "#f59e0b" },
-  { icon: Brain, label: "Adjudicator Rules", desc: "Risk score & fair use triage", color: "#a855f7" },
-  { icon: Gavel, label: "Enforcer Drafts", desc: "17 U.S.C. § 512(c) notice", color: "#ef4444" },
-  { icon: Coins, label: "Broker Mints", desc: "Dynamic rev-share contract", color: "#10b981" },
-  { icon: CheckCircle, label: "Human Approves", desc: "One click. Mission complete.", color: "#0d9488" },
+  { icon: Eye, label: "Sentinel Scans", desc: "MobileNetV3 + pHash dual-layer", color: "#d97706" },
+  { icon: Brain, label: "Adjudicator Rules", desc: "Risk score & fair use triage", color: "#9333ea" },
+  { icon: Gavel, label: "Enforcer Drafts", desc: "17 U.S.C. § 512(c) notice", color: "#e11d48" },
+  { icon: Coins, label: "Broker Mints", desc: "Dynamic rev-share contract", color: "#059669" },
+  { icon: CheckCircle, label: "Human Approves", desc: "One click. Mission complete.", color: "#009E91" },
 ];
 
 export const PipelineSection = () => (
-  <section id="pipeline" className="py-28 px-8 bg-white">
+  <section id="pipeline" className="py-28 px-8 bg-[#FFFEFA] text-[#171717]">
     <div className="max-w-5xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 22 }}
@@ -1151,17 +1168,17 @@ export const PipelineSection = () => (
         transition={{ duration: 0.6 }}
         className="text-center mb-16"
       >
-        <p className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.28em] mb-4">
+        <p className="text-[10px] font-bold text-[#009E91] uppercase tracking-[0.28em] mb-4">
           The Agentic Pipeline
         </p>
-        <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-5">
+        <h2 className="text-5xl md:text-6xl font-black text-[#171717] tracking-tight mb-5">
           One Video.
           <br />
-          <span className="text-teal-600">Full Autonomy.</span>
+          <span className="text-[#009E91]">Full Autonomy.</span>
         </h2>
-        <p className="text-[17px] text-slate-500 max-w-lg mx-auto leading-relaxed">
+        <p className="text-[17px] text-[#68645D] max-w-lg mx-auto leading-relaxed">
           POST{" "}
-          <code className="text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md text-sm font-mono border border-teal-100">
+          <code className="text-[#009E91] bg-[#EDE7DC] px-2 py-0.5 rounded-md text-sm font-mono border border-[#DCD5C9]">
             /api/threats/scan
           </code>{" "}
           — all phases execute autonomously, verifying candidate visual matches in sub-seconds.
@@ -1169,7 +1186,7 @@ export const PipelineSection = () => (
       </motion.div>
 
       <div className="flex flex-col md:flex-row items-start justify-between gap-6 relative mb-16">
-        <div className="hidden md:block absolute top-11 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        <div className="hidden md:block absolute top-11 left-0 right-0 h-px bg-[#DCD5C9]" />
         {HOW_STEPS.map((step, i) => {
           const Icon = step.icon;
           return (
@@ -1183,17 +1200,12 @@ export const PipelineSection = () => (
             >
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 3 }}
-                className="w-[88px] h-[88px] rounded-2xl flex items-center justify-center mb-4"
-                style={{
-                  backgroundColor: `${step.color}12`,
-                  border: `1.5px solid ${step.color}22`,
-                  boxShadow: `0 4px 20px ${step.color}18`,
-                }}
+                className="w-[88px] h-[88px] rounded-2xl flex items-center justify-center mb-4 bg-[#FFFEFA] border border-[#DCD5C9] shadow-sm"
               >
                 <Icon className="w-7 h-7" style={{ color: step.color }} />
               </motion.div>
-              <p className="text-[13px] font-black text-slate-900 mb-1">{step.label}</p>
-              <p className="text-[11px] text-slate-400 font-medium leading-snug">{step.desc}</p>
+              <p className="text-[13px] font-black text-[#171717] mb-1">{step.label}</p>
+              <p className="text-[11px] text-[#68645D] font-medium leading-snug">{step.desc}</p>
             </motion.div>
           );
         })}
@@ -1204,27 +1216,27 @@ export const PipelineSection = () => (
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.6 }}
-        className="bg-[#0d1117] rounded-3xl p-8 font-mono overflow-x-auto border border-slate-800/60"
-        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+        className="bg-[#171918] rounded-3xl p-8 font-mono overflow-x-auto border border-[#2a2c2b]"
+        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
       >
         <div className="flex items-center gap-2 mb-5">
           <div className="w-3 h-3 rounded-full bg-red-500/80" />
           <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
           <div className="w-3 h-3 rounded-full bg-green-500/80" />
-          <span className="ml-4 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+          <span className="ml-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
             fixproof_telemetry.log
           </span>
         </div>
         <div className="space-y-1.5 text-[12px]">
           {[
             ["#818cf8", "🕷️  [Phase 1] Ingest — Extracting keyframes every 5s via OpenCV..."],
-            ["#64748b", "   → 3 frames extracted. Validated MP4 container format."],
+            ["#a1a1aa", "   → 3 frames extracted. Validated MP4 container format."],
             ["#fbbf24", "👁️  [Phase 2] Sentinel — Querying 576-dim FAISS vault (L2 + pHash)..."],
-            ["#64748b", "   → L2: 0.0000 (Exact match) | pHash Hamming: 0 (100% Score)"],
+            ["#a1a1aa", "   → L2: 0.0000 (Exact match) | pHash Hamming: 0 (100% Score)"],
             ["#c084fc", "⚖️  [Phase 3] Adjudicator — Evaluating candidate similarity risk..."],
-            ["#64748b", "   → Result: CANDIDATE_MATCH (Severity: CRITICAL)"],
+            ["#a1a1aa", "   → Result: CANDIDATE_MATCH (Severity: CRITICAL)"],
             ["#f87171", "🔨 [Phase 4] Enforcer — Staging legal DMCA draft (17 U.S.C. § 512(c))..."],
-            ["#64748b", "   → Staged in Incident Response dossier. Awaiting human approval."],
+            ["#a1a1aa", "   → Staged in Incident Response dossier. Awaiting human approval."],
             ["#34d399", "💰 [Phase 5] Broker — Rev-share calculation ready for fair use terms..."],
             ["#2dd4bf", "✅ [Swarm Complete] Forensic investigation completed in 0.89s."],
           ].map(([color, msg], i) => (
@@ -1263,14 +1275,14 @@ const MARQUEE_ITEMS = [
 ];
 
 export const Marquee = () => (
-  <div className="relative overflow-hidden py-4 bg-[#08090d] border-y border-slate-800/80">
+  <div className="relative overflow-hidden py-4 bg-[#F5F1E8] border-y border-[#DCD5C9]">
     <div
       className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to right, #08090d, transparent)" }}
+      style={{ background: "linear-gradient(to right, #F5F1E8, transparent)" }}
     />
     <div
       className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to left, #08090d, transparent)" }}
+      style={{ background: "linear-gradient(to left, #F5F1E8, transparent)" }}
     />
     <motion.div
       animate={{ x: ["0%", "-50%"] }}
@@ -1280,9 +1292,9 @@ export const Marquee = () => (
       {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-800 rounded-full text-[11px] font-mono font-bold text-slate-300 whitespace-nowrap"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFFEFA] border border-[#DCD5C9] rounded-full text-[11px] font-mono font-bold text-[#171717] shadow-sm whitespace-nowrap"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#009E91]" />
           {item}
         </span>
       ))}
@@ -1290,11 +1302,11 @@ export const Marquee = () => (
   </div>
 );
 
-// ─── Live Threat Card ─────────────────────────────────────────────────────────
+// ─── Live Threat Card (Selective dark focal point) ───────────────────────────
 export const LiveThreatCard = () => (
   <CometCard
-    className="bg-[#0d1117] rounded-3xl overflow-hidden border border-slate-800/80"
-    style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}
+    className="bg-[#171918] rounded-3xl overflow-hidden border border-[#2a2c2b]"
+    style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.22)" }}
   >
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -1302,35 +1314,35 @@ export const LiveThreatCard = () => (
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/80">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2c2b]">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-          <span className="text-[11px] font-mono font-bold text-slate-300 uppercase tracking-widest">
+          <span className="text-[11px] font-mono font-bold text-zinc-300 uppercase tracking-widest">
             Pipeline Demo · Candidate Match
           </span>
         </div>
-        <span className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/15 px-2.5 py-1 rounded-full border border-teal-500/30">
+        <span className="text-[10px] font-mono font-bold text-[#2dd4bf] bg-[#009E91]/20 px-2.5 py-1 rounded-full border border-[#009E91]/40">
           Sentinel Verified
         </span>
       </div>
       <div className="px-6 py-5 font-mono text-xs space-y-2">
         {[
           ["suspect_file", "sample_match_highlight.mp4", "#fbbf24"],
-          ["vault_ref_id", "c7fd5fed-eb3f-493d-a4b4", "#e2e8f0"],
+          ["vault_ref_id", "c7fd5fed-eb3f-493d-a4b4", "#f4f4f5"],
           ["l2_distance", "0.0000 (Exact Proximity)", "#f87171"],
           ["phash_match", "true (Hamming: 0)", "#f87171"],
           ["confidence", "High (Vector Proximity)", "#2dd4bf"],
         ].map(([k, v, c]) => (
           <div key={k} className="flex justify-between">
-            <span className="text-slate-400">{k}</span>
+            <span className="text-zinc-400">{k}</span>
             <span style={{ color: c }} className="truncate max-w-[200px] font-bold">
               {v}
             </span>
           </div>
         ))}
       </div>
-      <div className="mx-4 mb-4 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
-        <p className="text-[11px] font-bold text-slate-300 mb-3">
+      <div className="mx-4 mb-4 bg-[#202221] border border-[#2e302e] rounded-2xl p-4">
+        <p className="text-[11px] font-bold text-zinc-300 mb-3">
           Adjudicator Recommended Classification
         </p>
         <div className="space-y-2">
@@ -1343,7 +1355,7 @@ export const LiveThreatCard = () => (
               className={`px-3 py-2 rounded-xl text-[11px] font-medium border cursor-default ${
                 active
                   ? "bg-red-500/15 border-red-500/30 text-red-300"
-                  : "bg-slate-800/60 border-slate-700/60 text-slate-400"
+                  : "bg-zinc-800/60 border-zinc-700/60 text-zinc-400"
               }`}
             >
               {opt}
@@ -1355,11 +1367,11 @@ export const LiveThreatCard = () => (
   </CometCard>
 );
 
-// ─── AI Reasoning Bubble ─────────────────────────────────────────────────────
+// ─── AI Reasoning Bubble (Selective dark focal point) ─────────────────────────
 export const AICoachBubble = () => (
   <CometCard
-    className="bg-[#0d1117] rounded-3xl border border-slate-800/80"
-    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+    className="bg-[#171918] rounded-3xl border border-[#2a2c2b]"
+    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}
   >
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -1369,33 +1381,33 @@ export const AICoachBubble = () => (
       className="p-6"
     >
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center">
-          <Brain className="w-4 h-4 text-teal-400" />
+        <div className="w-8 h-8 rounded-full bg-[#009E91]/20 border border-[#009E91]/40 flex items-center justify-center">
+          <Brain className="w-4 h-4 text-[#2dd4bf]" />
         </div>
         <div>
-          <p className="text-[11px] font-black text-teal-400">Sentinel Forensics Engine</p>
-          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
+          <p className="text-[11px] font-black text-[#2dd4bf]">Sentinel Forensics Engine</p>
+          <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-mono">
             MobileNetV3 + FAISS L2 + pHash
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-          <span className="text-[9px] text-teal-300 font-bold uppercase tracking-wider font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] animate-pulse" />
+          <span className="text-[9px] text-[#2dd4bf] font-bold uppercase tracking-wider font-mono">
             Verified
           </span>
         </div>
       </div>
-      <div className="bg-slate-900/70 rounded-2xl p-4 text-[12px] text-slate-300 leading-relaxed border border-slate-800/80">
+      <div className="bg-[#202221] rounded-2xl p-4 text-[12px] text-zinc-300 leading-relaxed border border-[#2e302e]">
         Euclidean L2 vector distance of <span className="text-red-400 font-bold">0.00</span> confirms
         feature congruence with official broadcast frames. Perceptual hash hamming distance of{" "}
-        <span className="text-teal-400 font-bold">0</span> corroborates frame alignment. High
+        <span className="text-[#2dd4bf] font-bold">0</span> corroborates frame alignment. High
         confidence candidate copyright infringement flagged for adjudicator confirmation.
       </div>
       <div className="mt-3 flex items-center gap-2">
         <span className="px-3 py-1 bg-red-500/15 border border-red-500/25 rounded-full text-[10px] font-bold text-red-400 uppercase tracking-wider">
           → Staged for Takedown
         </span>
-        <span className="px-3 py-1 bg-teal-500/15 border border-teal-500/30 rounded-full text-[10px] font-mono font-bold text-teal-300 uppercase tracking-wider">
+        <span className="px-3 py-1 bg-[#009E91]/20 border border-[#009E91]/40 rounded-full text-[10px] font-mono font-bold text-[#2dd4bf] uppercase tracking-wider">
           Confidence: Heuristic High
         </span>
       </div>
@@ -1405,10 +1417,10 @@ export const AICoachBubble = () => (
 
 // ─── Metric Bars ─────────────────────────────────────────────────────────────
 const METRICS = [
-  { label: "MobileNetV3 Vector Similarity", value: 94, color: "#0d9488" },
+  { label: "MobileNetV3 Vector Similarity", value: 94, color: "#009E91" },
   { label: "pHash Geometric Alignment", value: 91, color: "#0284c7" },
-  { label: "Temporal Overlap Window", value: 88, color: "#8b5cf6" },
-  { label: "Heuristic Match Confidence", value: 92, color: "#10b981" },
+  { label: "Temporal Overlap Window", value: 88, color: "#7c3aed" },
+  { label: "Heuristic Match Confidence", value: 92, color: "#059669" },
 ];
 
 export const MetricBars = () => (
@@ -1418,22 +1430,21 @@ export const MetricBars = () => (
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay: 0.1 }}
-      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-3xl p-7 h-full text-slate-100 shadow-2xl"
-      style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+      className="bg-[#FFFEFA] border border-[#DCD5C9] rounded-3xl p-7 h-full text-[#171717] shadow-sm"
     >
-      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
+      <p className="text-[10px] font-mono font-bold text-[#68645D] uppercase tracking-[0.28em] mb-5">
         Sentinel Confidence Profile
       </p>
       <div className="space-y-4">
         {METRICS.map((m, i) => (
           <div key={m.label}>
             <div className="flex justify-between mb-1.5">
-              <span className="text-[12px] font-bold text-slate-300">{m.label}</span>
+              <span className="text-[12px] font-bold text-[#171717]">{m.label}</span>
               <span className="text-[12px] font-mono font-black" style={{ color: m.color }}>
                 {m.value}%
               </span>
             </div>
-            <div className="h-2 bg-slate-800/80 rounded-full overflow-hidden">
+            <div className="h-2 bg-[#EDE7DC] rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 whileInView={{ width: `${m.value}%` }}
@@ -1458,39 +1469,38 @@ export const VerdictDuel = () => (
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay: 0.15 }}
-      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-3xl p-7 h-full text-slate-100 shadow-2xl"
-      style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
+      className="bg-[#FFFEFA] border border-[#DCD5C9] rounded-3xl p-7 h-full text-[#171717] shadow-sm"
     >
-      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
+      <p className="text-[10px] font-mono font-bold text-[#68645D] uppercase tracking-[0.28em] mb-5">
         Adjudicator Routing Decision
       </p>
       <div className="flex items-center gap-4">
-        <div className="flex-1 bg-rose-950/25 border border-rose-800/40 rounded-2xl p-4 text-center">
-          <Gavel className="w-6 h-6 text-rose-400 mx-auto mb-2" />
-          <p className="text-[11px] font-black text-rose-400 uppercase tracking-wide">Enforcer</p>
-          <p className="text-2xl font-black text-rose-300 mt-1 font-mono">5</p>
-          <p className="text-[10px] text-rose-400/80 font-medium">DMCA Notices</p>
+        <div className="flex-1 bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
+          <Gavel className="w-6 h-6 text-rose-600 mx-auto mb-2" />
+          <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Enforcer</p>
+          <p className="text-2xl font-black text-rose-800 mt-1 font-mono">5</p>
+          <p className="text-[10px] text-rose-600 font-medium">DMCA Notices</p>
         </div>
         <div className="flex flex-col items-center gap-1">
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+          <span className="text-[10px] font-black text-[#68645D] uppercase tracking-widest">
             VS
           </span>
-          <div className="w-px h-8 bg-slate-800" />
+          <div className="w-px h-8 bg-[#DCD5C9]" />
         </div>
-        <div className="flex-1 bg-emerald-950/25 border border-emerald-800/40 rounded-2xl p-4 text-center">
-          <Coins className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-          <p className="text-[11px] font-black text-emerald-400 uppercase tracking-wide">Broker</p>
-          <p className="text-2xl font-black text-emerald-300 mt-1 font-mono">3</p>
-          <p className="text-[10px] text-emerald-400/80 font-medium">Rev-Share Deals</p>
+        <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+          <Coins className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
+          <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wide">Broker</p>
+          <p className="text-2xl font-black text-emerald-800 mt-1 font-mono">3</p>
+          <p className="text-[10px] text-emerald-600 font-medium">Rev-Share Deals</p>
         </div>
       </div>
-      <div className="mt-4 h-2 bg-slate-800/80 rounded-full overflow-hidden flex">
+      <div className="mt-4 h-2 bg-[#EDE7DC] rounded-full overflow-hidden flex">
         <div className="bg-rose-500 h-full rounded-l-full" style={{ width: "62.5%" }} />
         <div className="bg-emerald-500 h-full rounded-r-full" style={{ width: "37.5%" }} />
       </div>
       <div className="flex justify-between mt-1.5 font-mono">
-        <span className="text-[10px] text-rose-400 font-bold">62.5% Piracy</span>
-        <span className="text-[10px] text-emerald-400 font-bold">37.5% Fair Use</span>
+        <span className="text-[10px] text-rose-600 font-bold">62.5% Piracy</span>
+        <span className="text-[10px] text-emerald-600 font-bold">37.5% Fair Use</span>
       </div>
     </motion.div>
   </TiltCard>
@@ -1498,12 +1508,12 @@ export const VerdictDuel = () => (
 
 // ─── Stat Tiles ──────────────────────────────────────────────────────────────
 const STAT_TILES = [
-  { value: "576-D", label: "Vector Dimension", sub: "PyTorch MobileNetV3 normalized", color: "#0d9488" },
+  { value: "576-D", label: "Vector Dimension", sub: "PyTorch MobileNetV3 normalized", color: "#009E91" },
   { value: "Sub-Sec", label: "Search Latency", sub: "FAISS vector distance search", color: "#6366f1" },
-  { value: "Max 3", label: "Stream Hunter Queue", sub: "Sequential isolated screening", color: "#f87171" },
-  { value: "Dual", label: "Verification Layers", sub: "MobileNetV3 L2 + pHash", color: "#34d399" },
-  { value: "Ed25519", label: "Evidence Packaging", sub: "SHA-256 + digital signatures", color: "#818cf8" },
-  { value: "Zero", label: "Suspect Contamination", sub: "Isolated reference registry", color: "#fbbf24" },
+  { value: "Max 3", label: "Stream Hunter Queue", sub: "Sequential isolated screening", color: "#e11d48" },
+  { value: "Dual", label: "Verification Layers", sub: "MobileNetV3 L2 + pHash", color: "#059669" },
+  { value: "Ed25519", label: "Evidence Packaging", sub: "SHA-256 + digital signatures", color: "#7c3aed" },
+  { value: "Zero", label: "Suspect Contamination", sub: "Isolated reference registry", color: "#d97706" },
 ];
 
 export const StatTile = ({
@@ -1525,22 +1535,21 @@ export const StatTile = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-2xl p-6 h-full text-white shadow-xl"
-      style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}
+      className="bg-[#FFFEFA] border border-[#DCD5C9] rounded-2xl p-6 h-full text-[#171717] shadow-sm"
     >
       <div className="w-6 h-[2px] rounded-full mb-3" style={{ backgroundColor: color }} />
       <p className="text-[2.2rem] font-black leading-none mb-1 font-mono" style={{ color }}>
         {value}
       </p>
-      <p className="text-[12px] font-bold text-slate-200 mb-1">{label}</p>
-      <p className="text-[11px] text-slate-400 font-medium leading-snug">{sub}</p>
+      <p className="text-[12px] font-bold text-[#171717] mb-1">{label}</p>
+      <p className="text-[11px] text-[#68645D] font-medium leading-snug">{sub}</p>
     </motion.div>
   </TiltCard>
 );
 
 // ─── Showcase Section ────────────────────────────────────────────────────────
 export const ShowcaseSection = () => (
-  <section id="stack" className="bg-[#07090d] text-slate-100 border-t border-slate-800/80">
+  <section id="stack" className="bg-[#EDE7DC] text-[#171717] border-t border-[#DCD5C9] scroll-mt-24">
     <Marquee />
     <div className="py-24 px-6 md:px-10 lg:px-12">
       <div className="max-w-6xl mx-auto">
@@ -1551,17 +1560,17 @@ export const ShowcaseSection = () => (
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/25 mb-4">
-            <span className="text-[11px] font-mono font-bold tracking-[0.22em] text-teal-300 uppercase">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FFFEFA] border border-[#DCD5C9] mb-4 shadow-sm">
+            <span className="text-[11px] font-mono font-bold tracking-[0.22em] text-[#009E91] uppercase">
               Interactive Forensics Demo
             </span>
           </div>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-5">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#171717] tracking-tight mb-5">
             Watch the Swarm
             <br />
-            <span className="text-teal-400">Think in Coordination.</span>
+            <span className="text-[#009E91]">Think in Coordination.</span>
           </h2>
-          <p className="text-base sm:text-lg text-slate-400 max-w-lg mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-[#68645D] max-w-lg mx-auto leading-relaxed">
             Candidate visual matches, reasoning verdicts, and enforcement drafts stream into
             the console for investigator verification.
           </p>
@@ -1590,8 +1599,7 @@ export const ShowcaseSection = () => (
 // ─── Deploy Card ─────────────────────────────────────────────────────────────
 export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
   <CometCard
-    className="bg-[#0d1117] rounded-3xl overflow-hidden border border-slate-800/60 max-w-2xl mx-auto mb-14"
-    style={{ boxShadow: "0 24px 80px rgba(0,0,0,0.22)" }}
+    className="bg-[#FFFEFA] rounded-3xl overflow-hidden border border-[#DCD5C9] max-w-2xl mx-auto mb-14 shadow-md"
   >
     <motion.div
       initial={{ opacity: 0, y: 40 }}
@@ -1599,29 +1607,29 @@ export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
       viewport={{ once: true }}
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#DCD5C9] bg-[#EDE7DC]/40">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#009E91] animate-pulse" />
+          <span className="text-[10px] font-bold text-[#68645D] uppercase tracking-widest">
             Swarm Mission Complete
           </span>
         </div>
-        <span className="text-[9px] font-bold text-teal-400 bg-teal-400/10 px-2.5 py-1 rounded-full border border-teal-400/20">
+        <span className="text-[9px] font-bold text-[#009E91] bg-[#009E91]/10 px-2.5 py-1 rounded-full border border-[#009E91]/30">
           Awaiting Approval
         </span>
       </div>
 
       <div className="px-6 py-5 font-mono text-xs space-y-2.5">
         {[
-          ["suspects_scanned", "18 keyframes", "#e2e8f0"],
-          ["candidate_matches", "3 confirmed", "#f87171"],
-          ["lowest_l2_dist", "0.0000 (100% Conf)", "#fbbf24"],
-          ["phash_evidence", "Hamming: 0 (Exact)", "#34d399"],
-          ["polygon_tx", "0x4a7f...c3e2 (Mock)", "#818cf8"],
-          ["integrity_hash", "sha256:9b2d...f1a8", "#2dd4bf"],
+          ["suspects_scanned", "18 keyframes", "#171717"],
+          ["candidate_matches", "3 confirmed", "#e11d48"],
+          ["lowest_l2_dist", "0.0000 (100% Conf)", "#d97706"],
+          ["phash_evidence", "Hamming: 0 (Exact)", "#059669"],
+          ["polygon_tx", "0x4a7f...c3e2 (Mock)", "#7c3aed"],
+          ["integrity_hash", "sha256:9b2d...f1a8", "#009E91"],
         ].map(([k, v, c]) => (
           <div key={k} className="flex justify-between items-center">
-            <span className="text-slate-500">{k}</span>
+            <span className="text-[#68645D]">{k}</span>
             <span style={{ color: c }} className="font-bold font-mono">
               {v}
             </span>
@@ -1630,21 +1638,21 @@ export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
       </div>
 
       <div className="px-6 pb-4 flex items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/10 border border-violet-500/20 rounded-full">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border border-violet-200 rounded-full">
           <svg
             viewBox="0 0 38 33"
-            className="w-4 h-4 fill-violet-400"
+            className="w-4 h-4 fill-violet-600"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path d="M29 10.2L19 4.6 9 10.2v11.2l10 5.6 10-5.6V10.2zM19 0L38 11v11L19 33 0 22V11L19 0z" />
           </svg>
-          <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">
+          <span className="text-[10px] font-bold text-violet-700 uppercase tracking-wider">
             Polygon Network
           </span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 rounded-full">
-          <CheckCircle className="w-3.5 h-3.5 text-teal-400" />
-          <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#009E91]/10 border border-[#009E91]/30 rounded-full">
+          <CheckCircle className="w-3.5 h-3.5 text-[#009E91]" />
+          <span className="text-[10px] font-bold text-[#009E91] uppercase tracking-wider">
             SHA-256 Verified
           </span>
         </div>
@@ -1653,21 +1661,21 @@ export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
       <div className="px-6 pb-6 grid grid-cols-2 gap-3">
         <button
           onClick={onLaunch}
-          className="px-4 py-3 rounded-xl bg-teal-500/15 border border-teal-500/30 text-center hover:bg-teal-500/25 transition-colors cursor-pointer"
+          className="px-4 py-3 rounded-xl bg-[#009E91]/10 border border-[#009E91]/30 text-center hover:bg-[#009E91]/20 transition-colors cursor-pointer"
         >
-          <p className="text-[10px] font-black text-teal-300 uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
+          <p className="text-[10px] font-black text-[#009E91] uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
             <Shield className="w-3 h-3" /> Approve &amp; Send
           </p>
-          <p className="text-[9px] text-slate-500">DMCA dispatched to platform legal</p>
+          <p className="text-[9px] text-[#68645D]">DMCA dispatched to platform legal</p>
         </button>
         <button
           onClick={onLaunch}
           className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center hover:bg-emerald-500/20 transition-colors cursor-pointer"
         >
-          <p className="text-[10px] font-black text-emerald-300 uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
+          <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
             <Coins className="w-3 h-3" /> Activate Contract
           </p>
-          <p className="text-[9px] text-slate-500">Rev-share goes live on Polygon</p>
+          <p className="text-[9px] text-[#68645D]">Rev-share goes live on Polygon</p>
         </button>
       </div>
     </motion.div>
@@ -1676,7 +1684,7 @@ export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
 
 // ─── CTA Section ─────────────────────────────────────────────────────────────
 export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
-  <section className="py-28 px-8 bg-[#07090d] text-slate-100 border-t border-slate-800/80">
+  <section className="py-28 px-8 bg-[#F5F1E8] text-[#171717] border-t border-[#DCD5C9]">
     <div className="max-w-4xl mx-auto space-y-12">
       <DeployCard onLaunch={onLaunch} />
 
@@ -1685,55 +1693,51 @@ export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className="relative rounded-[2.5rem] p-10 md:p-16 text-center overflow-hidden border border-slate-800/90 shadow-2xl"
-        style={{
-          background: "linear-gradient(180deg, #0e111a 0%, #090b10 100%)",
-        }}
+        className="relative rounded-[2.5rem] p-10 md:p-16 text-center overflow-hidden border border-[#DCD5C9] shadow-xl bg-[#FFFEFA]"
       >
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, rgba(45,212,191,0.08) 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, #DCD5C9 1px, transparent 1px)",
             backgroundSize: "24px 24px",
-            opacity: 0.5,
+            opacity: 0.6,
           }}
         />
         <RippleGrid rows={6} cols={20} cellSize={52} />
         <div
-          className="absolute bottom-0 right-4 text-[180px] font-black leading-none select-none pointer-events-none"
-          style={{ color: "rgba(45,212,191,0.03)" }}
+          className="absolute bottom-0 right-4 text-[180px] font-black leading-none select-none pointer-events-none text-[#EDE7DC]"
         >
           AI
         </div>
 
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/30 mb-7">
-            <Zap className="w-3.5 h-3.5 text-teal-400 fill-teal-400" />
-            <span className="text-[10px] font-mono font-bold text-teal-300 uppercase tracking-[0.24em]">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#EDE7DC] border border-[#DCD5C9] mb-7 shadow-sm">
+            <Zap className="w-3.5 h-3.5 text-[#009E91] fill-[#009E91]" />
+            <span className="text-[10px] font-mono font-bold text-[#009E91] uppercase tracking-[0.24em]">
               Ready to Deploy
             </span>
           </div>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight mb-5">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-[#171717] tracking-tight mb-5">
             Deploy the Swarm.
             <br />
-            <span className="text-teal-400">Protect Your IP.</span>
+            <span className="text-[#009E91]">Protect Your IP.</span>
           </h2>
-          <p className="text-base sm:text-lg text-slate-400 max-w-lg mx-auto mb-10 leading-relaxed">
+          <p className="text-base sm:text-lg text-[#68645D] max-w-lg mx-auto mb-10 leading-relaxed">
             Ingest official video. Six agents execute the full pipeline — detect, classify, enforce,
             and monetize — while you watch the results stream live on the command center dashboard.
           </p>
 
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
+          <HaloButton
+            variant="primary"
+            size="lg"
             onClick={onLaunch}
-            className="group px-10 py-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-sm rounded-full transition-all duration-200 shadow-xl shadow-teal-500/25 flex items-center gap-3 mx-auto cursor-pointer"
+            className="mx-auto cursor-pointer"
           >
-            <Shield className="w-5 h-5 text-slate-950" />
+            <Shield className="w-5 h-5 text-[#FFFEFA]" />
             Initialize Command Center
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </motion.button>
-          <p className="mt-7 text-[10px] font-mono text-slate-400 uppercase tracking-[0.28em]">
+            <ArrowRight className="w-4 h-4 ml-1" />
+          </HaloButton>
+          <p className="mt-7 text-[10px] font-mono text-[#68645D] uppercase tracking-[0.28em]">
             MediaGuard AI Video Protection Protocol · FixProof 2026
           </p>
         </div>
@@ -1773,7 +1777,7 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
   };
 
   return (
-    <div className="bg-[#07090d] text-slate-100 min-h-screen overflow-x-clip selection:bg-teal-500/30 selection:text-teal-200">
+    <div className="bg-[#F5F1E8] text-[#171717] min-h-screen overflow-x-clip selection:bg-[#009E91]/20 selection:text-[#009E91]">
       <JudgeWelcomeOverlay
         isOpen={isJudgeWelcomeOpen}
         onClose={handleCloseWelcome}
@@ -1785,15 +1789,15 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
       <AgentScrollStory />
       <ShowcaseSection />
       <CTA onLaunch={onLaunch} />
-      <footer className="py-8 px-8 border-t border-slate-800/80 bg-[#050608]">
+      <footer className="py-8 px-8 border-t border-[#DCD5C9] bg-[#EDE7DC]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-4 h-4 text-teal-400" />
-            <span className="text-sm font-black text-white">
-              FixProof<span className="text-teal-400">Sports</span>
+            <Shield className="w-4 h-4 text-[#009E91]" />
+            <span className="text-sm font-black text-[#171717]">
+              FixProof<span className="text-[#009E91]">Sports</span>
             </span>
           </div>
-          <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em]">
+          <p className="text-[10px] font-mono font-bold text-[#68645D] uppercase tracking-[0.28em]">
             © 2026 · Autonomous IP Intelligence · Global Protection Protocol
           </p>
         </div>
