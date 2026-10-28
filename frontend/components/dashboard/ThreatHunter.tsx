@@ -424,56 +424,73 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
         {/* File Upload Mode */}
         {submissionMode === "file" ? (
           <form onSubmit={handleStartScan} className="space-y-3">
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => {
-                if (!isScanActive) fileInputRef.current?.click();
-              }}
-              style={{
-                border: suspectFile
-                  ? "1px solid #eee7db"
-                  : "1px dashed rgba(238, 231, 219, 0.12)",
-                background: suspectFile ? "rgba(238, 231, 219, 0.04)" : "#1a1918",
-                cursor: isScanActive ? "not-allowed" : "pointer",
-                borderRadius: 12,
-              }}
-              className="p-4 sm:p-5 flex items-center justify-between gap-3 transition-colors hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.22)]"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.flv,.wmv,.ts,.3gp,.ogg,.ogv,video/*"
-                onChange={handleFileChange}
-                disabled={isScanActive}
-                className="hidden"
-              />
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                onClick={() => {
+                  if (!isScanActive) fileInputRef.current?.click();
+                }}
+                style={{
+                  border: suspectFile
+                    ? "1px solid #eee7db"
+                    : "1px dashed rgba(238, 231, 219, 0.12)",
+                  background: suspectFile ? "rgba(238, 231, 219, 0.04)" : "#1a1918",
+                  cursor: isScanActive ? "not-allowed" : "pointer",
+                  borderRadius: 12,
+                }}
+                className="flex-1 p-3.5 sm:p-4 flex items-center justify-between gap-3 transition-colors hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.22)]"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.flv,.wmv,.ts,.3gp,.ogg,.ogv,video/*"
+                  onChange={handleFileChange}
+                  disabled={isScanActive}
+                  className="hidden"
+                />
 
-              <div className="flex items-center gap-3 truncate">
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 9,
-                    background: "rgba(238, 231, 219, 0.06)",
-                    color: "#eee7db",
-                  }}
-                  className="flex items-center justify-center shrink-0"
-                >
-                  <FileVideo size={18} />
+                <div className="flex items-center gap-3 truncate">
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 9,
+                      background: "rgba(238, 231, 219, 0.06)",
+                      color: "#eee7db",
+                    }}
+                    className="flex items-center justify-center shrink-0"
+                  >
+                    <FileVideo size={18} />
+                  </div>
+                  <div className="truncate">
+                    <p className="text-[13px] font-bold text-[#f4efe6] truncate m-0">
+                      {suspectFile
+                        ? suspectFile.name
+                        : "Select or drop suspect video file (.mp4, .mov, .avi, .mkv, .webm)"}
+                    </p>
+                    <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
+                      {suspectFile
+                        ? `${formatBytes(suspectFile.size)} • Click to choose a different file`
+                        : "Maximum file size: 500 MB"}
+                    </p>
+                  </div>
                 </div>
-                <div className="truncate">
-                  <p className="text-[13px] font-bold text-[#f4efe6] truncate m-0">
-                    {suspectFile
-                      ? suspectFile.name
-                      : "Select or drop suspect video file (.mp4, .mov, .avi, .mkv, .webm)"}
-                  </p>
-                  <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
-                    {suspectFile
-                      ? `${formatBytes(suspectFile.size)} • Click or drop to change`
-                      : "Maximum file size: 500 MB"}
-                  </p>
-                </div>
+
+                {suspectFile && !isScanActive && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSuspectFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="text-[#8e887d] hover:text-[#f4efe6] p-1 rounded-md hover:bg-[#2a2826] transition-colors cursor-pointer shrink-0"
+                    title="Remove selected file"
+                  >
+                    <XCircle size={15} />
+                  </button>
+                )}
               </div>
 
               <button
@@ -483,7 +500,7 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                   background: !suspectFile || isScanActive ? "#242220" : "#eee7db",
                   color: !suspectFile || isScanActive ? "#736d62" : "#141312",
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[12px] transition-all disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:opacity-95"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-[12px] transition-all disabled:cursor-not-allowed cursor-pointer shrink-0 shadow-sm hover:opacity-95"
               >
                 {isScanActive ? (
                   <>
