@@ -24,6 +24,8 @@ import {
   Sparkles,
   History,
   FileCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -35,6 +37,9 @@ import {
   EmailAuditEntry,
   InvestigationReport,
   ReportHistoryItem,
+  DetailedReportRecord,
+  DetailedReportListItem,
+  DetailedReportResponse,
 } from "@/lib/types";
 import {
   getNemotronStatus,
@@ -45,6 +50,11 @@ import {
   getIncidentReportHistory,
   getReportById,
   investigateIncident,
+  generateDetailedReport,
+  getDetailedReportPdfUrl,
+  getDetailedReportsForIncident,
+  emailDetailedReport,
+  getSummaryDownloadUrl,
 } from "@/lib/api";
 
 interface NemotronCenterProps {
@@ -139,6 +149,21 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [sendResult, setSendResult] = useState<SendEmailResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  // Detailed Forensic Report State (Phase 3.5 Step 3)
+  const [detailedReportState, setDetailedReportState] = useState<
+    "IDLE" | "GENERATING" | "PDF_READY" | "EMAIL_SENDING" | "COMPLETE" | "EMAIL_FAILED" | "ERROR"
+  >("IDLE");
+  const [detailedReportEmail, setDetailedReportEmail] = useState("");
+  const [detailedReportResult, setDetailedReportResult] = useState<DetailedReportResponse | null>(null);
+  const [detailedReportError, setDetailedReportError] = useState<string | null>(null);
+  const [detailedReportsList, setDetailedReportsList] = useState<DetailedReportListItem[]>([]);
+  const [activeDetailedReport, setActiveDetailedReport] = useState<DetailedReportRecord | null>(null);
+  const [showDetailedSections, setShowDetailedSections] = useState(false);
+  const [retryingEmail, setRetryingEmail] = useState(false);
+  const [retryEmailAddress, setRetryEmailAddress] = useState("");
+  const [retryEmailResult, setRetryEmailResult] = useState<SendEmailResult | null>(null);
+  const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
+
   // Audit Log State
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditLogs, setAuditLogs] = useState<EmailAuditEntry[]>([]);
@@ -213,11 +238,29 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     }
   }, []);
 
+  const loadDetailedReports = useCallback(async (incId: string) => {
+    if (!incId) return;
+    try {
+      const list = await getDetailedReportsForIncident(incId).catch(() => []);
+      setDetailedReportsList(list);
+    } catch (err) {
+      console.warn("Failed to load detailed reports list:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedIncident?.incident_id) {
       loadIncidentReports(selectedIncident.incident_id);
+      loadDetailedReports(selectedIncident.incident_id);
+      setDetailedReportState("IDLE");
+      setDetailedReportResult(null);
+      setActiveDetailedReport(null);
+      setDetailedReportError(null);
+      setRetryEmailResult(null);
+      setRetryEmailError(null);
+      setShowDetailedSections(false);
     }
-  }, [selectedIncident?.incident_id, loadIncidentReports]);
+  }, [selectedIncident?.incident_id, loadIncidentReports, loadDetailedReports]);
 
   // Refresh Nemotron Report
   const handleRefreshReport = async () => {
@@ -279,6 +322,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     setInvestigationError(null);
     setViewingHistorySnapshot(null);
     setShowHistoryDropdown(false);
+    setDetailedReportState("IDLE");
+    setDetailedReportResult(null);
+    setActiveDetailedReport(null);
+    setDetailedReportError(null);
+    setRetryEmailResult(null);
+    setRetryEmailError(null);
+    setShowDetailedSections(false);
 
     // Restore cached draft if available, or reset clean
     const existing = draftsByIncident[incId];
@@ -301,6 +351,107 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
       setWorkTitle(assetRec ? assetRec.filename.replace(/\.[^/.]+$/, "") : `Official Reference (${firstMatchId.slice(0, 8)})`);
     } else {
       setWorkTitle("");
+    }
+  };
+
+  const handleDownloadSummary = () => {
+    if (!selectedIncident?.incident_id) return;
+    const url = getSummaryDownloadUrl(selectedIncident.incident_id);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fixproof-summary-${selectedIncident.incident_id.slice(0, 8)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadPdf = (reportId?: string) => {
+    const targetId = reportId || activeDetailedReport?.report_id;
+    if (!targetId) return;
+    const url = getDetailedReportPdfUrl(targetId);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fixproof-forensic-report-${targetId.slice(0, 8)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleGenerateDetailedReport = async () => {
+    if (!selectedIncident?.incident_id) return;
+    if (detailedReportState === "GENERATING" || detailedReportState === "EMAIL_SENDING") {
+      return;
+    }
+
+    const targetEmail = detailedReportEmail.trim();
+    if (targetEmail) {
+      const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
+      if (!emailRegex.test(targetEmail)) {
+        setDetailedReportError("Please enter a valid recipient email address (e.g. you@example.com).");
+        return;
+      }
+    }
+
+    setDetailedReportError(null);
+    setDetailedReportState("GENERATING");
+    setDetailedReportResult(null);
+    setActiveDetailedReport(null);
+    setRetryEmailResult(null);
+    setRetryEmailError(null);
+
+    try {
+      const res = await generateDetailedReport({
+        incident_id: selectedIncident.incident_id,
+        recipient_email: targetEmail || undefined,
+      });
+
+      setDetailedReportResult(res);
+      setActiveDetailedReport(res.report);
+
+      if (targetEmail) {
+        if (res.email_status?.status === "DELIVERED") {
+          setDetailedReportState("COMPLETE");
+        } else {
+          setDetailedReportState("EMAIL_FAILED");
+        }
+      } else {
+        setDetailedReportState("PDF_READY");
+      }
+
+      loadDetailedReports(selectedIncident.incident_id);
+    } catch (err: any) {
+      setDetailedReportState("ERROR");
+      setDetailedReportError(err.message || "Failed to generate detailed forensic report.");
+    }
+  };
+
+  const handleRetryEmailDelivery = async () => {
+    if (!selectedIncident?.incident_id || !activeDetailedReport) return;
+    const targetEmail = (retryEmailAddress.trim() || detailedReportEmail.trim());
+    const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
+    if (!targetEmail || !emailRegex.test(targetEmail)) {
+      setRetryEmailError("Please provide a valid recipient email address.");
+      return;
+    }
+
+    setRetryingEmail(true);
+    setRetryEmailError(null);
+    try {
+      const res = await emailDetailedReport({
+        incident_id: selectedIncident.incident_id,
+        report_id: activeDetailedReport.report_id,
+        recipient_email: targetEmail,
+      });
+      setRetryEmailResult(res);
+      if (res.status === "DELIVERED") {
+        setDetailedReportState("COMPLETE");
+      } else {
+        setRetryEmailError(res.message || "Email delivery failed.");
+      }
+    } catch (err: any) {
+      setRetryEmailError(err.message || "Email dispatch network error.");
+    } finally {
+      setRetryingEmail(false);
     }
   };
 
@@ -974,11 +1125,26 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       <Sparkles size={13} className="text-[#14b8a6]" />
                       <span>Nemotron Investigation Synthesis</span>
                     </span>
-                    {latestReport && (
-                      <span className="text-[10px] text-[#8e887d] font-mono">
-                        Model: {latestReport.model_id}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {latestReport && (
+                        <span className="text-[10px] text-[#8e887d] font-mono">
+                          Model: {latestReport.model_id}
+                        </span>
+                      )}
+                      <button
+                        onClick={handleDownloadSummary}
+                        style={{
+                          background: "#1c1b1a",
+                          border: "1px solid rgba(238, 231, 219, 0.1)",
+                          color: "#ded7cb",
+                        }}
+                        className="px-2 py-1 rounded-md hover:bg-[#262422] text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Download short summary as text file"
+                      >
+                        <Download size={11} />
+                        <span>Download Summary</span>
+                      </button>
+                    </div>
                   </div>
 
                   {viewingHistorySnapshot && (
@@ -1042,6 +1208,408 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* ─── SECTION: Detailed Forensic Report, PDF Download & Email Delivery ─── */}
+              <div
+                style={{
+                  background: "#171615",
+                  borderRadius: 16,
+                  border: "1px solid rgba(238, 231, 219, 0.08)",
+                }}
+                className="p-5 space-y-4"
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <FileCheck size={16} className="text-[#14b8a6]" />
+                      <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">
+                        Evidence-Backed Detailed Report & PDF Delivery
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-[#8e887d] mt-1 m-0">
+                      Synthesizes deep forensic evidence via Nebius Token Factory with verified Nemotron Vision correspondence
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      style={{
+                        background: nemotronStatus?.email_delivery_available
+                          ? "rgba(20, 184, 166, 0.12)"
+                          : "rgba(245, 158, 11, 0.12)",
+                        color: nemotronStatus?.email_delivery_available ? "#5eead4" : "#fbbf24",
+                        border: `1px solid ${
+                          nemotronStatus?.email_delivery_available
+                            ? "rgba(20, 184, 166, 0.25)"
+                            : "rgba(245, 158, 11, 0.25)"
+                        }`,
+                      }}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5"
+                    >
+                      <Mail size={11} />
+                      <span>
+                        {nemotronStatus?.email_delivery_available
+                          ? "Email Service Configured (Resend)"
+                          : "Email Unconfigured (Download Only)"}
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        background: "#1c1b1a",
+                        border: "1px solid rgba(238, 231, 219, 0.1)",
+                        color: "#ded7cb",
+                      }}
+                      className="px-2.5 py-1 rounded-md text-[10px] font-mono"
+                    >
+                      Model: {nemotronStatus?.detailed_report_model || "nvidia/nemotron-3-super-120b-a12b"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Generator Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-7 space-y-1.5">
+                    <label className="text-[11px] font-semibold text-[#ded7cb] flex items-center justify-between">
+                      <span>Email report to (optional)</span>
+                      <span className="text-[10px] text-[#8e887d]">
+                        PDF generates regardless; email sent upon completion
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <Mail
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#736d62]"
+                      />
+                      <input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={detailedReportEmail}
+                        onChange={(e) => setDetailedReportEmail(e.target.value)}
+                        disabled={detailedReportState === "GENERATING" || detailedReportState === "EMAIL_SENDING"}
+                        style={{
+                          background: "#141312",
+                          border: "1px solid rgba(238, 231, 219, 0.1)",
+                          color: "#f4efe6",
+                        }}
+                        className="w-full pl-9 pr-3 py-2 rounded-lg text-[12px] placeholder-[#5a554c] outline-none focus:border-[#14b8a6] disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-5 flex items-center gap-2">
+                    <button
+                      onClick={handleGenerateDetailedReport}
+                      disabled={detailedReportState === "GENERATING" || detailedReportState === "EMAIL_SENDING"}
+                      style={{
+                        background: "linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)",
+                        color: "#ffffff",
+                      }}
+                      className="flex-1 py-2 px-3.5 rounded-lg text-[12px] font-bold flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                    >
+                      {detailedReportState === "GENERATING" ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Synthesizing Forensic Report...</span>
+                        </>
+                      ) : detailedReportState === "EMAIL_SENDING" ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Sending PDF via Resend...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} />
+                          <span>Generate Detailed Report</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* State Machine Status & Error Messages */}
+                {detailedReportError && (
+                  <div className="p-3 bg-red-950/20 border border-red-900/40 rounded-lg text-[11px] text-red-300 flex items-center gap-2">
+                    <AlertTriangle size={14} className="shrink-0 text-red-400" />
+                    <span>{detailedReportError}</span>
+                  </div>
+                )}
+
+                {detailedReportState === "COMPLETE" && (
+                  <div className="p-3 bg-teal-950/25 border border-teal-800/40 rounded-lg text-[11px] text-teal-300 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={14} className="shrink-0 text-teal-400" />
+                      <span>
+                        Detailed report generated and emailed successfully to{" "}
+                        <strong>{detailedReportEmail}</strong>.
+                      </span>
+                    </div>
+                    {activeDetailedReport && (
+                      <button
+                        onClick={() => handleDownloadPdf()}
+                        className="text-xs font-bold underline hover:text-white cursor-pointer"
+                      >
+                        Download PDF
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {detailedReportState === "EMAIL_FAILED" && (
+                  <div className="p-3 bg-amber-950/25 border border-amber-800/40 rounded-lg text-[11px] text-amber-300 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle size={14} className="shrink-0 text-amber-400" />
+                        <span>
+                          Report & PDF generated successfully, but email dispatch failed:{" "}
+                          {detailedReportResult?.email_status?.message || "Provider rejected delivery"}
+                        </span>
+                      </div>
+                      {activeDetailedReport && (
+                        <button
+                          onClick={() => handleDownloadPdf()}
+                          className="text-xs font-bold underline hover:text-white cursor-pointer shrink-0"
+                        >
+                          Download PDF Now
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Independent Retry Action */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-amber-900/30">
+                      <input
+                        type="email"
+                        placeholder="Recipient email for retry"
+                        value={retryEmailAddress || detailedReportEmail}
+                        onChange={(e) => setRetryEmailAddress(e.target.value)}
+                        disabled={retryingEmail}
+                        style={{
+                          background: "#141312",
+                          border: "1px solid rgba(238, 231, 219, 0.1)",
+                          color: "#f4efe6",
+                        }}
+                        className="px-2.5 py-1 rounded text-[11px] w-64"
+                      />
+                      <button
+                        onClick={handleRetryEmailDelivery}
+                        disabled={retryingEmail}
+                        className="px-3 py-1 rounded bg-amber-800 hover:bg-amber-700 text-white font-semibold text-[11px] cursor-pointer disabled:opacity-50"
+                      >
+                        {retryingEmail ? "Retrying..." : "Retry Email Delivery"}
+                      </button>
+                    </div>
+                    {retryEmailError && (
+                      <span className="text-[10px] text-red-400">{retryEmailError}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Active Generated Report View */}
+                {activeDetailedReport && (
+                  <div
+                    style={{
+                      background: "#141312",
+                      border: "1px solid rgba(238, 231, 219, 0.08)",
+                      borderRadius: 12,
+                    }}
+                    className="p-4 space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[rgba(238,231,219,0.06)] pb-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-bold text-[#f4efe6]">
+                            Detailed Report #{activeDetailedReport.report_id.slice(0, 8)}
+                          </span>
+                          <span
+                            style={{
+                              background: "rgba(20, 184, 166, 0.15)",
+                              color: "#5eead4",
+                            }}
+                            className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                          >
+                            {activeDetailedReport.ai_synthesized ? "AI Synthesized (Nebius)" : "Deterministic Fallback"}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-[#8e887d] font-mono">
+                          Generated: {new Date(activeDetailedReport.generated_at).toUTCString()} • Model:{" "}
+                          {activeDetailedReport.model_id}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDownloadPdf()}
+                          style={{
+                            background: "#1c1b1a",
+                            border: "1px solid rgba(20, 184, 166, 0.4)",
+                            color: "#5eead4",
+                          }}
+                          className="px-3 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Download size={12} />
+                          <span>Download Detailed PDF</span>
+                        </button>
+                        <button
+                          onClick={() => setShowDetailedSections((prev) => !prev)}
+                          style={{
+                            background: "#1c1b1a",
+                            border: "1px solid rgba(238, 231, 219, 0.1)",
+                            color: "#ded7cb",
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          {showDetailedSections ? <EyeOff size={12} /> : <Eye size={12} />}
+                          <span>{showDetailedSections ? "Hide Sections" : "Inspect Sections"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Executive Summary Preview */}
+                    <div className="text-[12px] text-[#ded7cb] leading-relaxed">
+                      <strong>Executive Summary: </strong>
+                      {activeDetailedReport.sections?.executive_summary}
+                    </div>
+
+                    {/* Key Telemetry Badges */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[rgba(238,231,219,0.04)] text-[10px]">
+                      <span className="text-[#8e887d]">
+                        Frame Correlations:{" "}
+                        <strong className="text-[#f4efe6]">
+                          {activeDetailedReport.sections?.frame_correlations?.length || 0} candidate pairs
+                        </strong>
+                      </span>
+                      <span className="text-[#5a554c]">•</span>
+                      <span className="text-[#8e887d]">
+                        Vision Verifier:{" "}
+                        <strong className="text-[#f4efe6]">
+                          {activeDetailedReport.sections?.provenance?.vision_verifier_model || "nvidia/Nemotron-3.5-Super-VL"}
+                        </strong>
+                      </span>
+                      <span className="text-[#5a554c]">•</span>
+                      <span className="text-[#8e887d]">
+                        Vector Vault:{" "}
+                        <strong className="text-[#f4efe6]">FAISS IndexFlatL2</strong>
+                      </span>
+                    </div>
+
+                    {/* Collapsible Sections A - I Detailed View */}
+                    {showDetailedSections && (
+                      <div className="mt-3 pt-3 border-t border-[rgba(238,231,219,0.08)] space-y-3 text-[11px]">
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section B: Methodology & Scope
+                          </div>
+                          <p className="text-[#ded7cb] mt-0.5 m-0">
+                            {activeDetailedReport.sections?.methodology_scope}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section D: Frame Evidence Correlations & Vision Verification
+                          </div>
+                          <div className="space-y-1.5 mt-1 max-h-48 overflow-y-auto pr-1">
+                            {activeDetailedReport.sections?.frame_correlations?.map((fc, i) => (
+                              <div
+                                key={i}
+                                className="p-2 rounded bg-[#1c1b1a] border border-[rgba(238,231,219,0.06)] flex items-start justify-between gap-2"
+                              >
+                                <div>
+                                  <span className="font-bold text-[#ded7cb]">
+                                    Suspect {fc.suspect_timestamp_sec}s ↔ Ref {fc.source_timestamp_sec}s
+                                  </span>
+                                  <span className="text-[#8e887d] ml-2">({fc.source_asset_title || fc.source_asset_id.slice(0, 8)})</span>
+                                  <div className="text-[10px] text-[#736d62] mt-0.5">
+                                    {fc.vision_verification?.reasoning}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    fc.vision_verification?.visual_correspondence === "CONFIRMED"
+                                      ? "bg-teal-950 text-teal-300 border border-teal-800"
+                                      : "bg-zinc-800 text-zinc-300"
+                                  }`}
+                                >
+                                  {fc.vision_verification?.visual_correspondence || "UNVERIFIED"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section E: Temporal Continuity Analysis
+                          </div>
+                          <p className="text-[#ded7cb] mt-0.5 m-0">
+                            {activeDetailedReport.sections?.temporal_continuity}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section F: Model Assessment & Alternatives
+                          </div>
+                          <p className="text-[#ded7cb] mt-0.5 m-0">
+                            {activeDetailedReport.sections?.model_assessment}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section G: Risk & Limitations
+                          </div>
+                          <p className="text-[#ded7cb] mt-0.5 m-0">
+                            {activeDetailedReport.sections?.risk_and_limitations}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-[#f4efe6] uppercase tracking-wider text-[10px] text-[#14b8a6]">
+                            Section H: Recommended Actions
+                          </div>
+                          <ul className="list-disc pl-4 mt-0.5 space-y-0.5 text-[#ded7cb]">
+                            {activeDetailedReport.sections?.recommended_actions?.map((act, i) => (
+                              <li key={i}>{act}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Prior Detailed Reports History list */}
+                {detailedReportsList.length > 0 && (
+                  <div className="pt-2 border-t border-[rgba(238,231,219,0.06)]">
+                    <div className="text-[10px] font-bold text-[#8e887d] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Prior Detailed Reports ({detailedReportsList.length})</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {detailedReportsList.slice(0, 4).map((item) => (
+                        <div
+                          key={item.report_id}
+                          className="p-2 rounded-lg bg-[#141312] border border-[rgba(238,231,219,0.06)] flex items-center justify-between gap-2 text-[11px]"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[#ded7cb] truncate">
+                              Report #{item.report_id.slice(0, 8)}
+                            </div>
+                            <div className="text-[9px] text-[#8e887d] font-mono">
+                              {new Date(item.generated_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleDownloadPdf(item.report_id)}
+                            className="p-1 rounded hover:bg-[#262422] text-[#14b8a6] hover:text-[#5eead4] transition-colors cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ─── SECTION D: Document Generation Area ─── */}

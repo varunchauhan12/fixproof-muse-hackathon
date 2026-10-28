@@ -116,11 +116,17 @@ def get_asset_frames_list(asset_id: str) -> List[Dict[str, Any]]:
     return frames
 
 
-def list_registered_assets(vault: Any) -> List[Dict[str, Any]]:
+def list_registered_assets(vault: Optional[Any] = None) -> List[Dict[str, Any]]:
     """
     Lists all official reference assets with live indexing status from FAISS vault.
     Supports both local mode (JSON + filesystem) and Supabase cloud mode (PostgreSQL).
     """
+    if vault is None:
+        try:
+            from app.vault import default_vault
+            vault = default_vault
+        except Exception:
+            vault = None
     if is_cloud_mode():
         # Supabase Cloud Mode: Query PostgreSQL catalog
         asset_rows = default_db_manager.fetch_all(

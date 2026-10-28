@@ -12,6 +12,11 @@ import {
   SendEmailPayload,
   SendEmailResult,
   EmailAuditEntry,
+  DetailedReportRecord,
+  DetailedReportListItem,
+  DetailedReportPayload,
+  DetailedReportResponse,
+  EmailDetailedReportPayload,
 } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -397,5 +402,61 @@ export async function getEmailAuditLog(
     throw new Error(`Failed to fetch email audit log (${res.status})`);
   }
   return res.json();
+}
+
+export async function generateDetailedReport(
+  payload: DetailedReportPayload
+): Promise<DetailedReportResponse> {
+  const res = await fetch(`${API_BASE}/api/nemotron/detailed-report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Client-Session-ID": getClientSessionId(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to generate detailed report (${res.status})`);
+  }
+  return res.json();
+}
+
+export function getDetailedReportPdfUrl(reportId: string): string {
+  return `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}/pdf`;
+}
+
+export async function getDetailedReportsForIncident(
+  incidentId: string
+): Promise<DetailedReportListItem[]> {
+  const res = await fetchNoCache(
+    `${API_BASE}/api/nemotron/detailed-reports/${encodeURIComponent(incidentId)}`
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch detailed reports (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function emailDetailedReport(
+  payload: EmailDetailedReportPayload
+): Promise<SendEmailResult> {
+  const res = await fetch(`${API_BASE}/api/nemotron/email-detailed-report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Client-Session-ID": getClientSessionId(),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to email detailed report (${res.status})`);
+  }
+  return res.json();
+}
+
+export function getSummaryDownloadUrl(incidentId: string): string {
+  return `${API_BASE}/api/nemotron/summary-download/${encodeURIComponent(incidentId)}`;
 }
 

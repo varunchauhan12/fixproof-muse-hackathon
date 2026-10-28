@@ -94,6 +94,19 @@ from app.nemotron_action import (
     generate_rev_share_proposal_draft,
     send_nemotron_document_email,
 )
+from app.detailed_report import (
+    build_evidence_bundle,
+    synthesize_detailed_report,
+    generate_detailed_report_pdf,
+    generate_short_summary_download,
+    save_detailed_report,
+    get_detailed_report_record,
+    get_detailed_report_pdf_bytes,
+    list_detailed_reports_for_incident,
+    send_detailed_report_email,
+    DEFAULT_DETAILED_MODEL,
+    FALLBACK_DETAILED_MODEL,
+)
 from typing import Optional, Dict, Any
 
 class ScreenUrlRequest(BaseModel):
@@ -135,6 +148,16 @@ class SendDocumentEmailRequest(BaseModel):
     cc_emails: Optional[List[str]] = None
     user_confirmed: bool = False
     rights_declaration_confirmed: bool = False
+
+class DetailedReportRequest(BaseModel):
+    incident_id: str
+    recipient_email: Optional[str] = None
+    model_override: Optional[str] = None
+
+class EmailDetailedReportRequest(BaseModel):
+    incident_id: str
+    report_id: str
+    recipient_email: str
 
 
 def is_valid_completed_report(report: Dict[str, Any]) -> bool:
@@ -1202,6 +1225,7 @@ def get_nemotron_status_endpoint():
         "status": "ready" if nebius_key else "degraded",
         "configured_model": DEFAULT_MODEL,
         "vision_model": "nvidia/Nemotron-3.5-Super-VL",
+        "detailed_report_model": DEFAULT_DETAILED_MODEL,
         "text_reasoning_available": nebius_key,
         "vision_verification_available": nebius_key,
         "email_delivery_available": configured,
@@ -1339,3 +1363,202 @@ def get_email_audit_log_endpoint(
     if x_client_session_id and x_client_session_id != "demo-showcase":
         logs = [entry for entry in logs if entry.get("session_id") in (x_client_session_id, None, "demo-showcase")]
     return logs
+
+
+# ── Detailed Report, PDF Download & Email Delivery Endpoints ─────────────────
+
+@app.post("/api/nemotron/detailed-report")
+def generate_detailed_report_endpoint(
+    req: DetailedReportRequest,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Synthesizes a comprehensive forensic investigation report using Nebius Token Factory,
+    incorporating verified Nemotron Vision findings, generates an executive-grade ReportLab PDF,
+    and optionally emails the PDF attachment to the specified recipient.
+    """
+    if not SAFE_ID_REGEX.match(req.incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(req.incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        logger.warning(
+            f"[Security] Access denied generating detailed report for incident {req.incident_id}: session mismatch"
+        )
+        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
+    recipient = req.recipient_email.strip() if req.recipient_email else None
+    if recipient:
+        from app.nemotron_action import EMAIL_REGEX
+        if not EMAIL_REGEX.match(recipient):
+            raise HTTPException(status_code=400, detail=f"Invalid recipient email address format: '{recipient}'.")
+
+    try:
+        bundle = build_evidence_bundle(req.incident_id)
+        report_data = synthesize_detailed_report(bundle, model_override=req.model_override)
+        pdf_bytes = generate_detailed_report_pdf(report_data, bundle)
+        save_detailed_report(req.incident_id, report_data, pdf_bytes)
+
+        email_status = None
+        if recipient:
+            email_status = send_detailed_report_email(
+                incident_id=req.incident_id,
+                report_id=report_data["report_id"],
+                recipient_email=recipient,
+                pdf_bytes=pdf_bytes,
+                summary_text=report_data.get("sections", {}).get("executive_summary"),
+                client_session_id=x_client_session_id,
+            )
+
+        return {
+            "success": True,
+            "report": report_data,
+            "pdf_url": f"/api/nemotron/detailed-report/{report_data['report_id']}/pdf",
+            "email_status": email_status,
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[DetailedReport] Generation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate detailed report: {e}")
+
+
+@app.get("/api/nemotron/detailed-report/{report_id}/pdf")
+def get_detailed_report_pdf_endpoint(
+    report_id: str,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """Downloads or streams the pre-generated binary PDF for a detailed forensic report."""
+    if not SAFE_ID_REGEX.match(report_id):
+        raise HTTPException(status_code=400, detail="Invalid report ID format.")
+
+    record = get_detailed_report_record(report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Detailed report {report_id} not found.")
+
+    incident_id = record.get("incident_id")
+    if incident_id:
+        incident = get_incident_by_id(incident_id)
+        if incident:
+            inc_sess = incident.get("session_id")
+            if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+                raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
+
+    pdf_bytes = get_detailed_report_pdf_bytes(report_id)
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="PDF binary file not found on server.")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
+        },
+    )
+
+
+@app.get("/api/nemotron/detailed-reports/{incident_id}")
+def list_detailed_reports_endpoint(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """Lists compact metadata for all previously generated detailed reports for an incident."""
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    return list_detailed_reports_for_incident(incident_id)
+
+
+@app.post("/api/nemotron/email-detailed-report")
+def email_detailed_report_endpoint(
+    req: EmailDetailedReportRequest,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Retries or dispatches email delivery for an existing detailed report and PDF,
+    without re-synthesizing the expensive model report.
+    """
+    if not SAFE_ID_REGEX.match(req.incident_id) or not SAFE_ID_REGEX.match(req.report_id):
+        raise HTTPException(status_code=400, detail="Invalid ID format.")
+
+    incident = get_incident_by_id(req.incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    record = get_detailed_report_record(req.report_id)
+    if not record or record.get("incident_id") != req.incident_id:
+        raise HTTPException(status_code=404, detail=f"Report {req.report_id} not found for incident {req.incident_id}.")
+
+    pdf_bytes = get_detailed_report_pdf_bytes(req.report_id)
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="PDF binary file not found on disk.")
+
+    from app.nemotron_action import EMAIL_REGEX
+    if not req.recipient_email or not EMAIL_REGEX.match(req.recipient_email.strip()):
+        raise HTTPException(status_code=400, detail=f"Invalid recipient email address format: '{req.recipient_email}'.")
+
+    try:
+        result = send_detailed_report_email(
+            incident_id=req.incident_id,
+            report_id=req.report_id,
+            recipient_email=req.recipient_email.strip(),
+            pdf_bytes=pdf_bytes,
+            summary_text=record.get("sections", {}).get("executive_summary"),
+            client_session_id=x_client_session_id,
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"[DetailedReport] Email dispatch failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Email dispatch error: {e}")
+
+
+@app.get("/api/nemotron/summary-download/{incident_id}")
+def download_summary_endpoint(
+    incident_id: str,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Exports and streams the existing short investigation summary report as plain text,
+    requiring zero model invocation.
+    """
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    try:
+        filename, content = generate_short_summary_download(incident_id)
+        return Response(
+            content=content,
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+    except Exception as e:
+        logger.error(f"[DetailedReport] Summary download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary download: {e}")

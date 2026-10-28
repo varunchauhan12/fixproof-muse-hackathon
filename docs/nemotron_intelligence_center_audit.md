@@ -130,3 +130,33 @@ $$\text{Investigated Video} \longrightarrow \text{Forensic Evidence} \longrighta
 
 ### Step 6: Enforcement & Licensing Linkage
 - Update `EnforcementView` so "Draft Notice" and "Offer Rev-Share" buttons route to the Nemotron page with the target incident and document type pre-loaded.
+
+---
+
+## 5. Phase 3.5 Step 3: Evidence-Backed Detailed Report, PDF Download & Email Delivery
+
+### 5.1 Architecture & Implementation Overview
+Phase 3.5 Step 3 adds deep forensic evidence synthesis, executive-grade multi-page ReportLab PDF export, and automatic/retryable email delivery with base64 PDF attachments to the Nemotron Center:
+
+1. **Reasoning Model Selection**:
+   - Model: `nvidia/nemotron-3-super-120b-a12b` via Nebius Token Factory (`https://api.tokenfactory.nebius.com/v1/`).
+   - Fallback: `nvidia/Nemotron-3_5-Lightning`.
+   - Vision verifier findings from `nvidia/Nemotron-3.5-Super-VL` are directly incorporated rather than re-invented.
+
+2. **Core Invariants & Non-Adjudication**:
+   - Acts as an objective digital evidence analyst, not a court of law.
+   - Disclaims all visual similarity scores as uncalibrated algorithmic heuristics, not calibrated probabilities of copyright infringement.
+   - Sections A through I: Executive Summary, Methodology & Scope, Suspect & Reference Details, Frame Correlations & Vision Verification, Temporal Continuity Analysis, Model Assessment & Alternatives, Risk & Limitations, Recommended Actions, and Provenance.
+
+3. **Multi-Page ReportLab PDF**:
+   - Structured typography conforming to FixProof brand palette (`#0f172a`, `#475569`, `#0d9488`).
+   - Visual telemetry tables, side-by-side suspect/reference frame images where available, and clear statutory disclaimers.
+
+4. **Decoupled Email Dispatch & Idempotent Retry**:
+   - Email delivery via Resend API with base64 encoded PDF attachment (`application/pdf`).
+   - Audit trail persisted to `storage/email_audit_log.json`.
+   - If PDF generation succeeds but email fails or is unconfigured, the PDF remains downloadable and user can retry dispatch via `POST /api/nemotron/email-detailed-report` without re-synthesizing the report.
+
+5. **Zero-Model Short Summary Export**:
+   - `GET /api/nemotron/summary-download/{incident_id}` streams `fixproof-summary-<id[:8]>.txt` with zero model invocation.
+

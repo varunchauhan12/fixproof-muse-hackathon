@@ -246,6 +246,7 @@ export interface NemotronStatus {
   status: "ready" | "degraded";
   configured_model: string;
   vision_model: string;
+  detailed_report_model?: string;
   text_reasoning_available: boolean;
   vision_verification_available: boolean;
   email_delivery_available: boolean;
@@ -338,6 +339,94 @@ export interface EmailAuditEntry {
   delivery_id?: string | null;
   session_id?: string | null;
   error?: string | null;
+}
+
+export interface FrameCorrelationEvidence {
+  correlation_id: string;
+  suspect_timestamp_sec: number;
+  source_timestamp_sec: number;
+  source_asset_id: string;
+  source_asset_title?: string;
+  l2_distance: number | null;
+  phash_match: boolean;
+  phash_distance?: number;
+  visual_similarity_score: number;
+  vision_verification: {
+    model_id: string;
+    visual_correspondence: "CONFIRMED" | "CONTRADICTION" | "UNVERIFIED" | "INCONCLUSIVE";
+    matching_features: string[];
+    contradictions: string[];
+    reasoning: string;
+  };
+  suspect_image_path?: string | null;
+  ref_image_path?: string | null;
+}
+
+export interface DetailedReportSections {
+  executive_summary: string;
+  methodology_scope: string;
+  suspect_and_reference_details: {
+    suspect_source: string;
+    platform: string;
+    scanned_at: string;
+    matched_references: Array<{
+      asset_id: string;
+      title: string;
+      duration_sec?: number;
+      fps?: number;
+    }>;
+  };
+  frame_correlations: FrameCorrelationEvidence[];
+  temporal_continuity: string;
+  model_assessment: string;
+  risk_and_limitations: string;
+  recommended_actions: string[];
+  provenance: {
+    incident_id: string;
+    report_id: string;
+    synthesizer_model: string;
+    vision_verifier_model: string;
+    embedding_model: string;
+    vector_store: string;
+    timestamp: string;
+  };
+}
+
+export interface DetailedReportRecord {
+  report_id: string;
+  incident_id: string;
+  generated_at: string;
+  model_id: string;
+  ai_synthesized: boolean;
+  sections: DetailedReportSections;
+}
+
+export interface DetailedReportListItem {
+  report_id: string;
+  incident_id: string;
+  generated_at: string;
+  model_id: string;
+  ai_synthesized: boolean;
+  summary: string;
+}
+
+export interface DetailedReportPayload {
+  incident_id: string;
+  recipient_email?: string;
+  model_override?: string;
+}
+
+export interface DetailedReportResponse {
+  success: boolean;
+  report: DetailedReportRecord;
+  pdf_url: string;
+  email_status?: SendEmailResult | null;
+}
+
+export interface EmailDetailedReportPayload {
+  incident_id: string;
+  report_id: string;
+  recipient_email: string;
 }
 
 
