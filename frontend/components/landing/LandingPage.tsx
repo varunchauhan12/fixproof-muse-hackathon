@@ -333,20 +333,20 @@ export const StatCard = ({
         scale: 1.06,
         boxShadow: "0 12px 40px rgba(20,184,166,0.18), 0 2px 8px rgba(0,0,0,0.06)",
       }}
-      className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 w-[164px] cursor-default"
+      className="bg-[#0e1118]/95 backdrop-blur-md rounded-2xl p-4 border border-slate-800/90 w-[164px] cursor-default"
       style={{
-        boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)",
         transform: `rotate(${rotate}deg)`,
       }}
     >
-      <div className="w-6 h-[2.5px] bg-teal-500 rounded-full mb-2.5" />
+      <div className="w-6 h-[2.5px] bg-teal-400 rounded-full mb-2.5" />
       <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.22em] mb-0.5">
         {label}
       </p>
-      <p className="text-[1.65rem] font-black text-slate-900 leading-none mb-1">{value}</p>
+      <p className="text-[1.65rem] font-black text-white leading-none mb-1">{value}</p>
       <p className="text-[10px] text-slate-400 font-medium mb-2.5 leading-snug">{sub}</p>
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 border border-teal-200/60 rounded-full text-[8px] font-bold text-teal-700 uppercase tracking-wider">
-        <span className="w-1 h-1 rounded-full bg-teal-500 shrink-0" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-950/40 border border-teal-500/30 rounded-full text-[8px] font-bold text-teal-300 uppercase tracking-wider">
+        <span className="w-1 h-1 rounded-full bg-teal-400 shrink-0" />
         {tag}
       </span>
     </motion.div>
@@ -925,15 +925,15 @@ export const Hero = ({
   onReplayIntro?: () => void;
 }) => (
   <section
-    className="relative min-h-screen overflow-hidden pt-24"
-    style={{ background: "linear-gradient(140deg, #daf2ed 0%, #edf0f8 50%, #e2e8f6 100%)" }}
+    className="relative min-h-screen overflow-hidden pt-24 bg-[#07090d]"
+    style={{ background: "linear-gradient(180deg, #07090d 0%, #0a0c12 50%, #0d0f15 100%)" }}
   >
     <div
       className="absolute inset-0 pointer-events-none"
       style={{
-        backgroundImage: "radial-gradient(circle, #9abfb8 1px, transparent 1px)",
-        backgroundSize: "26px 26px",
-        opacity: 0.28,
+        backgroundImage: "radial-gradient(circle, rgba(45,212,191,0.08) 1px, transparent 1px)",
+        backgroundSize: "28px 28px",
+        opacity: 0.6,
       }}
     />
     <RippleGrid rows={10} cols={24} cellSize={60} />
@@ -944,10 +944,10 @@ export const Hero = ({
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/25 mb-7"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/30 mb-7"
         >
-          <Zap className="w-3 h-3 text-teal-600 fill-teal-600" />
-          <span className="text-[10px] font-bold text-teal-700 uppercase tracking-[0.22em]">
+          <Zap className="w-3 h-3 text-teal-400 fill-teal-400" />
+          <span className="text-[10px] font-mono font-bold text-teal-300 uppercase tracking-[0.22em]">
             Autonomous IP Protection · MediaGuard-Powered Console
           </span>
         </motion.div>
@@ -956,7 +956,7 @@ export const Hero = ({
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-          className="font-black text-slate-900 tracking-tight leading-[0.9] mb-5"
+          className="font-black text-white tracking-tight leading-[0.9] mb-5"
           style={{ fontSize: "clamp(2.8rem, 5.5vw, 4.2rem)" }}
         >
           FixProof
@@ -964,7 +964,7 @@ export const Hero = ({
           Sports
           <br />
           <span
-            className="text-teal-600"
+            className="text-teal-400"
             style={{
               textDecoration: "underline",
               textDecorationColor: "#2dd4bf",
@@ -980,7 +980,7 @@ export const Hero = ({
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="text-[15px] font-bold text-teal-600 mb-4 tracking-wide"
+          className="text-[15px] font-bold text-teal-400 mb-4 tracking-wide"
         >
           Detect. Adjudicate. Monetize.
         </motion.p>
@@ -989,7 +989,7 @@ export const Hero = ({
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="text-slate-500 leading-relaxed mb-4 text-[15px] max-w-[430px]"
+          className="text-slate-400 leading-relaxed mb-4 text-[15px] max-w-[430px]"
         >
           An autonomous forensic pipeline that monitors video streams, flags candidate visual matches with MobileNetV3 embeddings and pHash, and prepares evidence-backed reports and enforcement drafts for human review.
         </motion.p>
@@ -999,11 +999,11 @@ export const Hero = ({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.5 }}
-          className="mb-8 p-3 rounded-xl bg-teal-900/5 border border-teal-600/20 max-w-[430px] flex items-start gap-2.5 text-[11.5px] text-slate-600 leading-snug"
+          className="mb-8 p-3 rounded-xl bg-teal-950/25 border border-teal-500/20 max-w-[430px] flex items-start gap-2.5 text-[11.5px] text-slate-300 leading-snug"
         >
-          <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+          <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
           <span>
-            <strong>Heuristic Metric:</strong> Similarity scores represent visual vector distances, not calibrated legal proof of infringement. All findings require human review.
+            <strong className="text-white">Heuristic Metric:</strong> Similarity scores represent visual vector distances, not calibrated legal proof of infringement. All findings require human review.
           </span>
         </motion.div>
 
@@ -1017,7 +1017,7 @@ export const Hero = ({
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             onClick={onLaunch}
-            className="px-7 py-3.5 bg-slate-900 hover:bg-teal-700 text-white font-bold text-sm rounded-full transition-all duration-200 shadow-xl shadow-slate-900/20 flex items-center gap-2 cursor-pointer"
+            className="px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-sm rounded-full transition-all duration-200 shadow-xl shadow-teal-500/25 flex items-center gap-2 cursor-pointer"
           >
             Launch Swarm Console <ArrowRight className="w-4 h-4" />
           </motion.button>
@@ -1027,7 +1027,7 @@ export const Hero = ({
             onClick={() =>
               document.getElementById("agents")?.scrollIntoView({ behavior: "smooth" })
             }
-            className="px-6 py-3.5 bg-white/80 border border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700 font-bold text-sm rounded-full transition-all duration-200 shadow-sm cursor-pointer"
+            className="px-6 py-3.5 bg-slate-900/90 border border-slate-700/80 text-slate-200 hover:border-teal-400 hover:text-white font-bold text-sm rounded-full transition-all duration-200 shadow-sm cursor-pointer"
           >
             Explore Agents
           </motion.button>
@@ -1036,10 +1036,10 @@ export const Hero = ({
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               onClick={onReplayIntro}
-              className="px-5 py-3.5 bg-teal-500/10 border border-teal-500/25 text-teal-800 hover:bg-teal-500/20 font-semibold text-sm rounded-full transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
+              className="px-5 py-3.5 bg-teal-500/10 border border-teal-500/30 text-teal-300 hover:bg-teal-500/20 font-semibold text-sm rounded-full transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
               title="Open Welcome Overview for Judges"
             >
-              <Sparkles className="w-4 h-4 text-teal-600" />
+              <Sparkles className="w-4 h-4 text-teal-400" />
               <span>Judge Intro</span>
             </motion.button>
           )}
@@ -1263,14 +1263,14 @@ const MARQUEE_ITEMS = [
 ];
 
 export const Marquee = () => (
-  <div className="relative overflow-hidden py-4 bg-white border-y border-slate-100">
+  <div className="relative overflow-hidden py-4 bg-[#08090d] border-y border-slate-800/80">
     <div
       className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to right, white, transparent)" }}
+      style={{ background: "linear-gradient(to right, #08090d, transparent)" }}
     />
     <div
       className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
-      style={{ background: "linear-gradient(to left, white, transparent)" }}
+      style={{ background: "linear-gradient(to left, #08090d, transparent)" }}
     />
     <motion.div
       animate={{ x: ["0%", "-50%"] }}
@@ -1280,9 +1280,9 @@ export const Marquee = () => (
       {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200/70 rounded-full text-[11px] font-bold text-slate-600 whitespace-nowrap"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-800 rounded-full text-[11px] font-mono font-bold text-slate-300 whitespace-nowrap"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
           {item}
         </span>
       ))}
@@ -1293,8 +1293,8 @@ export const Marquee = () => (
 // ─── Live Threat Card ─────────────────────────────────────────────────────────
 export const LiveThreatCard = () => (
   <CometCard
-    className="bg-[#0d1117] rounded-3xl overflow-hidden border border-slate-800/60"
-    style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
+    className="bg-[#0d1117] rounded-3xl overflow-hidden border border-slate-800/80"
+    style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}
   >
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -1302,34 +1302,34 @@ export const LiveThreatCard = () => (
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/80">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-            Live Threat Detected
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="text-[11px] font-mono font-bold text-slate-300 uppercase tracking-widest">
+            Pipeline Demo · Candidate Match
           </span>
         </div>
-        <span className="text-[10px] font-bold text-teal-400 bg-teal-400/10 px-2.5 py-1 rounded-full border border-teal-400/20">
-          Sentinel Active
+        <span className="text-[10px] font-mono font-bold text-teal-300 bg-teal-500/15 px-2.5 py-1 rounded-full border border-teal-500/30">
+          Sentinel Verified
         </span>
       </div>
       <div className="px-6 py-5 font-mono text-xs space-y-2">
         {[
           ["suspect_file", "sample_match_highlight.mp4", "#fbbf24"],
           ["vault_ref_id", "c7fd5fed-eb3f-493d-a4b4", "#e2e8f0"],
-          ["l2_distance", "0.0000 (Exact)", "#f87171"],
+          ["l2_distance", "0.0000 (Exact Proximity)", "#f87171"],
           ["phash_match", "true (Hamming: 0)", "#f87171"],
-          ["confidence", "100.0%", "#2dd4bf"],
+          ["confidence", "High (Vector Proximity)", "#2dd4bf"],
         ].map(([k, v, c]) => (
           <div key={k} className="flex justify-between">
-            <span className="text-slate-500">{k}</span>
+            <span className="text-slate-400">{k}</span>
             <span style={{ color: c }} className="truncate max-w-[200px] font-bold">
               {v}
             </span>
           </div>
         ))}
       </div>
-      <div className="mx-4 mb-4 bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4">
+      <div className="mx-4 mb-4 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4">
         <p className="text-[11px] font-bold text-slate-300 mb-3">
           Adjudicator Recommended Classification
         </p>
@@ -1343,7 +1343,7 @@ export const LiveThreatCard = () => (
               className={`px-3 py-2 rounded-xl text-[11px] font-medium border cursor-default ${
                 active
                   ? "bg-red-500/15 border-red-500/30 text-red-300"
-                  : "bg-slate-700/40 border-slate-600/40 text-slate-400"
+                  : "bg-slate-800/60 border-slate-700/60 text-slate-400"
               }`}
             >
               {opt}
@@ -1358,8 +1358,8 @@ export const LiveThreatCard = () => (
 // ─── AI Reasoning Bubble ─────────────────────────────────────────────────────
 export const AICoachBubble = () => (
   <CometCard
-    className="bg-[#0d1117] rounded-3xl border border-slate-800/60"
-    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}
+    className="bg-[#0d1117] rounded-3xl border border-slate-800/80"
+    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
   >
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -1374,29 +1374,29 @@ export const AICoachBubble = () => (
         </div>
         <div>
           <p className="text-[11px] font-black text-teal-400">Sentinel Forensics Engine</p>
-          <p className="text-[9px] text-slate-500 uppercase tracking-widest">
+          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
             MobileNetV3 + FAISS L2 + pHash
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-          <span className="text-[9px] text-teal-500 font-bold uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+          <span className="text-[9px] text-teal-300 font-bold uppercase tracking-wider font-mono">
             Verified
           </span>
         </div>
       </div>
-      <div className="bg-slate-800/50 rounded-2xl p-4 text-[12px] text-slate-300 leading-relaxed border border-slate-700/40">
+      <div className="bg-slate-900/70 rounded-2xl p-4 text-[12px] text-slate-300 leading-relaxed border border-slate-800/80">
         Euclidean L2 vector distance of <span className="text-red-400 font-bold">0.00</span> confirms
-        exact feature congruence with official broadcast frames. Perceptual hash hamming distance of{" "}
+        feature congruence with official broadcast frames. Perceptual hash hamming distance of{" "}
         <span className="text-teal-400 font-bold">0</span> corroborates frame alignment. High
-        confidence candidate copyright infringement confirmed.
+        confidence candidate copyright infringement flagged for adjudicator confirmation.
       </div>
       <div className="mt-3 flex items-center gap-2">
         <span className="px-3 py-1 bg-red-500/15 border border-red-500/25 rounded-full text-[10px] font-bold text-red-400 uppercase tracking-wider">
           → Staged for Takedown
         </span>
-        <span className="px-3 py-1 bg-slate-700/50 border border-slate-600/40 rounded-full text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-          Confidence: 100%
+        <span className="px-3 py-1 bg-teal-500/15 border border-teal-500/30 rounded-full text-[10px] font-mono font-bold text-teal-300 uppercase tracking-wider">
+          Confidence: Heuristic High
         </span>
       </div>
     </motion.div>
@@ -1418,22 +1418,22 @@ export const MetricBars = () => (
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay: 0.1 }}
-      className="bg-white border border-slate-200/70 rounded-3xl p-7 h-full"
-      style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
+      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-3xl p-7 h-full text-slate-100 shadow-2xl"
+      style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
     >
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
+      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
         Sentinel Confidence Profile
       </p>
       <div className="space-y-4">
         {METRICS.map((m, i) => (
           <div key={m.label}>
             <div className="flex justify-between mb-1.5">
-              <span className="text-[12px] font-bold text-slate-700">{m.label}</span>
-              <span className="text-[12px] font-black" style={{ color: m.color }}>
+              <span className="text-[12px] font-bold text-slate-300">{m.label}</span>
+              <span className="text-[12px] font-mono font-black" style={{ color: m.color }}>
                 {m.value}%
               </span>
             </div>
-            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-slate-800/80 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 whileInView={{ width: `${m.value}%` }}
@@ -1458,38 +1458,38 @@ export const VerdictDuel = () => (
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay: 0.15 }}
-      className="bg-white border border-slate-200/70 rounded-3xl p-7 h-full"
-      style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
+      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-3xl p-7 h-full text-slate-100 shadow-2xl"
+      style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}
     >
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
+      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em] mb-5">
         Adjudicator Routing Decision
       </p>
       <div className="flex items-center gap-4">
-        <div className="flex-1 bg-red-50 border border-red-200/60 rounded-2xl p-4 text-center">
-          <Gavel className="w-6 h-6 text-red-500 mx-auto mb-2" />
-          <p className="text-[11px] font-black text-red-600 uppercase tracking-wide">Enforcer</p>
-          <p className="text-2xl font-black text-red-500 mt-1">5</p>
-          <p className="text-[10px] text-red-400 font-medium">DMCA Notices</p>
+        <div className="flex-1 bg-rose-950/25 border border-rose-800/40 rounded-2xl p-4 text-center">
+          <Gavel className="w-6 h-6 text-rose-400 mx-auto mb-2" />
+          <p className="text-[11px] font-black text-rose-400 uppercase tracking-wide">Enforcer</p>
+          <p className="text-2xl font-black text-rose-300 mt-1 font-mono">5</p>
+          <p className="text-[10px] text-rose-400/80 font-medium">DMCA Notices</p>
         </div>
         <div className="flex flex-col items-center gap-1">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
             VS
           </span>
-          <div className="w-px h-8 bg-slate-200" />
+          <div className="w-px h-8 bg-slate-800" />
         </div>
-        <div className="flex-1 bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 text-center">
-          <Coins className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-          <p className="text-[11px] font-black text-emerald-600 uppercase tracking-wide">Broker</p>
-          <p className="text-2xl font-black text-emerald-500 mt-1">3</p>
-          <p className="text-[10px] text-emerald-400 font-medium">Rev-Share Deals</p>
+        <div className="flex-1 bg-emerald-950/25 border border-emerald-800/40 rounded-2xl p-4 text-center">
+          <Coins className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+          <p className="text-[11px] font-black text-emerald-400 uppercase tracking-wide">Broker</p>
+          <p className="text-2xl font-black text-emerald-300 mt-1 font-mono">3</p>
+          <p className="text-[10px] text-emerald-400/80 font-medium">Rev-Share Deals</p>
         </div>
       </div>
-      <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden flex">
-        <div className="bg-red-400 h-full rounded-l-full" style={{ width: "62.5%" }} />
-        <div className="bg-emerald-400 h-full rounded-r-full" style={{ width: "37.5%" }} />
+      <div className="mt-4 h-2 bg-slate-800/80 rounded-full overflow-hidden flex">
+        <div className="bg-rose-500 h-full rounded-l-full" style={{ width: "62.5%" }} />
+        <div className="bg-emerald-500 h-full rounded-r-full" style={{ width: "37.5%" }} />
       </div>
-      <div className="flex justify-between mt-1.5">
-        <span className="text-[10px] text-red-400 font-bold">62.5% Piracy</span>
+      <div className="flex justify-between mt-1.5 font-mono">
+        <span className="text-[10px] text-rose-400 font-bold">62.5% Piracy</span>
         <span className="text-[10px] text-emerald-400 font-bold">37.5% Fair Use</span>
       </div>
     </motion.div>
@@ -1525,14 +1525,14 @@ export const StatTile = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="bg-white border border-slate-200/70 rounded-2xl p-6 h-full"
-      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.04)" }}
+      className="bg-[#0e1118]/90 border border-slate-800/80 rounded-2xl p-6 h-full text-white shadow-xl"
+      style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}
     >
       <div className="w-6 h-[2px] rounded-full mb-3" style={{ backgroundColor: color }} />
-      <p className="text-[2.2rem] font-black leading-none mb-1" style={{ color }}>
+      <p className="text-[2.2rem] font-black leading-none mb-1 font-mono" style={{ color }}>
         {value}
       </p>
-      <p className="text-[12px] font-black text-slate-800 mb-1">{label}</p>
+      <p className="text-[12px] font-bold text-slate-200 mb-1">{label}</p>
       <p className="text-[11px] text-slate-400 font-medium leading-snug">{sub}</p>
     </motion.div>
   </TiltCard>
@@ -1540,9 +1540,9 @@ export const StatTile = ({
 
 // ─── Showcase Section ────────────────────────────────────────────────────────
 export const ShowcaseSection = () => (
-  <section id="stack" className="bg-[#f6f7fc]">
+  <section id="stack" className="bg-[#07090d] text-slate-100 border-t border-slate-800/80">
     <Marquee />
-    <div className="py-28 px-8">
+    <div className="py-24 px-6 md:px-10 lg:px-12">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 22 }}
@@ -1551,17 +1551,19 @@ export const ShowcaseSection = () => (
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <p className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.28em] mb-4">
-            System in Action
-          </p>
-          <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/25 mb-4">
+            <span className="text-[11px] font-mono font-bold tracking-[0.22em] text-teal-300 uppercase">
+              Interactive Forensics Demo
+            </span>
+          </div>
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-5">
             Watch the Swarm
             <br />
-            <span className="text-teal-600">Think in Real-Time.</span>
+            <span className="text-teal-400">Think in Coordination.</span>
           </h2>
-          <p className="text-[17px] text-slate-500 max-w-lg mx-auto leading-relaxed">
-            Every detection, verdict, and action streams live to the dashboard. The agents reason,
-            route, and verify — you just approve.
+          <p className="text-base sm:text-lg text-slate-400 max-w-lg mx-auto leading-relaxed">
+            Candidate visual matches, reasoning verdicts, and enforcement drafts stream into
+            the console for investigator verification.
           </p>
         </motion.div>
 
@@ -1571,7 +1573,7 @@ export const ShowcaseSection = () => (
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <LiveThreatCard />
           <AICoachBubble />
         </div>
@@ -1674,8 +1676,8 @@ export const DeployCard = ({ onLaunch }: { onLaunch: () => void }) => (
 
 // ─── CTA Section ─────────────────────────────────────────────────────────────
 export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
-  <section className="py-28 px-8 bg-white">
-    <div className="max-w-4xl mx-auto">
+  <section className="py-28 px-8 bg-[#07090d] text-slate-100 border-t border-slate-800/80">
+    <div className="max-w-4xl mx-auto space-y-12">
       <DeployCard onLaunch={onLaunch} />
 
       <motion.div
@@ -1683,40 +1685,40 @@ export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className="relative rounded-[2.5rem] p-14 md:p-20 text-center overflow-hidden"
+        className="relative rounded-[2.5rem] p-10 md:p-16 text-center overflow-hidden border border-slate-800/90 shadow-2xl"
         style={{
-          background: "linear-gradient(140deg, #daf2ed 0%, #edf0f8 60%, #e2e8f6 100%)",
+          background: "linear-gradient(180deg, #0e111a 0%, #090b10 100%)",
         }}
       >
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, #9abfb8 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, rgba(45,212,191,0.08) 1px, transparent 1px)",
             backgroundSize: "24px 24px",
-            opacity: 0.22,
+            opacity: 0.5,
           }}
         />
         <RippleGrid rows={6} cols={20} cellSize={52} />
         <div
           className="absolute bottom-0 right-4 text-[180px] font-black leading-none select-none pointer-events-none"
-          style={{ color: "rgba(148,163,184,0.10)" }}
+          style={{ color: "rgba(45,212,191,0.03)" }}
         >
           AI
         </div>
 
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 mb-7">
-            <Zap className="w-3.5 h-3.5 text-teal-600 fill-teal-600" />
-            <span className="text-[10px] font-bold text-teal-700 uppercase tracking-[0.24em]">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/30 mb-7">
+            <Zap className="w-3.5 h-3.5 text-teal-400 fill-teal-400" />
+            <span className="text-[10px] font-mono font-bold text-teal-300 uppercase tracking-[0.24em]">
               Ready to Deploy
             </span>
           </div>
-          <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight mb-5">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight mb-5">
             Deploy the Swarm.
             <br />
-            <span className="text-teal-600">Protect Your IP.</span>
+            <span className="text-teal-400">Protect Your IP.</span>
           </h2>
-          <p className="text-[17px] text-slate-500 max-w-lg mx-auto mb-10 leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-400 max-w-lg mx-auto mb-10 leading-relaxed">
             Ingest official video. Six agents execute the full pipeline — detect, classify, enforce,
             and monetize — while you watch the results stream live on the command center dashboard.
           </p>
@@ -1725,13 +1727,13 @@ export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             onClick={onLaunch}
-            className="group px-10 py-4 bg-slate-900 hover:bg-teal-700 text-white font-bold text-sm rounded-full transition-all duration-200 shadow-xl shadow-slate-900/20 flex items-center gap-3 mx-auto cursor-pointer"
+            className="group px-10 py-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-sm rounded-full transition-all duration-200 shadow-xl shadow-teal-500/25 flex items-center gap-3 mx-auto cursor-pointer"
           >
-            <Shield className="w-5 h-5" />
+            <Shield className="w-5 h-5 text-slate-950" />
             Initialize Command Center
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </motion.button>
-          <p className="mt-7 text-[10px] text-slate-400 font-bold uppercase tracking-[0.28em]">
+          <p className="mt-7 text-[10px] font-mono text-slate-400 uppercase tracking-[0.28em]">
             MediaGuard AI Video Protection Protocol · FixProof 2026
           </p>
         </div>
@@ -1771,7 +1773,7 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
   };
 
   return (
-    <div className="bg-white min-h-screen overflow-x-hidden selection:bg-teal-500/20">
+    <div className="bg-[#07090d] text-slate-100 min-h-screen overflow-x-clip selection:bg-teal-500/30 selection:text-teal-200">
       <JudgeWelcomeOverlay
         isOpen={isJudgeWelcomeOpen}
         onClose={handleCloseWelcome}
@@ -1783,15 +1785,15 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
       <AgentScrollStory />
       <ShowcaseSection />
       <CTA onLaunch={onLaunch} />
-      <footer className="py-8 px-8 border-t border-slate-100 bg-[#f6f7fc]">
+      <footer className="py-8 px-8 border-t border-slate-800/80 bg-[#050608]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-4 h-4 text-teal-600" />
-            <span className="text-sm font-black text-slate-900">
-              FixProof<span className="text-teal-600">Sports</span>
+            <Shield className="w-4 h-4 text-teal-400" />
+            <span className="text-sm font-black text-white">
+              FixProof<span className="text-teal-400">Sports</span>
             </span>
           </div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.28em]">
+          <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-[0.28em]">
             © 2026 · Autonomous IP Intelligence · Global Protection Protocol
           </p>
         </div>

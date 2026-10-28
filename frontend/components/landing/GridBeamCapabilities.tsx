@@ -261,3 +261,4 @@ export function GridBeamCapabilities() {
 }
 
 export default GridBeamCapabilities;
+
