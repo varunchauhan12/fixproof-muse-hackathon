@@ -766,7 +766,7 @@ export const LandingNavbar = ({
       className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 px-4 pointer-events-none"
     >
       <div
-        className="pointer-events-auto flex items-center w-full max-w-[860px] rounded-full px-5 py-2.5 transition-all duration-300"
+        className="pointer-events-auto flex items-center w-full max-w-[980px] rounded-full px-4 sm:px-6 py-2.5 transition-all duration-300"
         style={{
           background: scrolled ? "rgba(255,254,250,0.95)" : "rgba(255,254,250,0.88)",
           border: "1px solid #DCD5C9",
@@ -779,7 +779,7 @@ export const LandingNavbar = ({
       >
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex items-center gap-2.5 shrink-0 group mr-4 lg:mr-8 cursor-pointer"
+          className="flex items-center gap-2.5 shrink-0 group mr-2 sm:mr-3 lg:mr-6 cursor-pointer"
         >
           <div className="p-1.5 rounded-lg bg-[#009E91]/10 border border-[#009E91]/20 group-hover:bg-[#009E91]/20 transition-colors">
             <Shield className="w-3.5 h-3.5 text-[#009E91]" />
@@ -790,17 +790,17 @@ export const LandingNavbar = ({
         </button>
 
         {/* Responsive Desktop Navigation Links */}
-        <nav className="hidden md:flex flex-1 items-center justify-center gap-0.5">
+        <nav className="hidden lg:flex flex-1 items-center justify-center gap-0.5 xl:gap-1">
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
+            className="px-3 xl:px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Home
           </button>
 
           <div className="relative" onMouseEnter={open} onMouseLeave={close}>
             <button
-              className="flex items-center gap-1 px-3.5 py-1.5 text-[13px] font-medium rounded-full transition-all duration-150 cursor-pointer"
+              className="flex items-center gap-1 px-3 xl:px-3.5 py-1.5 text-[13px] font-medium rounded-full transition-all duration-150 cursor-pointer"
               style={{
                 color: featuresOpen ? "#171717" : "#68645D",
                 background: featuresOpen ? "rgba(237,231,220,0.8)" : "transparent",
@@ -831,21 +831,28 @@ export const LandingNavbar = ({
 
           <button
             onClick={() => scrollTo("capabilities")}
-            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
+            className="px-3 xl:px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Capabilities
           </button>
 
           <button
             onClick={() => scrollTo("agents")}
-            className="px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
+            className="px-3 xl:px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
           >
             Agents
+          </button>
+
+          <button
+            onClick={() => scrollTo("stack")}
+            className="px-3 xl:px-3.5 py-1.5 text-[13px] font-medium text-[#68645D] hover:text-[#171717] rounded-full hover:bg-[#EDE7DC]/70 transition-all duration-150 cursor-pointer"
+          >
+            Technology
           </button>
         </nav>
 
         {/* Action Buttons using Cult UI HaloButton */}
-        <div className="flex items-center gap-2.5 shrink-0 ml-auto md:ml-4">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto lg:ml-4">
           {onReplayIntro && (
             <HaloButton
               variant="secondary"
@@ -858,19 +865,14 @@ export const LandingNavbar = ({
               <span>Judge Intro</span>
             </HaloButton>
           )}
-          <button
-            onClick={() => scrollTo("stack")}
-            className="hidden lg:inline-block text-[13px] font-medium text-[#68645D] hover:text-[#171717] transition-colors px-2 py-1 cursor-pointer"
-          >
-            Technology
-          </button>
           <HaloButton
             variant="primary"
             size="sm"
             onClick={onLaunch}
             className="cursor-pointer"
           >
-            Launch Console →
+            <span className="sm:hidden">Launch →</span>
+            <span className="hidden sm:inline">Launch Console →</span>
           </HaloButton>
         </div>
       </div>
