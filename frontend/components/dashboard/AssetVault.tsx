@@ -17,8 +17,11 @@ import {
   ShieldCheck,
   FileVideo,
   Search,
+  Calendar,
+  LayoutGrid,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import CardStack, { DeckCard } from "@/components/kokonutui/card-stack";
 import { AssetRecord, VaultStatus } from "@/lib/types";
 import {
   API_BASE,
@@ -52,9 +55,10 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
   const [ingestSuccess, setIngestSuccess] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Search and filter state
+  // Search, filter, and layout state
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterMode, setFilterMode] = useState<"all" | "indexed" | "unindexed">("all");
+  const [viewLayout, setViewLayout] = useState<"stacks" | "grid">("stacks");
 
   // Per-asset action state
   const [indexingAssetId, setIndexingAssetId] = useState<string | null>(null);
@@ -87,6 +91,67 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
       return true;
     });
   }, [assets, searchQuery, filterMode]);
+
+  // Date-grouped assets for CardStack presentation
+  const dateGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        dateKey: string;
+        dateLabel: string;
+        timestampMs: number;
+        assets: AssetRecord[];
+      }
+    >();
+
+    for (const asset of filteredAssets) {
+      const rawDate = asset.uploaded_at || (asset as any).created_at;
+      let dateKey = "unknown";
+      let dateLabel = "Date unavailable";
+      let timestampMs = 0;
+
+      if (rawDate) {
+        try {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateKey = d.toISOString().split("T")[0]; // YYYY-MM-DD
+            dateLabel = d.toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            });
+            timestampMs = d.getTime();
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, {
+          dateKey,
+          dateLabel,
+          timestampMs,
+          assets: [],
+        });
+      }
+      groups.get(dateKey)!.assets.push(asset);
+    }
+
+    // Sort groups in reverse chronological order (newest date first)
+    const result = Array.from(groups.values()).sort((a, b) => b.timestampMs - a.timestampMs);
+
+    // Sort assets within each group newest first
+    for (const g of result) {
+      g.assets.sort((a, b) => {
+        const ta = new Date(a.uploaded_at || 0).getTime();
+        const tb = new Date(b.uploaded_at || 0).getTime();
+        return tb - ta;
+      });
+    }
+
+    return result;
+  }, [filteredAssets]);
 
   // Handle file select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -602,6 +667,32 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 Pending
               </button>
             </div>
+
+            {/* View Layout Toggle (Date Stacks vs Grid View) */}
+            <div className="flex items-center p-0.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.08)] text-[11px]">
+              <button
+                type="button"
+                onClick={() => setViewLayout("stacks")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  viewLayout === "stacks" ? "bg-[#282624] text-teal-400 font-bold" : "text-[#8e887d] hover:text-[#f4efe6]"
+                }`}
+                title="Date-grouped animated card stacks"
+              >
+                <Layers size={12} />
+                <span>Date Stacks</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewLayout("grid")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                  viewLayout === "grid" ? "bg-[#282624] text-[#f4efe6] font-bold" : "text-[#8e887d] hover:text-[#f4efe6]"
+                }`}
+                title="Compact grid view"
+              >
+                <LayoutGrid size={12} />
+                <span>Grid View</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -636,6 +727,134 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 ? "Upload an official broadcast using the ingestion control above to generate reference fingerprints."
                 : "Try adjusting your search query or filter to view registered reference assets."}
             </p>
+          </div>
+        ) : viewLayout === "stacks" ? (
+          /* Date-Grouped Animated Card Stacks */
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {dateGroups.map((group) => {
+                const groupCards: DeckCard[] = group.assets.map((asset) => ({
+                  id: asset.asset_id,
+                  title: asset.filename,
+                  subtitle: `${asset.frame_count} frames · ${formatDuration(asset.duration_seconds)}`,
+                  price: asset.indexed ? "VAULTED" : "UNINDEXED",
+                  art: (
+                    <div className="relative w-full h-full bg-[#121211] overflow-hidden rounded-xl flex items-center justify-center select-none">
+                      {asset.thumbnail_url ? (
+                        <img
+                          src={`${API_BASE}${asset.thumbnail_url}`}
+                          alt={asset.filename}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <FileVideo size={42} className="text-zinc-600" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 pointer-events-none" />
+                      <div className="absolute top-2.5 right-2.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider backdrop-blur-md ${
+                            asset.indexed
+                              ? "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                              : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {asset.indexed ? "Vaulted" : "Unindexed"}
+                        </span>
+                      </div>
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-[10px] text-zinc-300 font-mono">
+                        <span className="bg-black/75 px-1.5 py-0.5 rounded border border-white/10">
+                          {asset.frame_count} frames
+                        </span>
+                        {asset.duration_seconds > 0 && (
+                          <span className="bg-black/75 px-1.5 py-0.5 rounded border border-white/10">
+                            {formatDuration(asset.duration_seconds)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ),
+                  description: `Asset ID: ${asset.asset_id}\nRegistered: ${
+                    asset.uploaded_at ? new Date(asset.uploaded_at).toLocaleString() : "Recently"
+                  }`,
+                  specs: [
+                    {
+                      label: "Status",
+                      value: asset.indexed ? "Indexed in FAISS" : "Pending Indexing",
+                    },
+                    {
+                      label: "Vectors",
+                      value: `${asset.indexed_vectors} vectors (576-dim)`,
+                    },
+                    {
+                      label: "Duration",
+                      value: formatDuration(asset.duration_seconds),
+                    },
+                    {
+                      label: "Frames",
+                      value: `${asset.frame_count} keyframes`,
+                    },
+                    {
+                      label: "File Size",
+                      value: formatBytes(asset.file_size),
+                    },
+                    {
+                      label: "Sample Step",
+                      value: `${asset.sample_interval_seconds}s interval`,
+                    },
+                  ],
+                }));
+
+                return (
+                  <div
+                    key={group.dateKey}
+                    style={{
+                      background: "#171615",
+                      borderRadius: 16,
+                      border: "1px solid rgba(238, 231, 219, 0.08)",
+                    }}
+                    className="p-5 flex flex-col justify-between"
+                  >
+                    {/* Date Stack Header */}
+                    <div className="flex items-center justify-between pb-3 mb-2 border-b border-[rgba(238,231,219,0.06)]">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-teal-400" />
+                        <span className="text-[13px] font-bold text-[#f4efe6]">
+                          {group.dateLabel}
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#1a1918] text-[#ded7cb] border border-[rgba(238,231,219,0.08)]">
+                        {group.assets.length}{" "}
+                        {group.assets.length === 1 ? "reference video" : "reference videos"}
+                      </span>
+                    </div>
+
+                    {/* Animated CardStack */}
+                    <div className="flex-1 flex items-center justify-center py-2">
+                      <CardStack
+                        key={`${group.dateKey}-${groupCards.length}`}
+                        cards={groupCards}
+                        accent="#14b8a6"
+                        actionLabel="Inspect Keyframes"
+                        onAction={(deckCard) => {
+                          const asset = filteredAssets.find((a) => a.asset_id === deckCard.id);
+                          if (asset) {
+                            setInspectingAsset(asset);
+                            setActiveFrameIndex(0);
+                          }
+                        }}
+                        className="min-h-[25rem] max-w-sm py-4"
+                      />
+                    </div>
+
+                    {/* Stack Footer Navigation Guide */}
+                    <div className="pt-3 border-t border-[rgba(238,231,219,0.06)] flex items-center justify-between text-[11px] text-[#8e887d]">
+                      <span>Drag or flick cards to cycle</span>
+                      <span className="text-teal-400 font-medium">Click card for specs</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : (
           /* Compact Video Cards Grid (Visibly Smaller Video Previews) */

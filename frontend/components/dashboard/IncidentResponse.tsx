@@ -30,7 +30,9 @@ import {
   FileText,
   Database,
   Crosshair,
+  ArrowLeft,
 } from "lucide-react";
+import CardFlip from "@/components/kokonutui/card-flip";
 import {
   MatchAnalysisResult,
   FrameMatchDetail,
@@ -85,8 +87,32 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [selectedIncident, setSelectedIncident] = useState<MatchAnalysisResult | null>(
     initialIncident || null
   );
+  const [isFocusedView, setIsFocusedView] = useState<boolean>(Boolean(initialIncident));
+  const [incidentSearchQuery, setIncidentSearchQuery] = useState<string>("");
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("ALL");
   const [selectedFrameMatch, setSelectedFrameMatch] = useState<FrameMatchDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (initialIncident) {
+      setSelectedIncident(initialIncident);
+      setIsFocusedView(true);
+    }
+  }, [initialIncident]);
+
+  const filteredIncidents = React.useMemo(() => {
+    return incidents.filter((inc) => {
+      const filename = inc.suspect_filename || inc.submitted_asset_id || "";
+      const id = inc.incident_id || "";
+      const matchesSearch =
+        filename.toLowerCase().includes(incidentSearchQuery.toLowerCase()) ||
+        id.toLowerCase().includes(incidentSearchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+      if (incidentStatusFilter === "ALL") return true;
+      return inc.overall_status === incidentStatusFilter;
+    });
+  }, [incidents, incidentSearchQuery, incidentStatusFilter]);
 
   // Synchronized Playback state
   const refVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -434,99 +460,379 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
             <span>Launch Threat Hunter Scan</span>
           </button>
         </div>
-      ) : (
-        /* ─── Two-Column Desktop Layout ─── */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* ─── Left Column: Compact Incident Feed (3 cols) ─── */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#aba497]">
-                Recorded Scans
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#1a1918] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
-                {incidents.length}
-              </span>
+      ) : !isFocusedView || !selectedIncident ? (
+        /* ─── Full-Width Master View: Investigations Feed ─── */
+        <div className="space-y-4">
+          {/* Filter Bar & Header */}
+          <div
+            style={{
+              background: "#171615",
+              border: "1px solid rgba(238, 231, 219, 0.08)",
+              borderRadius: 16,
+            }}
+            className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">
+                  Investigations Feed
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#1a1918] text-teal-400 border border-[rgba(238,231,219,0.08)]">
+                  {filteredIncidents.length} {filteredIncidents.length === 1 ? "investigation" : "investigations"}
+                </span>
+              </div>
+              <p className="text-[12px] text-[#aba497] m-0">
+                Forensic vector comparisons against registered reference assets with frame-level keyframe verification.
+              </p>
             </div>
 
-            <div className="space-y-2 max-h-[720px] overflow-y-auto pr-1">
-              {incidents.map((inc, i) => {
-                const isSelected = selectedIncident?.incident_id === inc.incident_id;
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#736d62]"
+                />
+                <input
+                  type="text"
+                  placeholder="Search filename or ID..."
+                  value={incidentSearchQuery}
+                  onChange={(e) => setIncidentSearchQuery(e.target.value)}
+                  style={{
+                    background: "#1e1d1b",
+                    border: "1px solid rgba(238, 231, 219, 0.1)",
+                    color: "#f4efe6",
+                  }}
+                  className="w-48 sm:w-60 pl-8 pr-2.5 py-1.5 rounded-lg text-[11px] placeholder-[#736d62] focus:outline-none focus:border-[#eee7db]"
+                />
+              </div>
 
-                return (
-                  <div
-                    key={inc.incident_id || i}
-                    onClick={() => setSelectedIncident(inc)}
-                    style={{
-                      background: isSelected ? "#242220" : "#171615",
-                      border: `1px solid ${
-                        isSelected ? "rgba(238, 231, 219, 0.28)" : "rgba(238, 231, 219, 0.08)"
-                      }`,
-                      cursor: "pointer",
-                    }}
-                    className="p-3 rounded-xl transition-all hover:bg-[#1e1d1b]"
+              {/* Status Filter */}
+              <div className="flex items-center p-0.5 rounded-lg bg-[#1a1918] border border-[rgba(238,231,219,0.08)] text-[11px]">
+                {["ALL", "CANDIDATE_MATCH", "SUSPECT", "CLEAN"].map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setIncidentStatusFilter(st)}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                      incidentStatusFilter === st
+                        ? "bg-[#282624] text-[#f4efe6] font-bold"
+                        : "text-[#8e887d] hover:text-[#f4efe6]"
+                    }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          style={{
-                            background:
-                              inc.overall_status === "CANDIDATE_MATCH"
-                                ? "rgba(212, 163, 115, 0.15)"
-                                : inc.overall_status === "SUSPECT"
-                                ? "rgba(212, 163, 115, 0.10)"
-                                : "rgba(238, 231, 219, 0.06)",
-                            color:
-                              inc.overall_status === "CANDIDATE_MATCH"
-                                ? "#dfa974"
-                                : inc.overall_status === "SUSPECT"
-                                ? "#d4a373"
-                                : "#ded7cb",
-                            border: `1px solid ${
-                              inc.overall_status === "CANDIDATE_MATCH"
-                                ? "rgba(212, 163, 115, 0.3)"
-                                : "rgba(238, 231, 219, 0.1)"
-                            }`,
-                          }}
-                          className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider"
-                        >
-                          {inc.overall_status === "CANDIDATE_MATCH"
-                            ? "Candidate Match"
-                            : inc.overall_status.replace(/_/g, " ")}
-                        </span>
-                        {inc.investigation_type === "URL_SCREENING" && (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-[#1a1918] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
-                            URL
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-[#736d62] font-mono" suppressHydrationWarning>
-                        {inc.scanned_at ? new Date(inc.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recent"}
-                      </span>
-                    </div>
-
-                    <p className="text-[12.5px] font-semibold text-[#f4efe6] truncate m-0">
-                      {inc.suspect_filename || (inc.submitted_asset_id ? `Suspect ${inc.submitted_asset_id.slice(0, 8)}` : "Public Media Stream")}
-                    </p>
-
-                    <div className="flex items-center justify-between text-[10.5px] text-[#aba497] mt-2 pt-1.5 border-t border-[rgba(238,231,219,0.06)] font-mono">
-                      <span>Sim: <strong className="text-[#ded7cb]">{inc.highest_confidence}%</strong></span>
-                      <span>Matches: <strong className="text-[#ded7cb]">{inc.candidate_matches_found}</strong></span>
-                    </div>
-                  </div>
-                );
-              })}
+                    {st === "ALL" ? "All" : st === "CANDIDATE_MATCH" ? "Matches" : st.charAt(0) + st.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* ─── Main Column: Selected Incident & Evidence Workspace (9 cols) ─── */}
-          <div className="lg:col-span-8 xl:col-span-9 space-y-5">
-            {selectedIncident ? (
-              <>
-                {/* ─── A. Incident Dossier Header & Action Toolbar ─── */}
+          {/* Full-Width Investigation Rows */}
+          {filteredIncidents.length === 0 ? (
+            <div
+              style={{
+                background: "#171615",
+                borderRadius: 16,
+                border: "1px dashed rgba(238, 231, 219, 0.12)",
+              }}
+              className="text-center py-16 px-4"
+            >
+              <ShieldAlert size={36} className="mx-auto text-[#736d62] mb-3" />
+              <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No matching investigations found</h3>
+              <p className="text-[12px] text-[#aba497] mt-1 max-w-sm mx-auto mb-4">
+                Try adjusting your search query or launch a new scan in Threat Hunter.
+              </p>
+              <button
+                onClick={onNavigateToHunter}
+                style={{
+                  background: "#eee7db",
+                  color: "#141312",
+                }}
+                className="px-4 py-2 rounded-xl hover:bg-[#fbf7ef] text-[12px] font-bold inline-flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <Search size={13} />
+                <span>Launch Threat Hunter Scan</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filteredIncidents.map((inc) => (
                 <div
+                  key={inc.incident_id}
+                  onClick={() => {
+                    setSelectedIncident(inc);
+                    setIsFocusedView(true);
+                  }}
                   style={{
                     background: "#171615",
                     border: "1px solid rgba(238, 231, 219, 0.08)",
+                    borderRadius: 14,
+                  }}
+                  className="p-4 hover:border-[rgba(238,231,219,0.22)] hover:bg-[#1c1b19] transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        style={{
+                          background:
+                            inc.overall_status === "CANDIDATE_MATCH"
+                              ? "rgba(212, 163, 115, 0.2)"
+                              : inc.overall_status === "SUSPECT"
+                              ? "rgba(212, 163, 115, 0.12)"
+                              : "rgba(238, 231, 219, 0.08)",
+                          color:
+                            inc.overall_status === "CANDIDATE_MATCH"
+                              ? "#dfa974"
+                              : inc.overall_status === "SUSPECT"
+                              ? "#d4a373"
+                              : "#ded7cb",
+                          border: `1px solid ${
+                            inc.overall_status === "CANDIDATE_MATCH"
+                              ? "rgba(212, 163, 115, 0.35)"
+                              : "rgba(238, 231, 219, 0.12)"
+                          }`,
+                        }}
+                        className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                      >
+                        {inc.overall_status === "CANDIDATE_MATCH"
+                          ? "Candidate Match"
+                          : inc.overall_status.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-[11px] font-mono text-[#736d62]">
+                        {inc.scanned_at ? new Date(inc.scanned_at).toLocaleString() : "Recent"}
+                      </span>
+                      <span className="text-[10px] font-mono text-[#aba497] bg-[#22201e] px-1.5 py-0.2 rounded border border-[rgba(238,231,219,0.06)]">
+                        ID: {inc.incident_id?.slice(0, 8)}...
+                      </span>
+                    </div>
+                    <h4 className="text-[14.5px] font-bold text-[#f4efe6] truncate m-0 group-hover:text-teal-400 transition-colors">
+                      {inc.suspect_filename || (inc.submitted_asset_id ? `Suspect ${inc.submitted_asset_id.slice(0, 8)}` : "Public Media Stream")}
+                    </h4>
+                  </div>
+
+                  <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase text-[#736d62] block">Matches</span>
+                      <span className="text-[#ded7cb] font-bold">{inc.candidate_matches_found}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase text-[#736d62] block">Similarity</span>
+                      <span className="text-[#dfa974] font-bold">{inc.highest_confidence}%</span>
+                    </div>
+                    <div className="text-right hidden md:block">
+                      <span className="text-[10px] uppercase text-[#736d62] block">Lowest L2</span>
+                      <span className="text-[#aba497]">
+                        {inc.lowest_l2_distance !== null && inc.lowest_l2_distance !== undefined
+                          ? Number(inc.lowest_l2_distance).toFixed(3)
+                          : "N/A"}
+                      </span>
+                    </div>
+                    <div className="pl-2">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#242220] group-hover:bg-teal-500/20 group-hover:text-teal-300 text-[#aba497] border border-[rgba(238,231,219,0.1)] text-xs font-semibold transition-all">
+                        <span>Inspect</span>
+                        <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── Focused Single-Incident View ─── */
+        <div className="space-y-6">
+          {/* Back Navigation Bar */}
+          <div className="flex items-center justify-between pb-3 border-b border-[rgba(238,231,219,0.08)]">
+            <button
+              type="button"
+              onClick={() => setIsFocusedView(false)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#ded7cb] hover:text-white bg-[#1e1d1b] hover:bg-[#282624] border border-[rgba(238,231,219,0.1)] transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={13} />
+              <span>Back to Investigations</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-[#aba497]">
+                Viewing Incident: <strong className="text-[#f4efe6]">{selectedIncident.incident_id?.slice(0, 12)}...</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Kokonut UI 3D Interactive Flip Card */}
+          <div className="w-full flex justify-center py-2">
+            <CardFlip
+              className="w-full max-w-3xl aspect-[16/9] min-h-[290px]"
+              faceClassName="!bg-[#171615] !border-[rgba(238,231,219,0.12)] !text-[#f4efe6] p-6 shadow-2xl flex flex-col justify-between"
+              label={`Investigation dossier for ${selectedIncident.suspect_filename || "suspect clip"}`}
+              front={(
+                <div className="flex flex-col justify-between h-full select-none">
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          style={{
+                            background:
+                              selectedIncident.overall_status === "CANDIDATE_MATCH"
+                                ? "rgba(212, 163, 115, 0.2)"
+                                : selectedIncident.overall_status === "SUSPECT"
+                                ? "rgba(212, 163, 115, 0.12)"
+                                : "rgba(238, 231, 219, 0.08)",
+                            color:
+                              selectedIncident.overall_status === "CANDIDATE_MATCH"
+                                ? "#dfa974"
+                                : selectedIncident.overall_status === "SUSPECT"
+                                ? "#d4a373"
+                                : "#ded7cb",
+                            border: `1px solid ${
+                              selectedIncident.overall_status === "CANDIDATE_MATCH"
+                                ? "rgba(212, 163, 115, 0.4)"
+                                : "rgba(238, 231, 219, 0.12)"
+                            }`,
+                          }}
+                          className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          {selectedIncident.overall_status === "CANDIDATE_MATCH"
+                            ? "Candidate Match"
+                            : selectedIncident.overall_status.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-[11px] font-mono text-[#aba497]">
+                          {selectedIncident.scanned_at
+                            ? new Date(selectedIncident.scanned_at).toLocaleString()
+                            : "Recent scan"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5" data-no-flip>
+                        <span className="text-[10px] font-mono text-[#736d62]">
+                          ID: {selectedIncident.incident_id?.slice(0, 8)}...
+                        </span>
+                        {selectedIncident.incident_id && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(selectedIncident.incident_id!);
+                            }}
+                            className="p-1 rounded bg-[#242220] hover:bg-[#2c2a27] text-[#aba497] hover:text-[#f4efe6] transition-colors cursor-pointer"
+                            title="Copy Incident ID"
+                          >
+                            {copiedIncidentId ? <Check size={11} className="text-teal-400" /> : <Copy size={11} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg sm:text-xl font-bold text-[#f4efe6] truncate m-0">
+                      {selectedIncident.suspect_filename || (selectedIncident.submitted_asset_id ? `Suspect Asset ${selectedIncident.submitted_asset_id.slice(0, 8)}` : "Public Media Stream")}
+                    </h3>
+                    {selectedIncident.source_url && (
+                      <p className="text-xs font-mono text-[#aba497] truncate mt-1 max-w-xl">
+                        Source: {selectedIncident.source_url}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Metric Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-3">
+                    <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
+                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Sampled Frames</span>
+                      <span className="text-base font-bold text-[#f4efe6] font-mono">
+                        {selectedIncident.frame_matches?.length ?? 0}
+                      </span>
+                    </div>
+                    <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
+                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Candidate Matches</span>
+                      <span className="text-base font-bold text-teal-400 font-mono">
+                        {selectedIncident.candidate_matches_found}
+                      </span>
+                    </div>
+                    <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
+                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Peak Similarity</span>
+                      <span className="text-base font-bold text-[#dfa974] font-mono">
+                        {selectedIncident.highest_confidence}%
+                      </span>
+                    </div>
+                    <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
+                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Lowest L2 Dist</span>
+                      <span className="text-base font-bold text-[#ded7cb] font-mono">
+                        {selectedIncident.lowest_l2_distance !== null && selectedIncident.lowest_l2_distance !== undefined
+                          ? Number(selectedIncident.lowest_l2_distance).toFixed(4)
+                          : "N/A"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer Flip Hint */}
+                  <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-center justify-between text-[11px] text-[#aba497]">
+                    <span className="flex items-center gap-1.5 text-teal-400 font-medium">
+                      <span>Click or drag anywhere to flip for forensic metadata</span>
+                      <span className="text-xs">↷</span>
+                    </span>
+                    <span className="text-[10px] text-[#736d62] font-mono">Sentinel Dual-Layer Vector Matching</span>
+                  </div>
+                </div>
+              )}
+              back={(
+                <div className="flex flex-col justify-between h-full select-none">
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400">
+                        Forensic Telemetry & Verification
+                      </span>
+                      <span className="text-[10px] font-mono text-[#aba497]">
+                        MobileNetV3 + pHash Dual Vector
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs text-[#ded7cb] my-2">
+                      <div className="flex items-center justify-between py-1 border-b border-[rgba(238,231,219,0.06)]">
+                        <span className="text-[#8e887d]">Matched Reference:</span>
+                        <span className="font-mono text-[#f4efe6] truncate max-w-[280px]">
+                          {selectedIncident.frame_matches?.find((m) => m.best_match)?.best_match?.source_filename ||
+                           selectedIncident.frame_matches?.find((m) => m.best_match)?.best_match?.source_asset_id?.slice(0, 16) ||
+                           "No reference match"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1 border-b border-[rgba(238,231,219,0.06)]">
+                        <span className="text-[#8e887d]">Keyframe Matches:</span>
+                        <span className="font-mono text-[#f4efe6]">
+                          {selectedIncident.frame_matches?.filter((m) => m.best_match?.match_confirmed).length || selectedIncident.candidate_matches_found} frames matched
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-1 border-b border-[rgba(238,231,219,0.06)]">
+                        <span className="text-[#8e887d]">Vision Verification:</span>
+                        <span className="font-semibold text-teal-400">
+                          Nemotron Vision 3.0 Verified
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Forensic Limitation Disclaimer */}
+                    <div className="mt-2.5 p-2.5 rounded-lg bg-teal-950/20 border border-teal-500/20 text-[10.5px] text-[#aba497] leading-relaxed">
+                      <strong className="text-teal-300">Forensic Limitation:</strong> Similarity scores represent heuristic visual vector distances, not calibrated legal determinations of infringement. All automated findings require human review before enforcement.
+                    </div>
+                  </div>
+
+                  {/* Footer Flip Hint */}
+                  <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-center justify-between text-[11px] text-[#aba497]">
+                    <span className="flex items-center gap-1.5 text-teal-400 font-medium">
+                      <span>Click or drag to flip back to overview</span>
+                      <span className="text-xs">↶</span>
+                    </span>
+                    <span className="text-[10px] text-[#736d62] font-mono">Ed25519 Signed Evidence Package</span>
+                  </div>
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Full Forensic Dossier below CardFlip */}
+          <div className="space-y-5">
+            {/* ─── A. Incident Dossier Header & Action Toolbar ─── */}
+            <div
+              style={{
+                background: "#171615",
+                border: "1px solid rgba(238, 231, 219, 0.08)",
                     borderRadius: 16,
                   }}
                   className="p-4 space-y-3"
@@ -1411,12 +1717,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     </div>
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="p-12 text-center text-[#736d62]">
-                Select an incident from the left column to view forensic evidence.
-              </div>
-            )}
           </div>
         </div>
       )}

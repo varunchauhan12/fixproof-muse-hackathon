@@ -22,8 +22,12 @@ import {
   Layers,
   Lock,
   Cpu,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import createGlobe from "cobe";
+import HalftoneBackground from "@/components/kokonutui/halftone-background";
+import { JudgeWelcomeOverlay } from "@/components/ui/JudgeWelcomeOverlay";
 
 // ─── Flip Words ─────────────────────────────────────────────────────────────
 export const FlipWords = ({
@@ -715,7 +719,13 @@ const FeaturesDropdown = ({
   );
 };
 
-export const LandingNavbar = ({ onLaunch }: { onLaunch: () => void }) => {
+export const LandingNavbar = ({
+  onLaunch,
+  onReplayIntro,
+}: {
+  onLaunch: () => void;
+  onReplayIntro?: () => void;
+}) => {
   const [featuresOpen, setFeaturesOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const closeTimer = useRef<any>(null);
@@ -819,6 +829,17 @@ export const LandingNavbar = ({ onLaunch }: { onLaunch: () => void }) => {
         </nav>
 
         <div className="flex items-center gap-3 shrink-0 ml-6">
+          {onReplayIntro && (
+            <button
+              type="button"
+              onClick={onReplayIntro}
+              className="px-3 py-1.5 text-[12px] font-semibold text-teal-300 hover:text-white rounded-full bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500/20 transition-all duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Replay Judge Welcome Intro"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+              <span>Judge Intro</span>
+            </button>
+          )}
           <button
             onClick={() => scrollTo("stack")}
             className="text-[13px] font-medium text-slate-300 hover:text-white transition-colors"
@@ -829,7 +850,7 @@ export const LandingNavbar = ({ onLaunch }: { onLaunch: () => void }) => {
             whileHover={{ scale: 1.04, boxShadow: "0 0 24px rgba(255,255,255,0.18)" }}
             whileTap={{ scale: 0.96 }}
             onClick={onLaunch}
-            className="px-5 py-2 bg-white hover:bg-slate-100 text-slate-900 text-[13px] font-bold rounded-full transition-colors duration-200"
+            className="px-5 py-2 bg-white hover:bg-slate-100 text-slate-900 text-[13px] font-bold rounded-full transition-colors duration-200 cursor-pointer"
             style={{ boxShadow: "0 2px 12px rgba(255,255,255,0.12)" }}
           >
             Launch Console →
@@ -843,10 +864,10 @@ export const LandingNavbar = ({ onLaunch }: { onLaunch: () => void }) => {
 // ─── Stat Cards Definitions ──────────────────────────────────────────────────
 const STAT_CARDS = [
   {
-    label: "Detection Accuracy",
-    value: "99.8%",
-    sub: "MobileNetV3 + pHash dual-layer",
-    tag: "AI-Powered",
+    label: "Feature Pipeline",
+    value: "Dual-Layer",
+    sub: "MobileNetV3 + pHash embeddings",
+    tag: "Forensic Core",
     delay: 0.1,
     rotate: 5,
   },
@@ -886,7 +907,13 @@ const CARD_POSITIONS = [
 const WORDS = ["Detects", "Adjudicates", "Monetizes", "Protects"];
 
 // ─── Hero Section ────────────────────────────────────────────────────────────
-export const Hero = ({ onLaunch }: { onLaunch: () => void }) => (
+export const Hero = ({
+  onLaunch,
+  onReplayIntro,
+}: {
+  onLaunch: () => void;
+  onReplayIntro?: () => void;
+}) => (
   <section
     className="relative min-h-screen overflow-hidden pt-24"
     style={{ background: "linear-gradient(140deg, #daf2ed 0%, #edf0f8 50%, #e2e8f6 100%)" }}
@@ -952,12 +979,23 @@ export const Hero = ({ onLaunch }: { onLaunch: () => void }) => (
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="text-slate-500 leading-relaxed mb-10 text-[15px] max-w-[430px]"
+          className="text-slate-500 leading-relaxed mb-4 text-[15px] max-w-[430px]"
         >
-          An autonomous AI swarm that hunts pirated video content across broadcast streams,
-          classifies it as piracy or fair use with MobileNetV3 visual vectors and pHash, then
-          autonomously fires DMCA takedowns or revenue-share smart contracts.
+          An autonomous forensic pipeline that monitors video streams, flags candidate visual matches with MobileNetV3 embeddings and pHash, and prepares evidence-backed reports and enforcement drafts for human review.
         </motion.p>
+
+        {/* Heuristic metric disclaimer badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.5 }}
+          className="mb-8 p-3 rounded-xl bg-teal-900/5 border border-teal-600/20 max-w-[430px] flex items-start gap-2.5 text-[11.5px] text-slate-600 leading-snug"
+        >
+          <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+          <span>
+            <strong>Heuristic Metric:</strong> Similarity scores represent visual vector distances, not calibrated legal proof of infringement. All findings require human review.
+          </span>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -979,10 +1017,22 @@ export const Hero = ({ onLaunch }: { onLaunch: () => void }) => (
             onClick={() =>
               document.getElementById("agents")?.scrollIntoView({ behavior: "smooth" })
             }
-            className="px-7 py-3.5 bg-white/80 border border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700 font-bold text-sm rounded-full transition-all duration-200 shadow-sm cursor-pointer"
+            className="px-6 py-3.5 bg-white/80 border border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700 font-bold text-sm rounded-full transition-all duration-200 shadow-sm cursor-pointer"
           >
             Explore Agents
           </motion.button>
+          {onReplayIntro && (
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onReplayIntro}
+              className="px-5 py-3.5 bg-teal-500/10 border border-teal-500/25 text-teal-800 hover:bg-teal-500/20 font-semibold text-sm rounded-full transition-all duration-200 flex items-center gap-2 cursor-pointer shadow-sm"
+              title="Open Welcome Overview for Judges"
+            >
+              <Sparkles className="w-4 h-4 text-teal-600" />
+              <span>Judge Intro</span>
+            </motion.button>
+          )}
         </motion.div>
 
         <motion.div
@@ -999,11 +1049,22 @@ export const Hero = ({ onLaunch }: { onLaunch: () => void }) => (
         className="flex-1 relative hidden lg:flex items-center justify-end pr-4"
         style={{ minHeight: 600 }}
       >
-        <div className="relative" style={{ width: 520, height: 520 }}>
+        {/* Kokonut UI Halftone Background Layer behind Globe */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40 mix-blend-multiply flex items-center justify-center">
+          <HalftoneBackground
+            className="!bg-transparent text-teal-800/40 w-full h-full min-h-0"
+            cell={16}
+            loupe={false}
+          >
+            {null}
+          </HalftoneBackground>
+        </div>
+
+        <div className="relative z-10" style={{ width: 520, height: 520 }}>
           <div
             className="absolute inset-0 rounded-full pointer-events-none"
             style={{
-              background: "radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%)",
+              background: "radial-gradient(circle, rgba(20,184,166,0.18) 0%, transparent 70%)",
             }}
           />
           <motion.div
@@ -1669,10 +1730,43 @@ export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
 
 // ─── Root Landing Page ───────────────────────────────────────────────────────
 export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
+  const [isJudgeWelcomeOpen, setIsJudgeWelcomeOpen] = useState(false);
+
+  useEffect(() => {
+    // Check sessionStorage for first-time judge visit (SSR safe)
+    if (typeof window !== "undefined") {
+      const seen = sessionStorage.getItem("fixproof_judge_welcome_seen");
+      if (!seen) {
+        setIsJudgeWelcomeOpen(true);
+      }
+    }
+  }, []);
+
+  const handleCloseWelcome = () => {
+    setIsJudgeWelcomeOpen(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("fixproof_judge_welcome_seen", "true");
+    }
+  };
+
+  const handleLaunchFromWelcome = () => {
+    handleCloseWelcome();
+    onLaunch();
+  };
+
+  const handleReplayWelcome = () => {
+    setIsJudgeWelcomeOpen(true);
+  };
+
   return (
     <div className="bg-white min-h-screen overflow-x-hidden selection:bg-teal-500/20">
-      <LandingNavbar onLaunch={onLaunch} />
-      <Hero onLaunch={onLaunch} />
+      <JudgeWelcomeOverlay
+        isOpen={isJudgeWelcomeOpen}
+        onClose={handleCloseWelcome}
+        onLaunchConsole={handleLaunchFromWelcome}
+      />
+      <LandingNavbar onLaunch={onLaunch} onReplayIntro={handleReplayWelcome} />
+      <Hero onLaunch={onLaunch} onReplayIntro={handleReplayWelcome} />
       <AgentsSection />
       <PipelineSection />
       <ShowcaseSection />
