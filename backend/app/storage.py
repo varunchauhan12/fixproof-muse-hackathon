@@ -74,6 +74,28 @@ class StorageConfig:
         return self.service_role_key or self.anon_key
 
 
+def validate_storage_config(mode: Optional[str] = None) -> None:
+    """
+    Validates that required Supabase Storage environment variables are set when
+    operating in cloud / Supabase mode. Fails fast with a clear exception if
+    required credentials are missing, preventing silent partial cloud operation.
+    """
+    raw_mode = (mode or os.getenv("FIXPROOF_DB_MODE") or os.getenv("STORAGE_BACKEND") or "local").strip().lower()
+    if raw_mode in ("supabase", "cloud"):
+        cfg = StorageConfig.from_env()
+        missing = []
+        if not cfg.supabase_url:
+            missing.append("SUPABASE_URL")
+        if not (cfg.service_role_key or cfg.anon_key):
+            missing.append("SUPABASE_SERVICE_ROLE_KEY")
+        if missing:
+            raise StorageConfigurationError(
+                f"FixProof is configured for cloud mode '{raw_mode}', but required Supabase storage "
+                f"credentials are missing: {', '.join(missing)}. "
+                f"Please set these environment variables to enable cloud persistence."
+            )
+
+
 class SupabaseStorageClient:
     """
     HTTP client for interacting with Supabase Storage REST API (v1).

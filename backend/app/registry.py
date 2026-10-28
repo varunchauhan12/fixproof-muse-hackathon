@@ -29,11 +29,12 @@ FRAMES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def is_cloud_mode() -> bool:
-    """Checks whether the application is running in cloud database mode."""
-    try:
-        return get_db_config().is_cloud
-    except Exception:
-        return False
+    """
+    Checks whether the application is running in cloud database mode.
+    Propagates DatabaseConfigurationError if cloud mode was explicitly requested
+    without required credentials, preventing silent fallback to local storage.
+    """
+    return get_db_config().is_cloud
 
 
 def load_assets_metadata() -> Dict[str, Dict[str, Any]]:

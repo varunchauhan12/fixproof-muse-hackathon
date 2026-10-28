@@ -19,7 +19,7 @@ import {
   EmailDetailedReportPayload,
 } from "./types";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 const noCacheHeaders = {
   "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -335,6 +335,15 @@ export function getAssetVideoUrl(assetId: string): string {
 
 export function getAssetFrameUrl(assetId: string, filename: string): string {
   return `${API_BASE}/api/vault/assets/${encodeURIComponent(assetId)}/frames/${encodeURIComponent(filename)}`;
+}
+
+export function getAssetThumbnailUrl(thumbnailUrl?: string | null): string {
+  if (!thumbnailUrl) return "";
+  if (thumbnailUrl.startsWith("http://") || thumbnailUrl.startsWith("https://")) {
+    return thumbnailUrl;
+  }
+  const cleanPath = thumbnailUrl.startsWith("/") ? thumbnailUrl : `/${thumbnailUrl}`;
+  return `${API_BASE}${cleanPath}`;
 }
 
 export async function getNemotronStatus(): Promise<NemotronStatus> {

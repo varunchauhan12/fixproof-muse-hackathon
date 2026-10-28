@@ -93,10 +93,7 @@ class ReferenceVault:
         elif vault_dir is not None:
             self.mode = "local"
         else:
-            try:
-                self.mode = get_db_config().mode.value
-            except Exception:
-                self.mode = "local"
+            self.mode = get_db_config().mode.value
 
         self.index_path = self.vault_dir / "faiss_vault.index"
         self.meta_path = self.vault_dir / "vault_metadata.json"
@@ -116,10 +113,7 @@ class ReferenceVault:
         if mode is not None:
             self.mode = mode.lower()
         else:
-            try:
-                self.mode = get_db_config().mode.value
-            except Exception:
-                self.mode = "local"
+            self.mode = get_db_config().mode.value
         logger.info(f"[Vault] Reloading reference vault in mode '{self.mode}'...")
         self.load_vault()
 

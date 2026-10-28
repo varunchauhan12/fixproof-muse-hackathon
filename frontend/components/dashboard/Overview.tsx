@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { AssetRecord, VaultStatus, MatchAnalysisResult } from "@/lib/types";
-import { formatBytes } from "@/lib/api";
+import { formatBytes, getAssetThumbnailUrl } from "@/lib/api";
 import { Skiper61MouseFollow } from "@/components/ui/Skiper61MouseFollow";
 
 interface OverviewProps {
@@ -478,7 +478,7 @@ export const Overview: React.FC<OverviewProps> = ({
                       <div className="w-14 h-9 rounded bg-[#141412] overflow-hidden shrink-0 flex items-center justify-center border border-[#302E29]">
                         {asset.thumbnail_url ? (
                           <img
-                            src={`http://localhost:8000${asset.thumbnail_url}`}
+                            src={getAssetThumbnailUrl(asset.thumbnail_url)}
                             alt=""
                             className="w-full h-full object-cover"
                           />

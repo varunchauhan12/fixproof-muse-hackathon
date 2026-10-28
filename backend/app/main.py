@@ -186,9 +186,14 @@ FRAMES_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.on_event("startup")
 def startup_event():
-    """Hydrates reference vault if cloud mode is enabled."""
+    """
+    Validates explicit cloud configuration and hydrates reference vault if cloud mode is enabled.
+    Fails fast with clear exceptions if any required cloud setting is missing.
+    """
     db_cfg = get_db_config()
     if db_cfg.is_cloud:
+        from app.storage import validate_storage_config
+        validate_storage_config(mode=db_cfg.mode.value)
         default_vault.reload(mode=db_cfg.mode.value)
 
 # Isolated storage directory for untrusted suspect videos and frames
