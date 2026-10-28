@@ -46,6 +46,25 @@ import {
   getAssetFrameUrl,
   formatDuration,
 } from "@/lib/api";
+import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
+
+const packageVerificationStepsConfig = [
+  {
+    id: "unzip",
+    label: "Reading tamper-evident ZIP archive",
+    detail: ["unpacking archive headers", "inspecting manifest.json", "validating evidence files"],
+  },
+  {
+    id: "sha256",
+    label: "Validating SHA-256 evidence integrity",
+    detail: ["computing checksums for keyframes", "cross-checking telemetry against manifest", "verifying zero modification"],
+  },
+  {
+    id: "crypto",
+    label: "Verifying Ed25519 digital signature",
+    detail: ["loading signing public key", "validating cryptographic signature", "confirming tamper-proof provenance"],
+  },
+];
 
 interface IncidentResponseProps {
   initialIncident?: MatchAnalysisResult | null;
@@ -101,6 +120,15 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [verifyingPackage, setVerifyingPackage] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<PackageVerificationResult | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+
+  const packageVerificationSteps = useAnimatedInvestigationSteps(
+    verifyingPackage,
+    packageVerificationStepsConfig,
+    {
+      isError: !!verificationError,
+      errorMsg: verificationError || undefined,
+    }
+  );
 
   // Copy feedback state
   const [copiedIncidentId, setCopiedIncidentId] = useState<boolean>(false);
@@ -1452,9 +1480,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
             </div>
 
             {verifyingPackage && (
-              <div className="flex items-center justify-center gap-2 text-[11px] text-[#eee7db] py-2">
-                <RefreshCw size={12} className="animate-spin" />
-                <span>Verifying package cryptographic checksums...</span>
+              <div className="p-3 bg-[#141312] border border-[rgba(238,231,219,0.08)] rounded-xl">
+                <AILoadingState steps={packageVerificationSteps} />
               </div>
             )}
 

@@ -56,6 +56,115 @@ import {
   emailDetailedReport,
   getSummaryDownloadUrl,
 } from "@/lib/api";
+import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
+
+const nemotronInvestigationStepsConfig = [
+  {
+    id: "telemetry",
+    label: "Retrieving forensic telemetry",
+    detail: [
+      "querying candidate frame correlations",
+      "loading timestamp intervals & metadata",
+      "indexing matched reference vault assets",
+    ],
+  },
+  {
+    id: "vision",
+    label: "Evaluating Nemotron Vision verification",
+    detail: [
+      "querying nvidia/Nemotron-3.5-Super-VL",
+      "inspecting keyframe visual correspondence",
+      "detecting feature alignments & contradictions",
+    ],
+  },
+  {
+    id: "heuristics",
+    label: "Analyzing visual distance metrics",
+    detail: [
+      "calculating 576-dim L2 distances",
+      "cross-checking 64-bit DCT pHash metrics",
+      "evaluating uncalibrated confidence heuristics",
+    ],
+  },
+  {
+    id: "synthesis",
+    label: "Nemotron forensic reasoning",
+    detail: [
+      "calling nvidia/Nemotron-3_5-Lightning",
+      "structuring non-adjudicative findings & citations",
+      "generating human review recommendation",
+    ],
+  },
+];
+
+const detailedReportStepsConfig = [
+  {
+    id: "bundle",
+    label: "Compiling immutable evidence bundle",
+    detail: [
+      "extracting suspect keyframe telemetry",
+      "retrieving matched vault reference frames",
+      "aggregating Nemotron-3.5-Super-VL visual records",
+    ],
+  },
+  {
+    id: "token_factory",
+    label: "Nebius Token Factory 120B reasoning",
+    detail: [
+      "invoking nvidia/nemotron-3-super-120b-a12b",
+      "synthesizing Sections A through I",
+      "enforcing non-adjudication & disclaimer invariants",
+    ],
+  },
+  {
+    id: "pdf_render",
+    label: "Rendering multi-page ReportLab PDF",
+    detail: [
+      "formatting executive evidence tables",
+      "embedding suspect and reference visual captures",
+      "generating PDF binary with chain-of-custody",
+    ],
+  },
+  {
+    id: "email",
+    label: "Dispatching PDF delivery via Resend",
+    detail: [
+      "encoding binary PDF as base64 attachment",
+      "verifying recipient email headers",
+      "recording persistent email audit log entry",
+    ],
+  },
+];
+
+const documentDraftStepsConfig = [
+  {
+    id: "facts",
+    label: "Importing verified forensic facts",
+    detail: [
+      "linking incident ID and observation timestamps",
+      "embedding candidate match telemetry",
+      "isolating verified reference titles",
+    ],
+  },
+  {
+    id: "declarations",
+    label: "Validating legal declarations & jurisdiction",
+    detail: [
+      "evaluating rights-holder representation",
+      "verifying statutory declarations",
+      "checking missing input fields",
+    ],
+  },
+  {
+    id: "drafting",
+    label: "Synthesizing legal document",
+    detail: [
+      "applying statutory non-infringement disclaimers",
+      "polishing legal terminology with Nemotron",
+      "generating editable preview for human review",
+    ],
+  },
+];
 
 interface NemotronCenterProps {
   incidents: MatchAnalysisResult[];
@@ -163,6 +272,36 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [retryEmailAddress, setRetryEmailAddress] = useState("");
   const [retryEmailResult, setRetryEmailResult] = useState<SendEmailResult | null>(null);
   const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
+
+  // Animated KokonutUI AI Loading Steps (Phase 3.5)
+  const isInvestigationActive = refreshingInvestigation || reportLoading;
+  const investigationSteps = useAnimatedInvestigationSteps(
+    isInvestigationActive,
+    nemotronInvestigationStepsConfig,
+    {
+      isError: !!investigationError,
+      errorMsg: investigationError || undefined,
+    }
+  );
+
+  const isDetailedReportActive = detailedReportState === "GENERATING" || detailedReportState === "EMAIL_SENDING";
+  const detailedReportSteps = useAnimatedInvestigationSteps(
+    isDetailedReportActive,
+    detailedReportStepsConfig,
+    {
+      isError: detailedReportState === "ERROR",
+      errorMsg: detailedReportError || undefined,
+    }
+  );
+
+  const documentDraftSteps = useAnimatedInvestigationSteps(
+    drafting,
+    documentDraftStepsConfig,
+    {
+      isError: !!draftError,
+      errorMsg: draftError || undefined,
+    }
+  );
 
   // Audit Log State
   const [showAuditModal, setShowAuditModal] = useState(false);
@@ -1162,10 +1301,9 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </div>
                   )}
 
-                  {reportLoading ? (
-                    <div className="py-4 text-center text-[12px] text-[#736d62] flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin" />
-                      <span>Loading investigation telemetry...</span>
+                  {isInvestigationActive ? (
+                    <div className="py-2 px-3 bg-[#171615] border border-[rgba(238,231,219,0.08)] rounded-xl">
+                      <AILoadingState steps={investigationSteps} />
                     </div>
                   ) : latestReport ? (
                     <div className="space-y-2 text-[12px]">
@@ -1325,6 +1463,17 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* KokonutUI Animated AI Loading State */}
+                {isDetailedReportActive && (
+                  <div className="p-4 bg-[#141312] border border-teal-800/40 rounded-xl space-y-2">
+                    <div className="text-[11px] font-bold text-[#5eead4] flex items-center gap-2">
+                      <Sparkles size={13} className="text-[#14b8a6] animate-pulse" />
+                      <span>Nebius Token Factory Evidence Synthesis Active</span>
+                    </div>
+                    <AILoadingState steps={detailedReportSteps} />
+                  </div>
+                )}
 
                 {/* State Machine Status & Error Messages */}
                 {detailedReportError && (
@@ -1933,6 +2082,16 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </span>
                   </button>
                 </div>
+
+                {drafting && (
+                  <div className="p-4 bg-[#141312] border border-[rgba(238,231,219,0.12)] rounded-xl space-y-2">
+                    <div className="text-[11px] font-bold text-[#f4efe6] flex items-center gap-2">
+                      <FileText size={13} className="text-[#14b8a6] animate-pulse" />
+                      <span>Drafting Document with Nemotron AI</span>
+                    </div>
+                    <AILoadingState steps={documentDraftSteps} />
+                  </div>
+                )}
 
                 {draftError && (
                   <div className="text-[11px] text-red-400 p-2.5 bg-red-950/25 rounded-lg border border-red-900/40">

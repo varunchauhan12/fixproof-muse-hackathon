@@ -33,6 +33,76 @@ import {
   screenSuspectUrl,
   formatBytes,
 } from "@/lib/api";
+import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
+
+const videoScanStepsConfig = [
+  {
+    id: "ingest",
+    label: "Suspect video ingest & container probe",
+    detail: [
+      "streaming chunks to forensic storage",
+      "validating video container and codec headers",
+      "computing SHA-256 integrity hash",
+    ],
+  },
+  {
+    id: "sampling",
+    label: "Temporal keyframe extraction",
+    detail: [
+      "sampling 1 keyframe every 5 seconds",
+      "decoding RGB frames at native aspect ratio",
+      "generating forensic review thumbnails",
+    ],
+  },
+  {
+    id: "faiss",
+    label: "MobileNetV3 & FAISS vault search",
+    detail: [
+      "computing 576-dim L2-normalized embeddings",
+      "querying nearest-neighbor IndexFlatL2 index",
+      "filtering candidate match intervals",
+    ],
+  },
+  {
+    id: "phash",
+    label: "Dual-layer pHash cross-check",
+    detail: [
+      "computing 64-bit DCT perceptual hash signatures",
+      "evaluating Hamming distance threshold",
+      "triggering pairwise Nemotron Vision verification check",
+    ],
+  },
+];
+
+const urlScreenStepsConfig = [
+  {
+    id: "ssrf",
+    label: "SSRF validation & URL metadata screening",
+    detail: [
+      "validating allowed video platform domain",
+      "probing stream metadata without downloading",
+      "resolving public video thumbnail",
+    ],
+  },
+  {
+    id: "vector",
+    label: "FAISS vector reference screening",
+    detail: [
+      "extracting 576-dim MobileNetV3 visual embedding",
+      "querying reference index for nearest neighbor",
+      "calculating initial L2 distance metric",
+    ],
+  },
+  {
+    id: "phash_url",
+    label: "Perceptual hash comparison",
+    detail: [
+      "computing 64-bit DCT pHash signature",
+      "cross-checking against official reference frames",
+      "triggering Nemotron Vision thumbnail verification",
+    ],
+  },
+];
 
 interface ThreatHunterProps {
   assets: AssetRecord[];
@@ -73,6 +143,16 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
     scanState === "processing" ||
     scanState === "matching" ||
     scanState === "finalizing";
+
+  const isUrlScreen = submissionMode === "url";
+  const hunterSteps = useAnimatedInvestigationSteps(
+    isScanActive,
+    isUrlScreen ? urlScreenStepsConfig : videoScanStepsConfig,
+    {
+      isError: scanState === "failed",
+      errorMsg: scanError || undefined,
+    }
+  );
 
   const addEvent = (type: ScanEvent["type"], text: string) => {
     const newEvent: ScanEvent = {
@@ -561,6 +641,11 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* KokonutUI Animated AI Loading State */}
+              <div className="p-3.5 bg-[#141312] border border-[rgba(238,231,219,0.08)] rounded-xl">
+                <AILoadingState steps={hunterSteps} />
+              </div>
 
               {/* Real 4-Stage Animated Pipeline */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
