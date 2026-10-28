@@ -56,6 +56,7 @@ import {
   emailDetailedReport,
   getSummaryDownloadUrl,
 } from "@/lib/api";
+import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
 
 const nemotronInvestigationStepsConfig = [
@@ -493,27 +494,37 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     }
   };
 
-  const handleDownloadSummary = () => {
-    if (!selectedIncident?.incident_id) return;
+  const handleDownloadSummary = async () => {
+    if (!selectedIncident?.incident_id) throw new Error("No incident selected");
     const url = getSummaryDownloadUrl(selectedIncident.incident_id);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Summary download failed (${res.status})`);
+    const blob = await res.blob();
+    const downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = downloadUrl;
     a.download = `fixproof-summary-${selectedIncident.incident_id.slice(0, 8)}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);
   };
 
-  const handleDownloadPdf = (reportId?: string) => {
+  const handleDownloadPdf = async (reportId?: string) => {
     const targetId = reportId || activeDetailedReport?.report_id;
-    if (!targetId) return;
+    if (!targetId) throw new Error("No detailed report selected for download");
     const url = getDetailedReportPdfUrl(targetId);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`PDF download failed (${res.status})`);
+    const blob = await res.blob();
+    const downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = downloadUrl;
     a.download = `fixproof-forensic-report-${targetId.slice(0, 8)}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);
   };
 
   const handleGenerateDetailedReport = async () => {
@@ -698,8 +709,8 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   };
 
   // Download draft as .txt
-  const handleDownloadDraft = () => {
-    if (!editedBody) return;
+  const handleDownloadDraft = async () => {
+    if (!editedBody) throw new Error("No draft content to export");
     const fullText = `Subject: ${editedSubject}\n\n${editedBody}`;
     const blob = new Blob([fullText], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -1270,19 +1281,14 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                           Model: {latestReport.model_id}
                         </span>
                       )}
-                      <button
-                        onClick={handleDownloadSummary}
-                        style={{
-                          background: "#1c1b1a",
-                          border: "1px solid rgba(238, 231, 219, 0.1)",
-                          color: "#ded7cb",
-                        }}
-                        className="px-2 py-1 rounded-md hover:bg-[#262422] text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Download short summary as text file"
-                      >
-                        <Download size={11} />
-                        <span>Download Summary</span>
-                      </button>
+                      <AnimatedDownloadButton
+                        label="Download Summary"
+                        preparingLabel="Downloading..."
+                        successLabel="Summary Saved"
+                        taskTitle={`Download Summary: ${selectedIncident?.incident_id?.slice(0, 8) || "incident"}`}
+                        onDownload={handleDownloadSummary}
+                        className="py-1 px-2.5 text-[10px]"
+                      />
                     </div>
                   </div>
 
@@ -1585,18 +1591,15 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDownloadPdf()}
-                          style={{
-                            background: "#1c1b1a",
-                            border: "1px solid rgba(20, 184, 166, 0.4)",
-                            color: "#5eead4",
-                          }}
-                          className="px-3 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <Download size={12} />
-                          <span>Download Detailed PDF</span>
-                        </button>
+                        <AnimatedDownloadButton
+                          label="Download Detailed PDF"
+                          preparingLabel="Preparing PDF..."
+                          successLabel="PDF Downloaded"
+                          variant="primary"
+                          taskTitle={`Download Detailed PDF: ${activeDetailedReport.report_id.slice(0, 8)}`}
+                          onDownload={() => handleDownloadPdf()}
+                          className="py-1.5 px-3 text-[11px]"
+                        />
                         <button
                           onClick={() => setShowDetailedSections((prev) => !prev)}
                           style={{
@@ -2188,18 +2191,14 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                         <span>{copySuccess ? "Copied" : "Copy"}</span>
                       </button>
 
-                      <button
-                        onClick={handleDownloadDraft}
-                        style={{
-                          background: "#1c1b1a",
-                          border: "1px solid rgba(238, 231, 219, 0.1)",
-                          color: "#ded7cb",
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Download size={13} />
-                        <span>Download</span>
-                      </button>
+                      <AnimatedDownloadButton
+                        label="Download Draft"
+                        preparingLabel="Exporting..."
+                        successLabel="Draft Saved"
+                        taskTitle={`Export Draft: ${activeDocType}`}
+                        onDownload={handleDownloadDraft}
+                        className="py-1.5 px-2.5 text-[11px]"
+                      />
 
                       <button
                         onClick={handleOpenEmailModal}

@@ -19,6 +19,7 @@ import {
   Search,
   Calendar,
   LayoutGrid,
+  Plus,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import CardStack, { DeckCard } from "@/components/kokonutui/card-stack";
@@ -31,6 +32,7 @@ import {
   formatBytes,
   formatDuration,
 } from "@/lib/api";
+import { useActivity } from "@/context/ActivityContext";
 
 interface AssetVaultProps {
   assets: AssetRecord[];
@@ -47,8 +49,10 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
   onRefresh,
   refreshing,
 }) => {
-  // Ingest form state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { addTask, updateTask } = useActivity();
+
+  // Ingest form state (max 3 files per upload batch)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [autoIndex, setAutoIndex] = useState<boolean>(true);
   const [ingestStage, setIngestStage] = useState<IngestStage>("idle");
   const [ingestError, setIngestError] = useState<string>("");
@@ -153,30 +157,95 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
     return result;
   }, [filteredAssets]);
 
+  const MAX_VAULT_FILES = 3;
+  const MAX_VAULT_FILE_SIZE = 500 * 1024 * 1024;
+  const ALLOWED_VAULT_EXTS = [
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".webm",
+    ".m4v",
+    ".flv",
+    ".wmv",
+    ".ts",
+    ".3gp",
+    ".ogg",
+    ".ogv",
+  ];
+
+  const validateAndAddVaultFiles = (incomingList: FileList | File[]) => {
+    if (ingestStage !== "idle") return;
+    setIngestError("");
+    setIngestSuccess("");
+
+    const newFiles = Array.from(incomingList);
+    if (newFiles.length === 0) return;
+
+    if (selectedFiles.length + newFiles.length > MAX_VAULT_FILES) {
+      setIngestError(
+        `Maximum 3 reference videos permitted per upload batch. You currently have ${selectedFiles.length} selected and attempted to add ${newFiles.length}. Please select no more than 3 videos.`
+      );
+      return;
+    }
+
+    const validated: File[] = [];
+    for (const file of newFiles) {
+      const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+      const isAllowed = ALLOWED_VAULT_EXTS.includes(ext) || file.type.startsWith("video/");
+      if (!isAllowed) {
+        setIngestError(
+          `Unsupported format for "${file.name}". Supported formats: MP4, MOV, AVI, MKV, WEBM, M4V, FLV, WMV, TS.`
+        );
+        return;
+      }
+      if (file.size > MAX_VAULT_FILE_SIZE) {
+        setIngestError(
+          `File "${file.name}" (${formatBytes(file.size)}) exceeds the 500 MB maximum limit.`
+        );
+        return;
+      }
+      const isDuplicate =
+        selectedFiles.some((f) => f.name === file.name && f.size === file.size) ||
+        validated.some((f) => f.name === file.name && f.size === file.size);
+      if (!isDuplicate) {
+        validated.push(file);
+      }
+    }
+
+    if (validated.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...validated]);
+    }
+  };
+
   // Handle file select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      setIngestError("");
-      setIngestSuccess("");
+    if (e.target.files) {
+      validateAndAddVaultFiles(e.target.files);
     }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Handle drag and drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0]);
-      setIngestError("");
-      setIngestSuccess("");
+    if (ingestStage !== "idle") return;
+    if (e.dataTransfer.files) {
+      validateAndAddVaultFiles(e.dataTransfer.files);
     }
   };
 
-  // Handle ingest submission
+  const handleRemoveFile = (index: number) => {
+    if (ingestStage !== "idle") return;
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setIngestError("");
+  };
+
+  // Handle ingest submission sequentially (Part 3)
   const handleIngest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile) {
-      setIngestError("Please select a video file to ingest.");
+    if (selectedFiles.length === 0) {
+      setIngestError("Please select at least one reference video to ingest.");
       return;
     }
 
@@ -184,37 +253,71 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
     setIngestSuccess("");
     setIngestStage("uploading");
 
-    try {
-      const t1 = setTimeout(() => setIngestStage("extracting"), 800);
-      const t2 = setTimeout(() => {
-        if (autoIndex) setIngestStage("embedding");
-      }, 2200);
+    const islandTaskId = addTask({
+      label: "Reference Vault Ingestion",
+      detail: `Queued ${selectedFiles.length} reference video${selectedFiles.length > 1 ? "s" : ""}...`,
+      status: "running",
+    });
 
-      const result = await ingestReferenceVideo(selectedFile, autoIndex);
+    const successSummaries: string[] = [];
+    const failSummaries: { name: string; error: string }[] = [];
 
-      clearTimeout(t1);
-      clearTimeout(t2);
-      setIngestStage("complete");
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      updateTask(islandTaskId, {
+        detail: `Ingesting reference video ${i + 1} of ${selectedFiles.length}: "${file.name}"`,
+        status: "running",
+      });
 
-      const framesCount = result.frame_count || result.frames?.length || 0;
-      const vecCount = result.indexed_vectors ?? (autoIndex ? framesCount : 0);
+      try {
+        const result = await ingestReferenceVideo(file, autoIndex);
+        const framesCount = result.frame_count || result.frames?.length || 0;
+        const vecCount = result.indexed_vectors ?? (autoIndex ? framesCount : 0);
+        successSummaries.push(
+          `"${result.filename}" (${framesCount} frames${autoIndex ? `, ${vecCount} vectors` : ""})`
+        );
+      } catch (err: any) {
+        failSummaries.push({
+          name: file.name,
+          error: err?.message || "Ingest failed",
+        });
+      }
+    }
 
+    setIngestStage("idle");
+    setSelectedFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onRefresh();
+
+    if (failSummaries.length === 0) {
       setIngestSuccess(
-        `Successfully ingested "${result.filename}". Extracted ${framesCount} frames${
-          autoIndex ? ` and vaulted ${vecCount} visual embeddings` : ""
-        }.`
+        `Successfully ingested ${successSummaries.length} reference video${
+          successSummaries.length > 1 ? "s" : ""
+        }: ${successSummaries.join("; ")}.`
       );
-
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      onRefresh();
-
-      setTimeout(() => {
-        setIngestStage("idle");
-      }, 4000);
-    } catch (err: any) {
-      setIngestStage("idle");
-      setIngestError(err.message || "Failed to ingest reference video. Please check backend connection.");
+      updateTask(islandTaskId, {
+        status: "done",
+        detail: `Successfully vaulted ${successSummaries.length} reference video(s)`,
+      });
+    } else if (successSummaries.length > 0) {
+      setIngestSuccess(
+        `Ingested ${successSummaries.length} reference video(s). ${failSummaries.length} failed: ${failSummaries
+          .map((f) => `${f.name} (${f.error})`)
+          .join(", ")}.`
+      );
+      updateTask(islandTaskId, {
+        status: "done",
+        detail: `Partial ingest: ${successSummaries.length} vaulted, ${failSummaries.length} failed`,
+      });
+    } else {
+      const errText = `All ${failSummaries.length} reference video uploads failed: ${failSummaries
+        .map((f) => `${f.name}: ${f.error}`)
+        .join("; ")}`;
+      setIngestError(errText);
+      updateTask(islandTaskId, {
+        status: "error",
+        detail: `Ingestion failed: ${failSummaries[0]?.error || "Backend error"}`,
+      });
     }
   };
 
@@ -386,51 +489,126 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
         </div>
 
         <form onSubmit={handleIngest} className="space-y-4">
-          {/* Drag & Drop Upload Zone */}
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: selectedFile
-                ? "2px solid #eee7db"
-                : "2px dashed rgba(238, 231, 219, 0.12)",
-              background: selectedFile ? "rgba(238, 231, 219, 0.04)" : "#1a1918",
-              borderRadius: 12,
-            }}
-            className="p-6 text-center cursor-pointer transition-all hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.22)]"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.flv,.wmv,.ts,.3gp,.ogg,.ogv,video/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            {selectedFile ? (
-              <div className="flex items-center justify-center gap-3">
-                <FileVideo size={28} className="text-[#eee7db] shrink-0" />
-                <div className="text-left">
-                  <p className="text-[13px] font-bold text-[#f4efe6] truncate max-w-md m-0">
-                    {selectedFile.name}
-                  </p>
-                  <p className="text-[11px] text-[#8e887d] mt-0.5 m-0">
-                    {formatBytes(selectedFile.size)} • Click or drop another file to replace
-                  </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.flv,.wmv,.ts,.3gp,.ogg,.ogv,video/*"
+            multiple
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {selectedFiles.length === 0 ? (
+            /* Drag & Drop Upload Zone */
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: "2px dashed rgba(238, 231, 219, 0.12)",
+                background: "#1a1918",
+                borderRadius: 12,
+              }}
+              className="p-6 text-center cursor-pointer transition-all hover:bg-[#201f1d] hover:border-teal-500/30"
+            >
+              <UploadCloud size={30} className="mx-auto text-teal-400 mb-2 opacity-80" />
+              <p className="text-[13px] font-semibold text-[#f4efe6] m-0">
+                Select official reference videos or drag and drop (Max 3 videos)
+              </p>
+              <p className="text-[11px] text-[#736d62] mt-1">
+                MP4, MOV, AVI, MKV, WEBM, M4V, FLV, WMV, TS (Max 500 MB per video)
+              </p>
+            </div>
+          ) : (
+            /* Selected Reference Files Container */
+            <div
+              style={{
+                background: "#1a1918",
+                border: "1px solid rgba(238, 231, 219, 0.12)",
+                borderRadius: 12,
+              }}
+              className="p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between text-[12px] pb-1 border-b border-[rgba(238,231,219,0.06)]">
+                <span className="font-bold text-[#f4efe6]">
+                  {selectedFiles.length} / {MAX_VAULT_FILES} reference videos selected{" "}
+                  <span className="text-[#8e887d] font-mono text-[11px]">
+                    ({formatBytes(selectedFiles.reduce((acc, f) => acc + f.size, 0))} total)
+                  </span>
+                </span>
+
+                <div className="flex items-center gap-2">
+                  {selectedFiles.length < MAX_VAULT_FILES && ingestStage === "idle" && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-2.5 py-1 rounded bg-[#242220] hover:bg-[#2c2a27] text-teal-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Plus size={12} />
+                      <span>Add Video</span>
+                    </button>
+                  )}
+                  {ingestStage === "idle" && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFiles([])}
+                      className="px-2 py-1 text-[#8e887d] hover:text-[#f4efe6] text-[11px] cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div>
-                <UploadCloud size={30} className="mx-auto text-[#8e887d] mb-2 opacity-80" />
-                <p className="text-[13px] font-semibold text-[#f4efe6] m-0">
-                  Select official reference video or drag and drop
-                </p>
-                <p className="text-[11px] text-[#736d62] mt-1">
-                  MP4, MOV, AVI, MKV, WEBM, M4V, FLV, WMV, TS (Max 500 MB)
-                </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {selectedFiles.map((file, idx) => (
+                  <div
+                    key={`${file.name}-${idx}`}
+                    style={{
+                      background: "#171615",
+                      border: "1px solid rgba(238, 231, 219, 0.1)",
+                      borderRadius: 10,
+                    }}
+                    className="p-3 flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 7,
+                          background: "rgba(20, 184, 166, 0.12)",
+                          color: "#5eead4",
+                        }}
+                        className="flex items-center justify-center shrink-0 font-mono text-[11px] font-bold"
+                      >
+                        #{idx + 1}
+                      </div>
+                      <div className="truncate">
+                        <p className="text-[12px] font-bold text-[#f4efe6] truncate m-0">
+                          {file.name}
+                        </p>
+                        <p className="text-[10px] text-[#8e887d] m-0 font-mono">
+                          {formatBytes(file.size)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {ingestStage === "idle" && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(idx)}
+                        className="text-[#8e887d] hover:text-red-400 p-1 rounded cursor-pointer shrink-0"
+                        title="Remove reference video"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Options & Action Row */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
@@ -439,7 +617,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                 type="checkbox"
                 checked={autoIndex}
                 onChange={(e) => setAutoIndex(e.target.checked)}
-                className="w-4 h-4 rounded text-[#eee7db] bg-[#1a1918] border-[rgba(238,231,219,0.2)] focus:ring-0"
+                className="w-4 h-4 rounded text-teal-500 bg-[#1a1918] border-[rgba(238,231,219,0.2)] focus:ring-0"
               />
               <span className="text-[12px] text-[#ded7cb] font-medium">
                 Auto-index visual vectors into FAISS reference vault immediately
@@ -448,14 +626,14 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
 
             <button
               type="submit"
-              disabled={!selectedFile || ingestStage !== "idle"}
+              disabled={selectedFiles.length === 0 || ingestStage !== "idle"}
               style={{
                 background:
-                  !selectedFile || ingestStage !== "idle"
+                  selectedFiles.length === 0 || ingestStage !== "idle"
                     ? "#242220"
                     : "#eee7db",
                 color:
-                  !selectedFile || ingestStage !== "idle"
+                  selectedFiles.length === 0 || ingestStage !== "idle"
                     ? "#736d62"
                     : "#141312",
               }}
@@ -464,12 +642,14 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               {ingestStage !== "idle" ? (
                 <>
                   <Loader2 size={13} className="animate-spin text-[#eee7db]" />
-                  <span>Processing Stream...</span>
+                  <span>Ingesting Batch...</span>
                 </>
               ) : (
                 <>
                   <ShieldCheck size={15} />
-                  <span>Ingest Reference Video</span>
+                  <span>
+                    Ingest {selectedFiles.length > 0 ? `${selectedFiles.length} Video${selectedFiles.length > 1 ? "s" : ""}` : "Reference Video"}
+                  </span>
                 </>
               )}
             </button>

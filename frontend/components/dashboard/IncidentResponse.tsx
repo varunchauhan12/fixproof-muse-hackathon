@@ -48,6 +48,7 @@ import {
   getAssetFrameUrl,
   formatDuration,
 } from "@/lib/api";
+import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
 
 const packageVerificationStepsConfig = [
@@ -201,7 +202,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   // Export cryptographically signed evidence package (ZIP)
   const handleExportPackage = async () => {
     const incidentId = selectedIncident?.incident_id;
-    if (!incidentId) return;
+    if (!incidentId) throw new Error("No incident selected");
 
     setExportingPackage(true);
     setExportError(null);
@@ -218,6 +219,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to export evidence package.";
       setExportError(msg);
+      throw err;
     } finally {
       setExportingPackage(false);
     }
@@ -917,20 +919,15 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       )}
 
                       {/* Export Evidence Package ZIP */}
-                      <button
-                        onClick={handleExportPackage}
-                        disabled={exportingPackage}
-                        style={{
-                          background: "#242220",
-                          border: "1px solid rgba(238, 231, 219, 0.12)",
-                          color: "#ded7cb",
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:text-[#f4efe6] hover:bg-[#2c2a27] text-[10.5px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                        title="Export cryptographically signed evidence package (ZIP)"
-                      >
-                        <Download size={11} className={exportingPackage ? "animate-bounce" : ""} />
-                        <span>{exportingPackage ? "Exporting..." : "Export ZIP"}</span>
-                      </button>
+                      <AnimatedDownloadButton
+                        label="Export ZIP"
+                        preparingLabel="Exporting ZIP..."
+                        successLabel="ZIP Exported"
+                        taskTitle={`Export Evidence Package: ${selectedIncident?.incident_id?.slice(0, 8) || "incident"}`}
+                        onDownload={handleExportPackage}
+                        disabled={exportingPackage || !selectedIncident}
+                        className="py-1 px-2.5 text-[10.5px]"
+                      />
 
                       {/* Verify Package ZIP */}
                       <button
@@ -1656,19 +1653,15 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         Export an Ed25519 digitally signed ZIP containing raw frame matches, MobileNet embeddings, SHA-256 asset checksums, and cryptographic chain-of-custody metadata suitable for courtroom or platform disputes.
                       </p>
                       <div className="pt-1 flex items-center gap-2">
-                        <button
-                          onClick={handleExportPackage}
-                          disabled={exportingPackage}
-                          style={{
-                            background: "#242220",
-                            border: "1px solid rgba(238, 231, 219, 0.12)",
-                            color: "#f4efe6",
-                          }}
-                          className="px-3 py-1.5 rounded-lg hover:bg-[#2c2a27] text-[10.5px] font-bold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          <Download size={11} className={exportingPackage ? "animate-bounce" : ""} />
-                          <span>{exportingPackage ? "Packaging..." : "Export ZIP Package"}</span>
-                        </button>
+                        <AnimatedDownloadButton
+                          label="Export ZIP Package"
+                          preparingLabel="Packaging ZIP..."
+                          successLabel="ZIP Exported"
+                          taskTitle={`Export Evidence Package: ${selectedIncident?.incident_id?.slice(0, 8) || "incident"}`}
+                          onDownload={handleExportPackage}
+                          disabled={exportingPackage || !selectedIncident}
+                          className="py-1.5 px-3 text-[10.5px]"
+                        />
                         <button
                           onClick={() => setShowVerifyModal(true)}
                           style={{

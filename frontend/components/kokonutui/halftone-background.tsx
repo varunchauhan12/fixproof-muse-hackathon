@@ -28,6 +28,10 @@ export interface HalftoneBackgroundProps {
   angle?: number;
   /** Show a loupe under the cursor that prints at twice the resolution. */
   loupe?: boolean;
+  /** Explicit ink color for the dots (e.g. "#0d9488"). */
+  inkColor?: string;
+  /** Center the sphere in the container. */
+  center?: boolean;
 }
 
 // The loupe's radius in px, and how much finer its screen is.
@@ -46,14 +50,14 @@ type Field = (x: number, y: number) => number;
  * A sphere lit from the upper left, with a soft shadow on the ground. With
  * `light` ink (a dark page) the lit side is printed instead of the shade.
  */
-function sphereField(width: number, height: number, light: boolean): Field {
+function sphereField(width: number, height: number, light: boolean, center = false): Field {
   // Matches the @3xl breakpoint: beside the copy when wide, above it when not.
   const wide = width >= 768;
   const r = wide
-    ? Math.min(width, height) * 0.34
-    : Math.min(width * 0.34, height * 0.2);
-  const cx = wide ? width * 0.7 : width * 0.54;
-  const cy = height * (wide ? 0.48 : 0.27);
+    ? Math.min(width, height) * 0.38
+    : Math.min(width * 0.38, height * 0.25);
+  const cx = center ? width * 0.5 : (wide ? width * 0.7 : width * 0.54);
+  const cy = center ? height * 0.5 : (height * (wide ? 0.48 : 0.27));
   const sun = { x: -0.55, y: -0.6, z: 0.58 };
   const shadow = {
     x: cx + r * 0.35,
@@ -169,6 +173,8 @@ export default function HalftoneBackground({
   cell = 9,
   angle = 45,
   loupe = true,
+  inkColor,
+  center = false,
 }: HalftoneBackgroundProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -212,7 +218,7 @@ export default function HalftoneBackground({
     const lens = { x: 0, y: 0, tx: 0, ty: 0, r: 0, target: 0, placed: false };
 
     const readTheme = () => {
-      const color = getComputedStyle(inkEl).color;
+      const color = inkColor || getComputedStyle(inkEl).color;
       // Light ink means a dark page: print the light, not the shadow, so
       // the picture still reads the right way round. Read through a 1px
       // canvas, which understands any CSS color, oklch included.
@@ -253,7 +259,7 @@ export default function HalftoneBackground({
       }
       baseCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       baseCtx.clearRect(0, 0, width, height);
-      baseCtx.fillStyle = getComputedStyle(inkEl).color;
+      baseCtx.fillStyle = inkColor || getComputedStyle(inkEl).color;
       baseCtx.beginPath();
       screen(baseCtx, field, {
         width,
@@ -279,7 +285,7 @@ export default function HalftoneBackground({
       ctx.arc(lens.x, lens.y, lens.r, 0, Math.PI * 2);
       ctx.clip();
       ctx.clearRect(lens.x - lens.r, lens.y - lens.r, lens.r * 2, lens.r * 2);
-      ctx.fillStyle = getComputedStyle(inkEl).color;
+      ctx.fillStyle = inkColor || getComputedStyle(inkEl).color;
       ctx.beginPath();
       const size = lens.r * 2 + pitch;
       const fine = pitch / LOUPE_DETAIL;
@@ -297,7 +303,7 @@ export default function HalftoneBackground({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.beginPath();
       ctx.arc(lens.x, lens.y, lens.r - 0.5, 0, Math.PI * 2);
-      ctx.strokeStyle = getComputedStyle(inkEl).color;
+      ctx.strokeStyle = inkColor || getComputedStyle(inkEl).color;
       ctx.globalAlpha = 0.25;
       ctx.lineWidth = 1;
       ctx.stroke();
@@ -319,7 +325,7 @@ export default function HalftoneBackground({
       field =
         (image?.complete && image.naturalWidth > 0
           ? imageField(image, width, height, invert)
-          : null) ?? sphereField(width, height, invert);
+          : null) ?? sphereField(width, height, invert, center);
       renderBase();
       draw();
     };
@@ -367,6 +373,9 @@ export default function HalftoneBackground({
 
     readTheme();
     canvas.style.opacity = "1";
+    if (introStart === 0) {
+      introStart = performance.now();
+    }
 
     if (src) {
       image = new Image();
@@ -477,7 +486,7 @@ export default function HalftoneBackground({
       root.removeEventListener("pointercancel", onHide);
       root.removeEventListener("pointerleave", onHide);
     };
-  }, [src, cell, angle, loupe]);
+  }, [src, cell, angle, loupe, inkColor, center]);
 
   return (
     <div

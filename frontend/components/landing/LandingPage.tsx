@@ -1050,10 +1050,12 @@ export const Hero = ({
         style={{ minHeight: 600 }}
       >
         {/* Kokonut UI Halftone Background Layer behind Globe */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40 mix-blend-multiply flex items-center justify-center">
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
           <HalftoneBackground
-            className="!bg-transparent text-teal-800/40 w-full h-full min-h-0"
-            cell={16}
+            className="!bg-transparent w-full h-full min-h-0 opacity-75"
+            cell={14}
+            inkColor="#0d9488"
+            center={true}
             loupe={false}
           >
             {null}
