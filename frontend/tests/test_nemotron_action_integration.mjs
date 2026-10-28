@@ -40,17 +40,28 @@ async function runTests() {
     failed++;
   }
 
-  // 2. Fetch incidents to get a real incident ID
+  // 2. Fetch incidents to get a real incident ID with matches
   console.log(`\n[2] Testing GET /api/incidents...`);
   let testIncidentId = null;
+  let cleanIncidentId = null;
   try {
     const res = await fetch(`${BASE_URL}/api/incidents`);
     assert(res.status === 200, `Incident list returns 200`);
     const incidents = await res.json();
     assert(Array.isArray(incidents) && incidents.length > 0, `Returned ${incidents.length} incidents`);
-    if (incidents.length > 0) {
+    
+    const matchedInc = incidents.find((i) => (i.candidate_matches_found || 0) > 0);
+    const cleanInc = incidents.find((i) => (i.candidate_matches_found || 0) === 0 || i.overall_status === "CLEAN");
+    
+    if (matchedInc) {
+      testIncidentId = matchedInc.incident_id;
+      console.log(`  Selected matched incident ID for testing: ${testIncidentId} (matches: ${matchedInc.candidate_matches_found})`);
+    } else {
       testIncidentId = incidents[0].incident_id;
-      console.log(`  Selected incident ID for testing: ${testIncidentId}`);
+    }
+    if (cleanInc) {
+      cleanIncidentId = cleanInc.incident_id;
+      console.log(`  Selected clean incident ID for testing: ${cleanIncidentId}`);
     }
   } catch (err) {
     console.error(`Incident fetch failed: ${err.message}`);
@@ -202,10 +213,16 @@ async function runTests() {
     failed++;
   }
 
-  // 8. Test Confirmed Send with Resend Unconfigured
-  console.log(`\n[8] Testing confirmed send with unconfigured Resend...`);
+  // 8. Test Confirmed Send Safeguards (Unconfigured or Failed Provider Request)
+  console.log(`\n[8] Testing confirmed send safeguards (Unconfigured or Failed Provider Request)...`);
   let testAuditId = null;
+  let isEmailConfigured = false;
   try {
+    const statusRes = await fetch(`${BASE_URL}/api/nemotron/email-status`);
+    const statusData = await statusRes.json();
+    isEmailConfigured = Boolean(statusData.configured);
+    console.log(`  Current email provider configuration status: configured=${isEmailConfigured}`);
+
     const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -219,14 +236,18 @@ async function runTests() {
         rights_declaration_confirmed: true,
       }),
     });
-    assert(res.status === 200, `Returns 200 without simulating send`);
+    assert(res.status === 200, `Returns 200 without throwing 500`);
     const result = await res.json();
-    assert(result.success === false, `Result success is false`);
-    assert(result.status === "NOT_CONFIGURED", `Result status is NOT_CONFIGURED (got ${result.status})`);
+    assert(result.success === false, `Result success is false (safeguard enforced)`);
+    if (isEmailConfigured) {
+      assert(result.status === "FAILED", `Configured test dispatch correctly reports FAILED (got ${result.status})`);
+    } else {
+      assert(result.status === "NOT_CONFIGURED", `Unconfigured dispatch correctly reports NOT_CONFIGURED (got ${result.status})`);
+    }
     assert(Boolean(result.audit_id), `Returns valid audit_id`);
     testAuditId = result.audit_id;
   } catch (err) {
-    console.error(`Unconfigured send check failed: ${err.message}`);
+    console.error(`Send safeguard check failed: ${err.message}`);
     failed++;
   }
 
@@ -239,14 +260,85 @@ async function runTests() {
     assert(Array.isArray(logs) && logs.length > 0, `Returned ${logs.length} audit log entries`);
     if (testAuditId) {
       const match = logs.find((l) => l.audit_id === testAuditId);
-      assert(Boolean(match), `Audit log contains the unconfigured attempt entry`);
+      assert(Boolean(match), `Audit log contains the attempt entry`);
       if (match) {
-        assert(match.status === "NOT_CONFIGURED", `Audit entry records NOT_CONFIGURED`);
+        if (isEmailConfigured) {
+          assert(match.status === "FAILED", `Audit entry records FAILED`);
+        } else {
+          assert(match.status === "NOT_CONFIGURED", `Audit entry records NOT_CONFIGURED`);
+        }
         assert(match.provider === "Resend", `Audit entry records provider Resend`);
       }
     }
   } catch (err) {
     console.error(`Audit log check failed: ${err.message}`);
+    failed++;
+  }
+
+  // 10. Clean Incident Drafting Safeguards
+  console.log(`\n[10] Testing drafting against CLEAN incident (Forensic Evidence Integrity)...`);
+  try {
+    const targetCleanId = cleanIncidentId || testIncidentId;
+
+    const payload = {
+      incident_id: targetCleanId,
+      document_type: "COPYRIGHT_NOTICE",
+      rights_holder: "Broadcaster Corp",
+      contact_email: "legal@broadcaster.example",
+      work_title: "Protected Stream",
+      recipient_email: "dmca@host.example",
+      use_ai_synthesis: false,
+    };
+    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    assert(res.status === 200, `Clean incident draft returns 200`);
+    const doc = await res.json();
+    assert(doc.status === "UNVERIFIED_EVIDENCE", `Status is UNVERIFIED_EVIDENCE for clean incident (got ${doc.status})`);
+    assert(doc.body.includes("not calibrated probabilities of copyright infringement"), `Body includes uncalibrated heuristic notice`);
+    assert(doc.body.includes("recorded no confirmed perceptual match above threshold"), `Body correctly states no confirmed match`);
+  } catch (err) {
+    console.error(`Clean incident safeguard test failed: ${err.message}`);
+    failed++;
+  }
+
+  // 11. Invalid Document Type Rejection
+  console.log(`\n[11] Testing POST /api/nemotron/draft-document with invalid document_type...`);
+  try {
+    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        incident_id: testIncidentId,
+        document_type: "INVALID_DOCUMENT_TYPE",
+      }),
+    });
+    assert(res.status === 400, `Invalid document type returns 400 (got ${res.status})`);
+  } catch (err) {
+    console.error(`Invalid document type test failed: ${err.message}`);
+    failed++;
+  }
+
+  // 12. Invalid Email Format Rejection on Send
+  console.log(`\n[12] Testing POST /api/nemotron/send-email with invalid recipient format...`);
+  try {
+    const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        incident_id: testIncidentId,
+        document_type: "REVENUE_SHARE_OFFER",
+        recipient_email: "not-an-email-address",
+        subject: "Offer",
+        body: "Offer Body",
+        user_confirmed: true,
+      }),
+    });
+    assert(res.status === 400, `Invalid email rejected with 400 (got ${res.status})`);
+  } catch (err) {
+    console.error(`Invalid email format test failed: ${err.message}`);
     failed++;
   }
 

@@ -43,6 +43,7 @@ import {
   getEmailAuditLog,
   getIncidentLatestReport,
   getIncidentReportHistory,
+  getReportById,
   investigateIncident,
 } from "@/lib/api";
 
@@ -101,6 +102,25 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [currentDraft, setCurrentDraft] = useState<DraftDocumentResult | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+
+  // Per-incident draft storage to avoid state leaking or evidence mixing across incidents
+  const [draftsByIncident, setDraftsByIncident] = useState<
+    Record<
+      string,
+      {
+        draft: DraftDocumentResult;
+        editedSubject: string;
+        editedBody: string;
+        docType: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER";
+      }
+    >
+  >({});
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  const [saveSuccessToast, setSaveSuccessToast] = useState(false);
+
+  // Historical Report State
+  const [viewingHistorySnapshot, setViewingHistorySnapshot] = useState<string | null>(null);
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
 
   // Editor State
   const [editedSubject, setEditedSubject] = useState("");
@@ -236,9 +256,108 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     });
   }, [incidents, incidentSearchQuery, incidentStatusFilter]);
 
-  // Handle Generate Draft
-  const handleGenerateDraft = async () => {
+  // Safely switch between incidents with draft context isolation
+  const handleSelectIncident = (incId: string) => {
+    if (incId === selectedIncidentId) return;
+
+    // Cache current draft edits if present
+    if (selectedIncidentId && currentDraft) {
+      setDraftsByIncident((prev) => ({
+        ...prev,
+        [selectedIncidentId]: {
+          draft: currentDraft,
+          editedSubject,
+          editedBody,
+          docType: activeDocType,
+        },
+      }));
+    }
+
+    setSelectedIncidentId(incId);
+    setShowRegenConfirm(false);
+    setDraftError(null);
+    setInvestigationError(null);
+    setViewingHistorySnapshot(null);
+    setShowHistoryDropdown(false);
+
+    // Restore cached draft if available, or reset clean
+    const existing = draftsByIncident[incId];
+    if (existing) {
+      setCurrentDraft(existing.draft);
+      setEditedSubject(existing.editedSubject);
+      setEditedBody(existing.editedBody);
+      setActiveDocType(existing.docType);
+    } else {
+      setCurrentDraft(null);
+      setEditedSubject("");
+      setEditedBody("");
+    }
+
+    // Refresh work title for newly selected incident
+    const newInc = incidents.find((i) => i.incident_id === incId);
+    if (newInc && newInc.matched_assets && newInc.matched_assets.length > 0) {
+      const firstMatchId = newInc.matched_assets[0];
+      const assetRec = assets.find((a) => a.asset_id === firstMatchId);
+      setWorkTitle(assetRec ? assetRec.filename.replace(/\.[^/.]+$/, "") : `Official Reference (${firstMatchId.slice(0, 8)})`);
+    } else {
+      setWorkTitle("");
+    }
+  };
+
+  // Select historical report snapshot
+  const handleSelectReportVersion = async (item: ReportHistoryItem) => {
+    setShowHistoryDropdown(false);
+    setReportLoading(true);
+    setInvestigationError(null);
+    try {
+      const rep = await getReportById(item.report_id);
+      setLatestReport(rep);
+      setViewingHistorySnapshot(item.report_id);
+    } catch (err: any) {
+      setInvestigationError(err.message || "Failed to load prior report version");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // Revert back to latest report
+  const handleReturnToLatestReport = () => {
+    setViewingHistorySnapshot(null);
+    if (selectedIncident?.incident_id) {
+      loadIncidentReports(selectedIncident.incident_id);
+    }
+  };
+
+  // Save manual draft edits into session
+  const handleSaveDraftEdits = () => {
+    if (!currentDraft || !selectedIncident?.incident_id) return;
+    const updated: DraftDocumentResult = {
+      ...currentDraft,
+      subject: editedSubject,
+      body: editedBody,
+    };
+    setCurrentDraft(updated);
+    setDraftsByIncident((prev) => ({
+      ...prev,
+      [String(selectedIncident.incident_id)]: {
+        draft: updated,
+        editedSubject,
+        editedBody,
+        docType: activeDocType,
+      },
+    }));
+    setSaveSuccessToast(true);
+    setTimeout(() => setSaveSuccessToast(false), 2200);
+  };
+
+  // Handle Generate Draft with Overwrite Protection
+  const handleGenerateDraft = async (force: boolean = false) => {
     if (!selectedIncident?.incident_id) return;
+    if (currentDraft && !force) {
+      setShowRegenConfirm(true);
+      return;
+    }
+    setShowRegenConfirm(false);
     setDrafting(true);
     setDraftError(null);
     try {
@@ -263,6 +382,15 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
       setCurrentDraft(result);
       setEditedSubject(result.subject);
       setEditedBody(result.body);
+      setDraftsByIncident((prev) => ({
+        ...prev,
+        [String(selectedIncident.incident_id)]: {
+          draft: result,
+          editedSubject: result.subject,
+          editedBody: result.body,
+          docType: activeDocType,
+        },
+      }));
     } catch (err: any) {
       setDraftError(err.message || "Failed to generate draft");
     } finally {
@@ -596,7 +724,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                 return (
                   <div
                     key={incId}
-                    onClick={() => setSelectedIncidentId(incId)}
+                    onClick={() => handleSelectIncident(incId)}
                     style={{
                       background: isSelected ? "#22201e" : "#141312",
                       border: isSelected
@@ -706,6 +834,59 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       />
                       <span>Refresh Report</span>
                     </button>
+
+                    {reportHistory.length > 0 && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowHistoryDropdown((prev) => !prev)}
+                          style={{
+                            background: viewingHistorySnapshot ? "rgba(20, 184, 166, 0.15)" : "#1c1b1a",
+                            border: viewingHistorySnapshot
+                              ? "1px solid rgba(20, 184, 166, 0.4)"
+                              : "1px solid rgba(238, 231, 219, 0.1)",
+                            color: viewingHistorySnapshot ? "#5eead4" : "#ded7cb",
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <History size={12} />
+                          <span>History ({reportHistory.length})</span>
+                        </button>
+
+                        {showHistoryDropdown && (
+                          <div
+                            style={{
+                              background: "#171615",
+                              border: "1px solid rgba(238, 231, 219, 0.15)",
+                              borderRadius: 10,
+                            }}
+                            className="absolute right-0 mt-1 w-64 p-2 shadow-2xl z-20 space-y-1 text-[11px]"
+                          >
+                            <div className="text-[10px] font-bold text-[#8e887d] px-2 py-1 uppercase tracking-wider">
+                              Report History Snapshots
+                            </div>
+                            {reportHistory.map((item, idx) => (
+                              <button
+                                key={item.report_id}
+                                onClick={() => handleSelectReportVersion(item)}
+                                className={`w-full text-left px-2 py-1.5 rounded-md hover:bg-[#262422] transition-colors cursor-pointer flex flex-col ${
+                                  viewingHistorySnapshot === item.report_id ? "bg-[#262422] text-[#14b8a6]" : "text-[#ded7cb]"
+                                }`}
+                              >
+                                <div className="font-semibold flex items-center justify-between">
+                                  <span>Version {reportHistory.length - idx}</span>
+                                  <span className="text-[9px] text-[#8e887d] font-mono">
+                                    {new Date(item.created_at).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-[#8e887d] truncate">
+                                  {item.recommended_action} • {item.model_id}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -799,6 +980,21 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       </span>
                     )}
                   </div>
+
+                  {viewingHistorySnapshot && (
+                    <div className="p-2 bg-teal-950/30 border border-teal-800/40 rounded-lg flex items-center justify-between text-[11px] text-teal-300">
+                      <div className="flex items-center gap-1.5">
+                        <History size={13} />
+                        <span>Viewing historical snapshot ({viewingHistorySnapshot.slice(0, 8)})</span>
+                      </div>
+                      <button
+                        onClick={handleReturnToLatestReport}
+                        className="text-xs font-bold underline hover:text-white cursor-pointer"
+                      >
+                        Return to Latest
+                      </button>
+                    </div>
+                  )}
 
                   {reportLoading ? (
                     <div className="py-4 text-center text-[12px] text-[#736d62] flex items-center justify-center gap-2">
@@ -1105,6 +1301,32 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   </div>
                 </div>
 
+                {/* Overwrite Confirmation Warning */}
+                {showRegenConfirm && (
+                  <div className="p-3 bg-amber-950/25 border border-amber-800/40 rounded-lg text-[11px] text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                      <span>
+                        A draft already exists for this incident. Regenerating will replace existing draft text and edits.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleGenerateDraft(true)}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
+                      >
+                        Confirm Overwrite
+                      </button>
+                      <button
+                        onClick={() => setShowRegenConfirm(false)}
+                        className="px-2.5 py-1 bg-[#262422] hover:bg-[#33302d] text-[#ded7cb] rounded text-[11px] font-semibold cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Synthesis Options & Generate Action */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-[rgba(238,231,219,0.06)]">
                   <label className="flex items-center gap-2 cursor-pointer text-[11px] text-[#ded7cb]">
@@ -1118,7 +1340,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   </label>
 
                   <button
-                    onClick={handleGenerateDraft}
+                    onClick={() => handleGenerateDraft(false)}
                     disabled={drafting}
                     style={{
                       background:
@@ -1163,18 +1385,26 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                 >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span
                           style={{
                             background:
                               currentDraft.status === "READY_FOR_REVIEW"
                                 ? "rgba(34, 197, 94, 0.15)"
+                                : currentDraft.status === "UNVERIFIED_EVIDENCE"
+                                ? "rgba(239, 68, 68, 0.15)"
                                 : "rgba(234, 179, 8, 0.15)",
                             color:
-                              currentDraft.status === "READY_FOR_REVIEW" ? "#4ade80" : "#facc15",
+                              currentDraft.status === "READY_FOR_REVIEW"
+                                ? "#4ade80"
+                                : currentDraft.status === "UNVERIFIED_EVIDENCE"
+                                ? "#f87171"
+                                : "#facc15",
                             border: `1px solid ${
                               currentDraft.status === "READY_FOR_REVIEW"
                                 ? "rgba(34, 197, 94, 0.3)"
+                                : currentDraft.status === "UNVERIFIED_EVIDENCE"
+                                ? "rgba(239, 68, 68, 0.3)"
                                 : "rgba(234, 179, 8, 0.3)"
                             }`,
                           }}
@@ -1182,12 +1412,19 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                         >
                           {currentDraft.status === "READY_FOR_REVIEW"
                             ? "Draft Ready for Review"
+                            : currentDraft.status === "UNVERIFIED_EVIDENCE"
+                            ? "Unverified Evidence (CLEAN Incident)"
                             : "Evidence Incomplete"}
                         </span>
-                        {currentDraft.ai_enhanced && (
-                          <span className="text-[10px] text-[#14b8a6] flex items-center gap-1">
+                        {currentDraft.ai_enhanced ? (
+                          <span className="text-[10px] text-[#14b8a6] bg-[rgba(20,184,166,0.12)] border border-[rgba(20,184,166,0.3)] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
                             <Sparkles size={11} />
-                            <span>Nemotron Polished</span>
+                            <span>Nemotron AI Synthesized ({currentDraft.model_id})</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#aba497] bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
+                            <FileText size={11} />
+                            <span>Deterministic Template ({currentDraft.model_id})</span>
                           </span>
                         )}
                       </div>
@@ -1197,6 +1434,20 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveDraftEdits}
+                        style={{
+                          background: "#1c1b1a",
+                          border: "1px solid rgba(238, 231, 219, 0.1)",
+                          color: "#ded7cb",
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Save modified text to this incident session"
+                      >
+                        {saveSuccessToast ? <Check size={13} className="text-emerald-400" /> : <FileCheck size={13} />}
+                        <span>{saveSuccessToast ? "Saved" : "Save Edits"}</span>
+                      </button>
+
                       <button
                         onClick={handleCopyDraft}
                         style={{

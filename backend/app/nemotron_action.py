@@ -146,6 +146,7 @@ def generate_copyright_notice_draft(
         missing_fields.append("recipient_email")
 
     suspect_location = evidence["suspect_url"] or evidence["suspect_filename"] or f"Suspect Content (Incident {evidence['incident_id'][:8]})"
+    is_clean = (evidence.get("candidate_matches_found") or 0) == 0 or evidence.get("overall_status") == "CLEAN"
 
     # Default evidence table string
     evidence_lines = []
@@ -155,8 +156,10 @@ def generate_copyright_notice_draft(
             evidence_lines.append(
                 f"  - Suspect Timestamp {fc['suspect_timestamp_sec']}s corresponds to Reference Asset {fc['source_asset_id'][:8]} at {fc['source_timestamp_sec']}s (L2 Metric: {fc['l2_distance']}, pHash Corroborated: {fc['phash_match']})"
             )
+    elif not is_clean:
+        evidence_lines.append(f"  - Observed peak heuristic similarity: {evidence['highest_confidence']}% (Lowest L2 distance: {evidence['lowest_l2_distance']})")
     else:
-        evidence_lines.append(f"  - High heuristic similarity observed: {evidence['highest_confidence']}% (L2 distance: {evidence['lowest_l2_distance']})")
+        evidence_lines.append("  - Telemetry: No frame matches confirmed above threshold in reference vault (0 matching frames).")
 
     evidence_text = "\n".join(evidence_lines)
 
@@ -191,6 +194,12 @@ def generate_copyright_notice_draft(
             "2. All statements herein are made to the best of knowledge and authority."
         )
 
+    forensic_intro = (
+        "FixProof automated visual analysis identified perceptual correspondence between the suspect material and the authentic reference work:"
+        if not is_clean
+        else "FixProof automated screening evaluated the suspect material against registered reference assets and recorded no confirmed perceptual match above threshold:"
+    )
+
     subject = f"[{jurisdiction} Notice] Copyright Infringement Notice — {work_title or 'Protected Content'} (Ref: {evidence['incident_id'][:8]})"
 
     body_template = f"""{statute_header}
@@ -214,15 +223,15 @@ Platform: {evidence['platform']}
 Recorded Scan Date: {evidence['scanned_at']}
 
 3. FORENSIC EVIDENCE & CORROBORATION:
-FixProof automated visual analysis identified significant perceptual correspondence between the suspect material and the authentic reference work:
+{forensic_intro}
 - Overall Recorded Forensic Status: {evidence['overall_status']}
-- Peak Visual Similarity Confidence: {evidence['highest_confidence']}%
+- Peak Visual Similarity Score: {evidence['highest_confidence']}%
 - Lowest L2 Embedding Distance: {evidence['lowest_l2_distance'] if evidence['lowest_l2_distance'] is not None else 'N/A'}
 - Total Evaluated Keyframes: {len(evidence['frame_correlations'])}
 
 {evidence_text}
 
-Disclaimer: Visual similarity measurements reflect algorithmic feature matching and do not constitute self-executing legal findings without authorized human review.
+Disclaimer: Visual similarity measurements reflect algorithmic feature matching and do not constitute self-executing legal findings without authorized human review. Similarity metrics are heuristic scores and are not calibrated probabilities of copyright infringement. Recorded frame correlations are factual observations, while formal infringement determination requires authorized human evaluation.
 
 4. REQUESTED ACTION:
 You are hereby requested to expeditiously remove or disable access to the infringing material identified above.
@@ -268,11 +277,21 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
         except Exception as e:
             logger.warning(f"[NemotronAction] AI enhancement skipped due to: {e}")
 
+    if is_clean:
+        draft_status = "UNVERIFIED_EVIDENCE"
+        warn_msg = "WARNING: Incident status is CLEAN (0 matched candidate frames). Independent human verification is required prior to legal escalation."
+        if warn_msg not in missing_fields:
+            missing_fields.append(warn_msg)
+    elif missing_fields:
+        draft_status = "INCOMPLETE_EVIDENCE"
+    else:
+        draft_status = "READY_FOR_REVIEW"
+
     return {
         "document_id": str(uuid.uuid4()),
         "incident_id": evidence["incident_id"],
         "document_type": "COPYRIGHT_NOTICE",
-        "status": "READY_FOR_REVIEW" if not missing_fields else "INCOMPLETE_EVIDENCE",
+        "status": draft_status,
         "jurisdiction": jurisdiction,
         "subject": subject,
         "body": body_template,
@@ -322,6 +341,22 @@ def generate_rev_share_proposal_draft(
         missing_fields.append("recipient_email")
 
     suspect_location = evidence["suspect_url"] or evidence["suspect_filename"] or f"Shared Media Item ({evidence['incident_id'][:8]})"
+    is_clean = (evidence.get("candidate_matches_found") or 0) == 0 or evidence.get("overall_status") == "CLEAN"
+
+    if not is_clean:
+        monitoring_text = (
+            f"Our automated forensic monitoring detected visual correspondence to our official broadcast archive "
+            f"(observed heuristic similarity score: {evidence['highest_confidence']}%, non-calibrated metric). "
+            f"We recognize the creative vitality and community value of fan content, highlights, and secondary commentary, "
+            f"and rather than issuing a standard copyright takedown, we would like to offer a direct monetization partnership."
+        )
+    else:
+        monitoring_text = (
+            f"Our monitoring system screened publication of content at this location. "
+            f"Although automated analysis observed no confirmed fingerprint matches ({evidence['highest_confidence']}%), "
+            f"we actively explore content licensing and distribution partnerships with emerging creators, "
+            f"and would like to propose a direct commercial monetization framework."
+        )
 
     subject = f"Commercial Content Partnership Proposal — {work_title or 'Official Broadcast'} / {recipient_name or 'Creator'}"
 
@@ -339,11 +374,11 @@ Dear {recipient_name or 'Content Creator'},
 
 We are reaching out on behalf of {rights_holder or '[Rights Holder Organization]'}, the official producer and rights-holder of "{work_title or '[Protected Work / Broadcast Series]'}".
 
-We have observed significant audience engagement with your recent content publication at:
+We have observed audience engagement with your recent content publication at:
 Location: {suspect_location}
 Observed Media Reference: FixProof Forensic ID {evidence['incident_id'][:8]}
 
-Our automated forensic monitoring detected substantial visual and audio correspondence to our official broadcast archive (observed match confidence: {evidence['highest_confidence']}%). We recognize the creative vitality and community value of fan content, highlights, and secondary commentary, and rather than issuing a standard copyright takedown, we would like to offer a direct monetization partnership.
+{monitoring_text}
 
 PROPOSED COMMERCIAL PARTNERSHIP TERMS:
 1. Rev-Share Allocation:
@@ -357,7 +392,7 @@ PROPOSED COMMERCIAL PARTNERSHIP TERMS:
    - This preliminary licensing framework is open for review until {(datetime.now(timezone.utc)).strftime('%B %d, %Y')} (open for {response_deadline_days} days).
 
 IMPORTANT NOTICE:
-This communication represents a commercial invitation to negotiate and does not constitute a formal licensing contract, a waiver of any statutory rights, or an admission of liability. If you are interested in legalizing this broadcast and sharing ongoing revenue, please reply directly to {contact_email or '[email]'} to finalize terms.
+This communication represents a commercial invitation to negotiate and does not constitute a formal licensing contract, a waiver of any statutory rights, or an admission of liability. Heuristic similarity scores are not calibrated probabilities of copyright infringement. If you are interested in legalizing this broadcast and sharing ongoing revenue, please reply directly to {contact_email or '[email]'} to finalize terms.
 
 We look forward to collaborating with your channel.
 
@@ -433,6 +468,12 @@ def send_nemotron_document_email(
     Enforces human review, declaration confirmation, and records minimal audit trail.
     """
     # 1. Validation Checks
+    if not incident_id or not str(incident_id).strip():
+        raise ValueError("Incident ID cannot be empty.")
+
+    if document_type not in ("COPYRIGHT_NOTICE", "REVENUE_SHARE_OFFER"):
+        raise ValueError(f"Invalid document type '{document_type}'. Must be COPYRIGHT_NOTICE or REVENUE_SHARE_OFFER.")
+
     if not user_confirmed:
         raise ValueError("Cannot send document: Explicit human review confirmation is required.")
 
@@ -442,10 +483,10 @@ def send_nemotron_document_email(
     if not recipient_email or not EMAIL_REGEX.match(recipient_email.strip()):
         raise ValueError(f"Invalid recipient email address: '{recipient_email}'.")
 
-    if not subject.strip():
+    if not subject or not subject.strip():
         raise ValueError("Email subject cannot be empty.")
 
-    if not body.strip():
+    if not body or not body.strip():
         raise ValueError("Email body cannot be empty.")
 
     # 2. Check Service Configuration

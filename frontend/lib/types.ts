@@ -276,7 +276,7 @@ export interface DraftDocumentResult {
   document_id: string;
   incident_id: string;
   document_type: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER";
-  status: "READY_FOR_REVIEW" | "INCOMPLETE_EVIDENCE";
+  status: "READY_FOR_REVIEW" | "INCOMPLETE_EVIDENCE" | "UNVERIFIED_EVIDENCE";
   subject: string;
   body: string;
   facts_imported: {

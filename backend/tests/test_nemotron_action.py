@@ -198,6 +198,90 @@ class TestNemotronActionCenter(unittest.TestCase):
             self.assertTrue(len(matching) > 0)
             self.assertEqual(matching[0]["status"], "NOT_CONFIGURED")
 
+    def test_generate_copyright_notice_clean_incident_safeguard(self):
+        clean_incident = {
+            "incident_id": "test-clean-99",
+            "investigation_type": "FULL_VIDEO_SCAN",
+            "suspect_filename": "clean_video.mp4",
+            "matched_assets": [],
+            "candidate_matches_found": 0,
+            "highest_confidence": 0.0,
+            "lowest_l2_distance": 1.65,
+            "overall_status": "CLEAN",
+            "frame_matches": [],
+        }
+        user_inputs = {
+            "rights_holder_name": "Major Sports League Ltd",
+            "contact_email": "legal@league.example",
+            "work_title": "Championship Final",
+            "recipient_email": "dmca@host.example",
+        }
+        draft = generate_copyright_notice_draft(clean_incident, user_inputs, use_ai_synthesis=False)
+        self.assertEqual(draft["status"], "UNVERIFIED_EVIDENCE")
+        self.assertIn("not calibrated probabilities of copyright infringement", draft["body"])
+        self.assertIn("recorded no confirmed perceptual match above threshold", draft["body"])
+        self.assertTrue(any("status is CLEAN" in f for f in draft["missing_fields"]))
+
+    def test_generate_rev_share_clean_incident(self):
+        clean_incident = {
+            "incident_id": "test-clean-99",
+            "suspect_filename": "clean_video.mp4",
+            "matched_assets": [],
+            "candidate_matches_found": 0,
+            "highest_confidence": 0.0,
+            "lowest_l2_distance": 1.65,
+            "overall_status": "CLEAN",
+            "frame_matches": [],
+        }
+        user_inputs = {
+            "rights_holder_name": "Official Broadcaster Inc",
+            "contact_email": "partnerships@broadcaster.example",
+            "work_title": "Super Derby Highlights",
+            "recipient_email": "creator@youtube.example",
+        }
+        draft = generate_rev_share_proposal_draft(clean_incident, user_inputs, use_ai_synthesis=False)
+        self.assertIn("observed no confirmed fingerprint matches", draft["body"])
+        self.assertIn("Heuristic similarity scores are not calibrated probabilities", draft["body"])
+
+    def test_send_email_invalid_document_type(self):
+        with self.assertRaises(ValueError) as ctx:
+            send_nemotron_document_email(
+                incident_id="test-inc-4891a",
+                document_type="INVALID_TYPE",
+                recipient_email="dmca@example.com",
+                subject="Test Notice",
+                body="Test Notice Body",
+                user_confirmed=True,
+                rights_declaration_confirmed=True,
+            )
+        self.assertIn("Invalid document type", str(ctx.exception))
+
+    def test_send_email_invalid_recipient_format(self):
+        with self.assertRaises(ValueError) as ctx:
+            send_nemotron_document_email(
+                incident_id="test-inc-4891a",
+                document_type="COPYRIGHT_NOTICE",
+                recipient_email="not-an-email",
+                subject="Test Notice",
+                body="Test Notice Body",
+                user_confirmed=True,
+                rights_declaration_confirmed=True,
+            )
+        self.assertIn("Invalid recipient email address", str(ctx.exception))
+
+    def test_send_email_empty_incident_id(self):
+        with self.assertRaises(ValueError) as ctx:
+            send_nemotron_document_email(
+                incident_id="",
+                document_type="COPYRIGHT_NOTICE",
+                recipient_email="dmca@example.com",
+                subject="Test Notice",
+                body="Test Notice Body",
+                user_confirmed=True,
+                rights_declaration_confirmed=True,
+            )
+        self.assertIn("Incident ID cannot be empty", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
