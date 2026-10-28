@@ -55,7 +55,7 @@ export const Overview: React.FC<OverviewProps> = ({
         ).toFixed(1)
       : null;
 
-  // Genuine FixProof processing stages and subsystems
+  // Genuine FixProof processing stages and subsystems with semantic accent types
   const subsystems = [
     {
       id: "preflight",
@@ -64,6 +64,7 @@ export const Overview: React.FC<OverviewProps> = ({
       description: "Codec validation, safe path containment, 5s frame extraction",
       status: isOnline ? "Ready" : "Unavailable",
       statusType: isOnline ? "ready" : "offline",
+      category: "core",
       icon: FileVideo,
     },
     {
@@ -73,6 +74,7 @@ export const Overview: React.FC<OverviewProps> = ({
       description: "576-dim L2-normalized visual embeddings",
       status: isOnline ? "Ready" : "Unavailable",
       statusType: isOnline ? "ready" : "offline",
+      category: "core",
       icon: Cpu,
     },
     {
@@ -82,6 +84,7 @@ export const Overview: React.FC<OverviewProps> = ({
       description: `Nearest-neighbor search across ${vaultStatus?.vault_size ?? 0} vectors`,
       status: isOnline ? `${vaultStatus?.vault_size ?? 0} Vectors` : "Unavailable",
       statusType: isOnline ? "ready" : "offline",
+      category: "core",
       icon: Database,
     },
     {
@@ -91,6 +94,7 @@ export const Overview: React.FC<OverviewProps> = ({
       description: "Dual-layer secondary validation (Hamming distance < 15)",
       status: isOnline ? "Ready" : "Unavailable",
       statusType: isOnline ? "ready" : "offline",
+      category: "core",
       icon: Hash,
     },
     {
@@ -100,6 +104,7 @@ export const Overview: React.FC<OverviewProps> = ({
       description: "Multimodal verification for borderline match candidates",
       status: isOnline ? "Standby" : "Unavailable",
       statusType: isOnline ? "standby" : "offline",
+      category: "ai",
       icon: Sparkles,
     },
     {
@@ -109,21 +114,22 @@ export const Overview: React.FC<OverviewProps> = ({
       description: "Timeline clustering, statutory triage & signed dossier synthesis",
       status: isOnline ? "Standby" : "Unavailable",
       statusType: isOnline ? "standby" : "offline",
+      category: "ai",
       icon: BrainCircuit,
     },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 text-[#ded7cb]">
+    <div className="max-w-7xl mx-auto space-y-6 text-[#A29B8F]">
       {/* ─── Compact Top Section / Operations Bar with Skiper61 Localized Mouse-Follow ─── */}
       <div
         ref={headerRef}
         style={{
-          background: "#171615",
-          border: "1px solid rgba(238, 231, 219, 0.08)",
+          background: "#1B1A18",
+          border: "1px solid #302E29",
           borderRadius: 16,
         }}
-        className="relative overflow-hidden p-5 sm:p-6"
+        className="relative overflow-hidden p-5 sm:p-6 shadow-sm"
       >
         {/* Skiper61 spring-based mouse follow effect (localized, non-blocking, attribution licensed) */}
         <Skiper61MouseFollow containerRef={headerRef} size={220} />
@@ -131,22 +137,39 @@ export const Overview: React.FC<OverviewProps> = ({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#1e1d1b] text-[#f4efe6] border border-[rgba(238,231,219,0.12)]">
-                <Radio size={12} className={isOnline ? "text-[#eee7db]" : "text-[#736d62]"} />
+              <span
+                style={{
+                  background: isOnline ? "rgba(72, 199, 181, 0.1)" : "rgba(217, 164, 65, 0.1)",
+                  border: `1px solid ${isOnline ? "rgba(72, 199, 181, 0.28)" : "rgba(217, 164, 65, 0.28)"}`,
+                  color: isOnline ? "#F1EBDD" : "#D9A441",
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+              >
+                <Radio
+                  size={12}
+                  className={isOnline ? "text-[#48C7B5]" : "text-[#D9A441]"}
+                />
                 <span>{isOnline ? "Forensic Node Ready" : "Awaiting Backend"}</span>
               </span>
 
               {vaultStatus && (
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
+                <span
+                  style={{
+                    background: "#22211E",
+                    border: "1px solid #302E29",
+                    color: "#A29B8F",
+                  }}
+                  className="px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+                >
                   {vaultStatus.is_cloud ? "Supabase Cloud Persistence" : "Local SQLite Mode"}
                 </span>
               )}
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#f4efe6] m-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F1EBDD] m-0">
               Forensic Command Overview
             </h1>
-            <p className="text-[13px] text-[#aba497] mt-1 max-w-2xl leading-relaxed">
+            <p className="text-[13px] text-[#A29B8F] mt-1 max-w-2xl leading-relaxed">
               Automated visual copyright investigation console. Ingest official broadcasts, maintain indexed FAISS embeddings, and run dual-layer forensic matching on suspect streams.
             </p>
           </div>
@@ -159,13 +182,13 @@ export const Overview: React.FC<OverviewProps> = ({
                 disabled={refreshing}
                 title="Sync telemetry"
                 style={{
-                  background: "#1e1d1b",
-                  border: "1px solid rgba(238, 231, 219, 0.1)",
-                  color: "#ded7cb",
+                  background: "#22211E",
+                  border: "1px solid #302E29",
+                  color: "#F1EBDD",
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:text-[#f4efe6] hover:bg-[#262422] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-[#2A2824] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <RefreshCw size={13} className={refreshing ? "animate-spin text-[#eee7db]" : ""} />
+                <RefreshCw size={13} className={refreshing ? "animate-spin text-[#48C7B5]" : "text-[#A29B8F]"} />
                 <span className="hidden sm:inline">Sync</span>
               </button>
             )}
@@ -173,23 +196,23 @@ export const Overview: React.FC<OverviewProps> = ({
             <button
               onClick={() => onNavigateToTab("vault")}
               style={{
-                background: "#1e1d1b",
-                border: "1px solid rgba(238, 231, 219, 0.12)",
-                color: "#f4efe6",
+                background: "#22211E",
+                border: "1px solid #302E29",
+                color: "#F1EBDD",
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl hover:bg-[#262422] text-[12px] font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl hover:bg-[#2A2824] hover:border-[#48C7B5]/30 text-[12px] font-medium transition-colors cursor-pointer"
             >
-              <Database size={13} className="text-[#eee7db]" />
+              <Database size={13} className="text-[#48C7B5]" />
               <span>Asset Vault</span>
             </button>
 
             <button
               onClick={() => onNavigateToTab("hunter")}
               style={{
-                background: "#eee7db",
-                color: "#141312",
+                background: "#F1EBDD",
+                color: "#141412",
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl hover:bg-[#fbf7ef] text-[12px] font-bold transition-all shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl hover:bg-[#FAF6ED] text-[12px] font-bold transition-all shadow-sm cursor-pointer"
             >
               <Search size={13} />
               <span>Scan Suspect</span>
@@ -205,12 +228,18 @@ export const Overview: React.FC<OverviewProps> = ({
             label: "Reference Assets",
             value: assets.length.toString(),
             sub: `${protectedCount} indexed in FAISS`,
+            accentColor: "#48C7B5",
+            accentBg: "rgba(72, 199, 181, 0.1)",
+            accentBorder: "rgba(72, 199, 181, 0.25)",
             icon: Database,
           },
           {
             label: "FAISS Vector Vault",
             value: (vaultStatus?.vault_size ?? 0).toLocaleString(),
             sub: "576-dim L2 MobileNetV3 vectors",
+            accentColor: "#48C7B5",
+            accentBg: "rgba(72, 199, 181, 0.1)",
+            accentBorder: "rgba(72, 199, 181, 0.25)",
             icon: Layers,
           },
           {
@@ -220,6 +249,9 @@ export const Overview: React.FC<OverviewProps> = ({
               matchIncidents.length > 0
                 ? `${matchIncidents.length} candidate match alert(s)`
                 : "No candidate matches detected",
+            accentColor: matchIncidents.length > 0 ? "#D9A441" : "#A29B8F",
+            accentBg: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.1)" : "rgba(241, 235, 221, 0.05)",
+            accentBorder: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.25)" : "rgba(241, 235, 221, 0.1)",
             icon: Search,
           },
           {
@@ -229,6 +261,9 @@ export const Overview: React.FC<OverviewProps> = ({
               matchIncidents.length > 0
                 ? `Across ${matchIncidents.length} candidate match incident(s)`
                 : "Dual-layer L2 + pHash engine ready",
+            accentColor: "#A99AE8",
+            accentBg: "rgba(169, 154, 232, 0.1)",
+            accentBorder: "rgba(169, 154, 232, 0.25)",
             icon: ShieldCheck,
           },
         ].map((card) => {
@@ -237,20 +272,20 @@ export const Overview: React.FC<OverviewProps> = ({
             <motion.div
               key={card.label}
               whileHover={{ y: -2 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.18 }}
               style={{
-                background: "#171615",
-                border: "1px solid rgba(238, 231, 219, 0.08)",
+                background: "#1B1A18",
+                border: "1px solid #302E29",
                 borderRadius: 14,
               }}
-              className="p-4 sm:p-5 flex flex-col justify-between hover:border-[rgba(238,231,219,0.16)] transition-colors"
+              className="p-4 sm:p-5 flex flex-col justify-between hover:border-[#48C7B5]/30 transition-colors shadow-sm"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e887d] mb-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A29B8F] mb-1">
                     {card.label}
                   </p>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#f4efe6] m-0">
+                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F1EBDD] m-0">
                     {card.value}
                   </p>
                 </div>
@@ -259,16 +294,16 @@ export const Overview: React.FC<OverviewProps> = ({
                     width: 36,
                     height: 36,
                     borderRadius: 9,
-                    background: "rgba(238, 231, 219, 0.06)",
-                    border: "1px solid rgba(238, 231, 219, 0.1)",
-                    color: "#eee7db",
+                    background: card.accentBg,
+                    border: `1px solid ${card.accentBorder}`,
+                    color: card.accentColor,
                   }}
                   className="flex items-center justify-center shrink-0"
                 >
                   <Icon size={17} />
                 </div>
               </div>
-              <p className="text-[11px] text-[#8e887d] mt-3 pt-3 border-t border-[rgba(238,231,219,0.08)]">
+              <p className="text-[11px] text-[#736D62] mt-3 pt-3 border-t border-[#302E29]">
                 {card.sub}
               </p>
             </motion.div>
@@ -276,23 +311,23 @@ export const Overview: React.FC<OverviewProps> = ({
         })}
       </div>
 
-      {/* ─── Compact Subsystem & Pipeline Status Section ─── */}
+      {/* ─── Forensic Subsystems Architecture & Heartbeat ─── */}
       <div
         style={{
-          background: "#171615",
-          border: "1px solid rgba(238, 231, 219, 0.08)",
+          background: "#1B1A18",
+          border: "1px solid #302E29",
           borderRadius: 16,
         }}
-        className="p-5"
+        className="p-5 shadow-sm"
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Activity size={16} className="text-[#eee7db]" />
-            <h2 className="text-[14px] font-bold text-[#f4efe6] m-0 tracking-tight">
-              Forensic Subsystem Architecture & Heartbeat
+            <Activity size={16} className="text-[#48C7B5]" />
+            <h2 className="text-[14px] font-bold text-[#F1EBDD] m-0 tracking-tight">
+              Forensic Subsystem Architecture &amp; Heartbeat
             </h2>
           </div>
-          <span className="text-[11px] text-[#8e887d] hidden sm:inline">
+          <span className="text-[11px] text-[#736D62] hidden sm:inline">
             FixProof Multimodal Pipeline
           </span>
         </div>
@@ -300,6 +335,33 @@ export const Overview: React.FC<OverviewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {subsystems.map((sub) => {
             const Icon = sub.icon;
+            const isAI = sub.category === "ai";
+            const isReady = sub.statusType === "ready";
+            const isStandby = sub.statusType === "standby";
+
+            const badgeBg = isAI
+              ? "rgba(169, 154, 232, 0.1)"
+              : isReady
+              ? "rgba(72, 199, 181, 0.1)"
+              : isStandby
+              ? "rgba(217, 164, 65, 0.1)"
+              : "rgba(216, 107, 104, 0.1)";
+
+            const badgeColor = isAI
+              ? "#A99AE8"
+              : isReady
+              ? "#48C7B5"
+              : isStandby
+              ? "#D9A441"
+              : "#D86B68";
+
+            const badgeBorder = isAI
+              ? "rgba(169, 154, 232, 0.25)"
+              : isReady
+              ? "rgba(72, 199, 181, 0.25)"
+              : isStandby
+              ? "rgba(217, 164, 65, 0.25)"
+              : "rgba(216, 107, 104, 0.25)";
 
             return (
               <motion.div
@@ -307,11 +369,11 @@ export const Overview: React.FC<OverviewProps> = ({
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.18 }}
                 style={{
-                  background: "#1a1918",
-                  border: "1px solid rgba(238, 231, 219, 0.06)",
+                  background: "#22211E",
+                  border: "1px solid #302E29",
                   borderRadius: 12,
                 }}
-                className="p-3.5 flex flex-col justify-between hover:border-[rgba(238,231,219,0.14)] transition-colors"
+                className="p-3.5 flex flex-col justify-between hover:border-[#48C7B5]/30 transition-colors"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -320,9 +382,9 @@ export const Overview: React.FC<OverviewProps> = ({
                         width: 30,
                         height: 30,
                         borderRadius: 8,
-                        background: "rgba(238, 231, 219, 0.06)",
-                        border: "1px solid rgba(238, 231, 219, 0.1)",
-                        color: "#eee7db",
+                        background: badgeBg,
+                        border: `1px solid ${badgeBorder}`,
+                        color: badgeColor,
                       }}
                       className="flex items-center justify-center shrink-0"
                     >
@@ -331,9 +393,9 @@ export const Overview: React.FC<OverviewProps> = ({
 
                     <span
                       style={{
-                        background: "rgba(238, 231, 219, 0.06)",
-                        color: "#ded7cb",
-                        border: "1px solid rgba(238, 231, 219, 0.12)",
+                        background: badgeBg,
+                        color: badgeColor,
+                        border: `1px solid ${badgeBorder}`,
                       }}
                       className="px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider"
                     >
@@ -341,15 +403,15 @@ export const Overview: React.FC<OverviewProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-[12px] font-semibold text-[#f4efe6] m-0 leading-snug">
+                  <p className="text-[12px] font-semibold text-[#F1EBDD] m-0 leading-snug">
                     {sub.name}
                   </p>
-                  <p className="text-[10px] text-[#8e887d] font-mono mt-0.5 mb-1.5 truncate">
+                  <p className="text-[10px] text-[#A29B8F] font-mono mt-0.5 mb-1.5 truncate">
                     {sub.technology}
                   </p>
                 </div>
 
-                <p className="text-[10px] text-[#736d62] m-0 line-clamp-2 leading-relaxed">
+                <p className="text-[10px] text-[#736D62] m-0 line-clamp-2 leading-relaxed">
                   {sub.description}
                 </p>
               </motion.div>
@@ -363,23 +425,23 @@ export const Overview: React.FC<OverviewProps> = ({
         {/* Left Column: Registered Reference Library */}
         <div
           style={{
-            background: "#171615",
-            border: "1px solid rgba(238, 231, 219, 0.08)",
+            background: "#1B1A18",
+            border: "1px solid #302E29",
             borderRadius: 16,
           }}
-          className="p-5 flex flex-col justify-between"
+          className="p-5 flex flex-col justify-between shadow-sm"
         >
           <div>
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[rgba(238,231,219,0.08)]">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#302E29]">
               <div className="flex items-center gap-2">
-                <Database size={15} className="text-[#eee7db]" />
-                <h3 className="text-[14px] font-bold text-[#f4efe6] m-0">
+                <Database size={15} className="text-[#48C7B5]" />
+                <h3 className="text-[14px] font-bold text-[#F1EBDD] m-0">
                   Registered Reference Library
                 </h3>
               </div>
               <button
                 onClick={() => onNavigateToTab("vault")}
-                className="text-[11px] font-medium text-[#ded7cb] hover:text-[#f4efe6] flex items-center gap-1 cursor-pointer transition-colors"
+                className="text-[11px] font-medium text-[#A29B8F] hover:text-[#F1EBDD] flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <span>View all ({assets.length})</span>
                 <ArrowRight size={11} />
@@ -387,20 +449,20 @@ export const Overview: React.FC<OverviewProps> = ({
             </div>
 
             {assets.length === 0 ? (
-              <div className="text-center py-10 text-[#8e887d]">
-                <Database size={28} className="mx-auto mb-2 text-[#736d62] opacity-60" />
-                <p className="text-[12px] font-medium m-0">No reference footage registered yet</p>
-                <p className="text-[11px] text-[#736d62] mt-1 max-w-xs mx-auto">
+              <div className="text-center py-10 text-[#736D62]">
+                <Database size={28} className="mx-auto mb-2 text-[#736D62] opacity-60" />
+                <p className="text-[12px] font-medium m-0 text-[#A29B8F]">No reference footage registered yet</p>
+                <p className="text-[11px] text-[#736D62] mt-1 max-w-xs mx-auto">
                   Upload an official broadcast in the Asset Vault to extract frames and index FAISS vectors.
                 </p>
                 <button
                   onClick={() => onNavigateToTab("vault")}
                   style={{
-                    background: "#1e1d1b",
-                    border: "1px solid rgba(238, 231, 219, 0.1)",
-                    color: "#ded7cb",
+                    background: "#22211E",
+                    border: "1px solid #302E29",
+                    color: "#F1EBDD",
                   }}
-                  className="mt-3 px-3 py-1.5 rounded-lg hover:text-[#f4efe6] text-[11px] font-medium transition-colors cursor-pointer"
+                  className="mt-3 px-3 py-1.5 rounded-lg hover:bg-[#2A2824] text-[11px] font-medium transition-colors cursor-pointer"
                 >
                   Open Asset Vault
                 </button>
@@ -410,10 +472,10 @@ export const Overview: React.FC<OverviewProps> = ({
                 {assets.slice(0, 4).map((asset) => (
                   <div
                     key={asset.asset_id}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-[#1a1918] border border-[rgba(238,231,219,0.06)] hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.12)] transition-colors"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-[#22211E] border border-[#302E29] hover:border-[#48C7B5]/30 transition-colors"
                   >
                     <div className="flex items-center gap-3 truncate pr-2">
-                      <div className="w-14 h-9 rounded bg-[#121211] overflow-hidden shrink-0 flex items-center justify-center border border-[rgba(238,231,219,0.08)]">
+                      <div className="w-14 h-9 rounded bg-[#141412] overflow-hidden shrink-0 flex items-center justify-center border border-[#302E29]">
                         {asset.thumbnail_url ? (
                           <img
                             src={`http://localhost:8000${asset.thumbnail_url}`}
@@ -421,14 +483,14 @@ export const Overview: React.FC<OverviewProps> = ({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <FileVideo size={16} className="text-[#736d62]" />
+                          <FileVideo size={16} className="text-[#736D62]" />
                         )}
                       </div>
                       <div className="truncate">
-                        <p className="text-[12px] font-semibold text-[#f4efe6] truncate m-0">
+                        <p className="text-[12px] font-semibold text-[#F1EBDD] truncate m-0">
                           {asset.filename}
                         </p>
-                        <p className="text-[10px] text-[#8e887d] m-0">
+                        <p className="text-[10px] text-[#736D62] m-0">
                           {asset.frame_count} frames • {formatBytes(asset.file_size)} • {asset.indexed_vectors} vectors
                         </p>
                       </div>
@@ -437,13 +499,13 @@ export const Overview: React.FC<OverviewProps> = ({
                     <span
                       style={{
                         background: asset.indexed
-                          ? "rgba(238, 231, 219, 0.08)"
-                          : "rgba(212, 163, 115, 0.12)",
-                        color: asset.indexed ? "#f4efe6" : "#d4a373",
+                          ? "rgba(72, 199, 181, 0.1)"
+                          : "rgba(217, 164, 65, 0.1)",
+                        color: asset.indexed ? "#48C7B5" : "#D9A441",
                         border: `1px solid ${
                           asset.indexed
-                            ? "rgba(238, 231, 219, 0.14)"
-                            : "rgba(212, 163, 115, 0.25)"
+                            ? "rgba(72, 199, 181, 0.28)"
+                            : "rgba(217, 164, 65, 0.28)"
                         }`,
                       }}
                       className="px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider shrink-0"
@@ -456,7 +518,7 @@ export const Overview: React.FC<OverviewProps> = ({
             )}
           </div>
 
-          <div className="pt-3 mt-3 border-t border-[rgba(238,231,219,0.08)] flex items-center justify-between text-[11px] text-[#736d62]">
+          <div className="pt-3 mt-3 border-t border-[#302E29] flex items-center justify-between text-[11px] text-[#736D62]">
             <span>Storage: Local filesystem + FAISS</span>
             <span>{protectedCount} of {assets.length} protected</span>
           </div>
@@ -465,23 +527,23 @@ export const Overview: React.FC<OverviewProps> = ({
         {/* Right Column: Recent Forensic Scans */}
         <div
           style={{
-            background: "#171615",
-            border: "1px solid rgba(238, 231, 219, 0.08)",
+            background: "#1B1A18",
+            border: "1px solid #302E29",
             borderRadius: 16,
           }}
-          className="p-5 flex flex-col justify-between"
+          className="p-5 flex flex-col justify-between shadow-sm"
         >
           <div>
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[rgba(238,231,219,0.08)]">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#302E29]">
               <div className="flex items-center gap-2">
-                <ShieldAlert size={15} className="text-[#eee7db]" />
-                <h3 className="text-[14px] font-bold text-[#f4efe6] m-0">
+                <ShieldAlert size={15} className="text-[#D9A441]" />
+                <h3 className="text-[14px] font-bold text-[#F1EBDD] m-0">
                   Recent Forensic Investigations
                 </h3>
               </div>
               <button
                 onClick={() => onNavigateToTab("incidents")}
-                className="text-[11px] font-medium text-[#ded7cb] hover:text-[#f4efe6] flex items-center gap-1 cursor-pointer transition-colors"
+                className="text-[11px] font-medium text-[#A29B8F] hover:text-[#F1EBDD] flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <span>View all ({incidents.length})</span>
                 <ArrowRight size={11} />
@@ -489,19 +551,19 @@ export const Overview: React.FC<OverviewProps> = ({
             </div>
 
             {incidents.length === 0 ? (
-              <div className="text-center py-10 text-[#8e887d]">
-                <Search size={28} className="mx-auto mb-2 text-[#736d62] opacity-60" />
-                <p className="text-[12px] font-medium m-0">No forensic scans performed yet</p>
-                <p className="text-[11px] text-[#736d62] mt-1 max-w-xs mx-auto">
+              <div className="text-center py-10 text-[#736D62]">
+                <Search size={28} className="mx-auto mb-2 text-[#736D62] opacity-60" />
+                <p className="text-[12px] font-medium m-0 text-[#A29B8F]">No forensic scans performed yet</p>
+                <p className="text-[11px] text-[#736D62] mt-1 max-w-xs mx-auto">
                   Submit a suspect video file or public video URL in Threat Hunter to generate candidate matches.
                 </p>
                 <button
                   onClick={() => onNavigateToTab("hunter")}
                   style={{
-                    background: "#eee7db",
-                    color: "#141312",
+                    background: "#F1EBDD",
+                    color: "#141412",
                   }}
-                  className="mt-3 px-3.5 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-bold transition-colors cursor-pointer"
+                  className="mt-3 px-3.5 py-1.5 rounded-lg hover:bg-[#FAF6ED] text-[11px] font-bold transition-colors cursor-pointer"
                 >
                   Launch Threat Hunter
                 </button>
@@ -513,20 +575,20 @@ export const Overview: React.FC<OverviewProps> = ({
                   const isSuspect = inc.overall_status === "SUSPECT";
 
                   const statusBg = isMatch
-                    ? "rgba(212, 163, 115, 0.16)"
+                    ? "rgba(217, 164, 65, 0.12)"
                     : isSuspect
-                    ? "rgba(212, 163, 115, 0.1)"
-                    : "rgba(238, 231, 219, 0.08)";
+                    ? "rgba(217, 164, 65, 0.08)"
+                    : "rgba(72, 199, 181, 0.08)";
                   const statusColor = isMatch
-                    ? "#dfa974"
+                    ? "#D9A441"
                     : isSuspect
-                    ? "#d4a373"
-                    : "#ded7cb";
+                    ? "#D9A441"
+                    : "#48C7B5";
                   const statusBorder = isMatch
-                    ? "rgba(212, 163, 115, 0.3)"
+                    ? "rgba(217, 164, 65, 0.3)"
                     : isSuspect
-                    ? "rgba(212, 163, 115, 0.2)"
-                    : "rgba(238, 231, 219, 0.12)";
+                    ? "rgba(217, 164, 65, 0.2)"
+                    : "rgba(72, 199, 181, 0.25)";
 
                   return (
                     <div
@@ -538,20 +600,20 @@ export const Overview: React.FC<OverviewProps> = ({
                           onNavigateToTab("incidents");
                         }
                       }}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#1a1918] border border-[rgba(238,231,219,0.06)] hover:bg-[#201f1d] hover:border-[rgba(238,231,219,0.12)] transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#22211E] border border-[#302E29] hover:border-[#48C7B5]/30 transition-colors cursor-pointer"
                     >
                       <div className="truncate pr-2">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <p className="text-[12px] font-semibold text-[#f4efe6] truncate m-0">
+                          <p className="text-[12px] font-semibold text-[#F1EBDD] truncate m-0">
                             {inc.suspect_filename || `Suspect ${inc.submitted_asset_id?.slice(0, 8)}`}
                           </p>
                           {inc.investigation_type === "URL_SCREENING" && (
-                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-[#242220] text-[#ded7cb] border border-[rgba(238,231,219,0.1)]">
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-[#1B1A18] text-[#F1EBDD] border border-[#302E29]">
                               URL
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-[#8e887d] m-0">
+                        <p className="text-[10px] text-[#736D62] m-0">
                           Similarity: {inc.highest_confidence}% • {inc.candidate_matches_found} candidate match(es) • {inc.total_frames_analyzed} frames
                         </p>
                       </div>
@@ -573,7 +635,7 @@ export const Overview: React.FC<OverviewProps> = ({
             )}
           </div>
 
-          <div className="pt-3 mt-3 border-t border-[rgba(238,231,219,0.08)] flex items-center justify-between text-[11px] text-[#736d62]">
+          <div className="pt-3 mt-3 border-t border-[#302E29] flex items-center justify-between text-[11px] text-[#736D62]">
             <span>Deterministic L2 + pHash Matching</span>
             <span>{matchIncidents.length} match alerts recorded</span>
           </div>
@@ -581,7 +643,7 @@ export const Overview: React.FC<OverviewProps> = ({
       </div>
 
       {/* ─── Restrained Legal & Attribution Footer ─── */}
-      <div className="pt-4 border-t border-[rgba(238,231,219,0.08)] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#736d62]">
+      <div className="pt-4 border-t border-[#302E29] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#736D62]">
         <p className="m-0">
           FixProof v3.4 • Visual similarity scores represent algorithmic feature distance and do not constitute legal determinations of copyright infringement.
         </p>
@@ -591,7 +653,7 @@ export const Overview: React.FC<OverviewProps> = ({
             href="https://skiper-ui.com/v1/skiper61"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#8e887d] hover:text-[#f4efe6] underline transition-colors"
+            className="text-[#A29B8F] hover:text-[#F1EBDD] underline transition-colors"
           >
             Skiper UI (skiper61)
           </a>

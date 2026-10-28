@@ -578,20 +578,20 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         style={{
                           background:
                             inc.overall_status === "CANDIDATE_MATCH"
-                              ? "rgba(212, 163, 115, 0.2)"
+                              ? "rgba(217, 164, 65, 0.16)"
                               : inc.overall_status === "SUSPECT"
-                              ? "rgba(212, 163, 115, 0.12)"
-                              : "rgba(238, 231, 219, 0.08)",
+                              ? "rgba(217, 164, 65, 0.1)"
+                              : "rgba(72, 199, 181, 0.08)",
                           color:
                             inc.overall_status === "CANDIDATE_MATCH"
-                              ? "#dfa974"
+                              ? "#D9A441"
                               : inc.overall_status === "SUSPECT"
-                              ? "#d4a373"
-                              : "#ded7cb",
+                              ? "#D9A441"
+                              : "#48C7B5",
                           border: `1px solid ${
                             inc.overall_status === "CANDIDATE_MATCH"
-                              ? "rgba(212, 163, 115, 0.35)"
-                              : "rgba(238, 231, 219, 0.12)"
+                              ? "rgba(217, 164, 65, 0.35)"
+                              : "rgba(72, 199, 181, 0.25)"
                           }`,
                         }}
                         className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
@@ -600,37 +600,37 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           ? "Candidate Match"
                           : inc.overall_status.replace(/_/g, " ")}
                       </span>
-                      <span className="text-[11px] font-mono text-[#736d62]">
+                      <span className="text-[11px] font-mono text-[#736D62]">
                         {inc.scanned_at ? new Date(inc.scanned_at).toLocaleString() : "Recent"}
                       </span>
-                      <span className="text-[10px] font-mono text-[#aba497] bg-[#22201e] px-1.5 py-0.2 rounded border border-[rgba(238,231,219,0.06)]">
+                      <span className="text-[10px] font-mono text-[#A29B8F] bg-[#22201e] px-1.5 py-0.2 rounded border border-[rgba(238,231,219,0.06)]">
                         ID: {inc.incident_id?.slice(0, 8)}...
                       </span>
                     </div>
-                    <h4 className="text-[14.5px] font-bold text-[#f4efe6] truncate m-0 group-hover:text-teal-400 transition-colors">
+                    <h4 className="text-[14.5px] font-bold text-[#F1EBDD] truncate m-0 group-hover:text-[#48C7B5] transition-colors">
                       {inc.suspect_filename || (inc.submitted_asset_id ? `Suspect ${inc.submitted_asset_id.slice(0, 8)}` : "Public Media Stream")}
                     </h4>
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
                     <div className="text-right">
-                      <span className="text-[10px] uppercase text-[#736d62] block">Matches</span>
-                      <span className="text-[#ded7cb] font-bold">{inc.candidate_matches_found}</span>
+                      <span className="text-[10px] uppercase text-[#736D62] block">Matches</span>
+                      <span className="text-[#F1EBDD] font-bold">{inc.candidate_matches_found}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] uppercase text-[#736d62] block">Similarity</span>
-                      <span className="text-[#dfa974] font-bold">{inc.highest_confidence}%</span>
+                      <span className="text-[10px] uppercase text-[#736D62] block">Similarity</span>
+                      <span className="text-[#D9A441] font-bold">{inc.highest_confidence}%</span>
                     </div>
                     <div className="text-right hidden md:block">
-                      <span className="text-[10px] uppercase text-[#736d62] block">Lowest L2</span>
-                      <span className="text-[#aba497]">
+                      <span className="text-[10px] uppercase text-[#736D62] block">Lowest L2</span>
+                      <span className="text-[#A29B8F]">
                         {inc.lowest_l2_distance !== null && inc.lowest_l2_distance !== undefined
                           ? Number(inc.lowest_l2_distance).toFixed(3)
                           : "N/A"}
                       </span>
                     </div>
                     <div className="pl-2">
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#242220] group-hover:bg-teal-500/20 group-hover:text-teal-300 text-[#aba497] border border-[rgba(238,231,219,0.1)] text-xs font-semibold transition-all">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#22211E] group-hover:bg-[#48C7B5]/15 group-hover:text-[#F1EBDD] group-hover:border-[#48C7B5]/30 text-[#A29B8F] border border-[#302E29] text-xs font-semibold transition-all">
                         <span>Inspect</span>
                         <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
                       </span>
@@ -676,20 +676,20 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           style={{
                             background:
                               selectedIncident.overall_status === "CANDIDATE_MATCH"
-                                ? "rgba(212, 163, 115, 0.2)"
+                                ? "rgba(217, 164, 65, 0.16)"
                                 : selectedIncident.overall_status === "SUSPECT"
-                                ? "rgba(212, 163, 115, 0.12)"
-                                : "rgba(238, 231, 219, 0.08)",
+                                ? "rgba(217, 164, 65, 0.1)"
+                                : "rgba(72, 199, 181, 0.08)",
                             color:
                               selectedIncident.overall_status === "CANDIDATE_MATCH"
-                                ? "#dfa974"
+                                ? "#D9A441"
                                 : selectedIncident.overall_status === "SUSPECT"
-                                ? "#d4a373"
-                                : "#ded7cb",
+                                ? "#D9A441"
+                                : "#48C7B5",
                             border: `1px solid ${
                               selectedIncident.overall_status === "CANDIDATE_MATCH"
-                                ? "rgba(212, 163, 115, 0.4)"
-                                : "rgba(238, 231, 219, 0.12)"
+                                ? "rgba(217, 164, 65, 0.35)"
+                                : "rgba(72, 199, 181, 0.25)"
                             }`,
                           }}
                           className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
@@ -698,14 +698,14 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                             ? "Candidate Match"
                             : selectedIncident.overall_status.replace(/_/g, " ")}
                         </span>
-                        <span className="text-[11px] font-mono text-[#aba497]">
+                        <span className="text-[11px] font-mono text-[#A29B8F]">
                           {selectedIncident.scanned_at
                             ? new Date(selectedIncident.scanned_at).toLocaleString()
                             : "Recent scan"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5" data-no-flip>
-                        <span className="text-[10px] font-mono text-[#736d62]">
+                        <span className="text-[10px] font-mono text-[#736D62]">
                           ID: {selectedIncident.incident_id?.slice(0, 8)}...
                         </span>
                         {selectedIncident.incident_id && (
@@ -715,20 +715,20 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                               e.stopPropagation();
                               handleCopy(selectedIncident.incident_id!);
                             }}
-                            className="p-1 rounded bg-[#242220] hover:bg-[#2c2a27] text-[#aba497] hover:text-[#f4efe6] transition-colors cursor-pointer"
+                            className="p-1 rounded bg-[#242220] hover:bg-[#2c2a27] text-[#A29B8F] hover:text-[#F1EBDD] transition-colors cursor-pointer"
                             title="Copy Incident ID"
                           >
-                            {copiedIncidentId ? <Check size={11} className="text-teal-400" /> : <Copy size={11} />}
+                            {copiedIncidentId ? <Check size={11} className="text-[#48C7B5]" /> : <Copy size={11} />}
                           </button>
                         )}
                       </div>
                     </div>
 
-                    <h3 className="text-lg sm:text-xl font-bold text-[#f4efe6] truncate m-0">
+                    <h3 className="text-lg sm:text-xl font-bold text-[#F1EBDD] truncate m-0">
                       {selectedIncident.suspect_filename || (selectedIncident.submitted_asset_id ? `Suspect Asset ${selectedIncident.submitted_asset_id.slice(0, 8)}` : "Public Media Stream")}
                     </h3>
                     {selectedIncident.source_url && (
-                      <p className="text-xs font-mono text-[#aba497] truncate mt-1 max-w-xl">
+                      <p className="text-xs font-mono text-[#A29B8F] truncate mt-1 max-w-xl">
                         Source: {selectedIncident.source_url}
                       </p>
                     )}
@@ -737,26 +737,26 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   {/* Metric Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-3">
                     <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
-                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Sampled Frames</span>
-                      <span className="text-base font-bold text-[#f4efe6] font-mono">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A29B8F] block font-mono">Sampled Frames</span>
+                      <span className="text-base font-bold text-[#F1EBDD] font-mono">
                         {selectedIncident.frame_matches?.length ?? 0}
                       </span>
                     </div>
                     <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
-                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Candidate Matches</span>
-                      <span className="text-base font-bold text-teal-400 font-mono">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A29B8F] block font-mono">Candidate Matches</span>
+                      <span className="text-base font-bold text-[#48C7B5] font-mono">
                         {selectedIncident.candidate_matches_found}
                       </span>
                     </div>
                     <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
-                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Peak Similarity</span>
-                      <span className="text-base font-bold text-[#dfa974] font-mono">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A29B8F] block font-mono">Peak Similarity</span>
+                      <span className="text-base font-bold text-[#D9A441] font-mono">
                         {selectedIncident.highest_confidence}%
                       </span>
                     </div>
                     <div className="bg-[#1f1e1c] p-2.5 rounded-xl border border-[rgba(238,231,219,0.06)]">
-                      <span className="text-[9px] uppercase tracking-wider text-[#8e887d] block font-mono">Lowest L2 Dist</span>
-                      <span className="text-base font-bold text-[#ded7cb] font-mono">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A29B8F] block font-mono">Lowest L2 Dist</span>
+                      <span className="text-base font-bold text-[#F1EBDD] font-mono">
                         {selectedIncident.lowest_l2_distance !== null && selectedIncident.lowest_l2_distance !== undefined
                           ? Number(selectedIncident.lowest_l2_distance).toFixed(4)
                           : "N/A"}
@@ -873,20 +873,20 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         style={{
                           background:
                             selectedIncident.overall_status === "CANDIDATE_MATCH"
-                              ? "rgba(212, 163, 115, 0.18)"
+                              ? "rgba(217, 164, 65, 0.16)"
                               : selectedIncident.overall_status === "SUSPECT"
-                              ? "rgba(212, 163, 115, 0.12)"
-                              : "rgba(238, 231, 219, 0.08)",
+                              ? "rgba(217, 164, 65, 0.1)"
+                              : "rgba(72, 199, 181, 0.08)",
                           color:
                             selectedIncident.overall_status === "CANDIDATE_MATCH"
-                              ? "#dfa974"
+                              ? "#D9A441"
                               : selectedIncident.overall_status === "SUSPECT"
-                              ? "#d4a373"
-                              : "#ded7cb",
+                              ? "#D9A441"
+                              : "#48C7B5",
                           border: `1px solid ${
                             selectedIncident.overall_status === "CANDIDATE_MATCH"
-                              ? "rgba(212, 163, 115, 0.35)"
-                              : "rgba(238, 231, 219, 0.12)"
+                              ? "rgba(217, 164, 65, 0.35)"
+                              : "rgba(72, 199, 181, 0.25)"
                           }`,
                         }}
                         className="px-2.5 py-1 rounded-full text-[10.5px] font-bold uppercase tracking-wider"
@@ -964,7 +964,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   </div>
 
                   {exportError && (
-                    <div className="p-2.5 rounded-lg bg-[#242220] border border-[rgba(212,163,115,0.3)] text-[11px] text-[#dfa974] flex items-center gap-2">
+                    <div className="p-2.5 rounded-lg bg-[#22211E] border border-[rgba(216,107,104,0.3)] text-[11px] text-[#D86B68] flex items-center gap-2">
                       <AlertTriangle size={13} className="shrink-0" />
                       <span>{exportError}</span>
                     </div>
@@ -973,38 +973,38 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   {/* Concise Facts Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] py-2 border-t border-[rgba(238,231,219,0.06)]">
                     <div>
-                      <span className="text-[#736d62] text-[10px] block">Analyzed Content</span>
-                      <strong className="text-[#f4efe6] font-mono">
+                      <span className="text-[#736D62] text-[10px] block">Analyzed Content</span>
+                      <strong className="text-[#F1EBDD] font-mono">
                         {selectedIncident.investigation_type === "URL_SCREENING"
                           ? "1 thumbnail"
                           : `${selectedIncident.total_frames_analyzed} frames`}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-[#736d62] text-[10px] block">Visual Similarity</span>
-                      <strong className="text-[#f4efe6] font-mono">{selectedIncident.highest_confidence}%</strong>
+                      <span className="text-[#736D62] text-[10px] block">Visual Similarity</span>
+                      <strong className="text-[#F1EBDD] font-mono">{selectedIncident.highest_confidence}%</strong>
                     </div>
                     <div>
-                      <span className="text-[#736d62] text-[10px] block">Lowest L2 Dist</span>
-                      <strong className="text-[#f4efe6] font-mono">
+                      <span className="text-[#736D62] text-[10px] block">Lowest L2 Dist</span>
+                      <strong className="text-[#F1EBDD] font-mono">
                         {selectedIncident.lowest_l2_distance !== null
                           ? selectedIncident.lowest_l2_distance.toFixed(4)
                           : "—"}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-[#736d62] text-[10px] block">Matched Reference</span>
-                      <strong className="text-[#f4efe6] font-mono">
+                      <span className="text-[#736D62] text-[10px] block">Matched Reference</span>
+                      <strong className="text-[#F1EBDD] font-mono">
                         {selectedIncident.matched_assets.length} asset(s)
                       </strong>
                     </div>
                   </div>
 
                   {selectedIncident.investigation_type === "URL_SCREENING" && (
-                    <div className="p-2.5 rounded-lg bg-[#1a1918] border border-[rgba(212,163,115,0.2)] text-[10.5px] text-[#aba497] flex items-center gap-2">
-                      <Info size={12} className="text-[#d4a373] shrink-0" />
+                    <div className="p-2.5 rounded-lg bg-[#1B1A18] border border-[rgba(217,164,65,0.25)] text-[10.5px] text-[#A29B8F] flex items-center gap-2">
+                      <Info size={12} className="text-[#D9A441] shrink-0" />
                       <span>
-                        <strong className="text-[#dfa974]">Preliminary Thumbnail Screening:</strong> Single-frame preview evaluated. Underlying third-party stream was not fetched.
+                        <strong className="text-[#D9A441]">Preliminary Thumbnail Screening:</strong> Single-frame preview evaluated. Underlying third-party stream was not fetched.
                       </span>
                     </div>
                   )}

@@ -3,22 +3,30 @@
 :root {
   --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  /* VOLTFIT inspired Warm Black & Cream Theme */
-  --bg-dark: #121211;
-  --card-dark: #171615;
-  --card-surface: #1e1d1b;
-  --card-cream: #eee7db;
-  
-  --border-dark: rgba(238, 231, 219, 0.08);
-  --border-subtle: rgba(238, 231, 219, 0.14);
-  
-  --text-primary: #f4efe6;
-  --text-secondary: #aba497;
-  --text-muted: #736d62;
-  
-  --accent-cream: #eee7db;
-  --accent-cream-hover: #fcf7ef;
-  --accent-cream-text: #141312;
+  /* FixProof Restrained Charcoal, Warm Cream & Purposeful Accent Tokens */
+  --bg-main: #141412;
+  --bg-sidebar: #111110;
+  --card-surface: #1B1A18;
+  --surface-elevated: #22211E;
+  --border-subtle: #302E29;
+
+  --text-primary: #F1EBDD;
+  --text-secondary: #A29B8F;
+  --text-muted: #736D62;
+
+  /* Purposeful Semantic Accents */
+  --accent-teal: #48C7B5;      /* Active nav, healthy states, completion, selected */
+  --accent-amber: #D9A441;     /* Pending review, warnings, uncertain matches */
+  --accent-red: #D86B68;       /* Critical errors, confirmed critical piracy */
+  --accent-lavender: #A99AE8;  /* AI reasoning, intelligence, multimodal models */
+  --accent-cream: #F1EBDD;     /* Primary buttons & high-contrast highlights */
+  --accent-cream-hover: #FAF6ED;
+  --accent-cream-text: #141412;
+
+  /* Legacy compatibility mappings */
+  --bg-dark: #141412;
+  --card-dark: #1B1A18;
+  --border-dark: #302E29;
 }
 
 body {

@@ -28,12 +28,12 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigat
       <div className="flex items-center justify-between pb-4 border-b border-[rgba(238,231,219,0.08)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-[#d4a373]" />
-            <h2 className="text-[17px] font-extrabold text-[#f4efe6] m-0">
+            <span className="w-2 h-2 rounded-full bg-[#D9A441]" />
+            <h2 className="text-[17px] font-extrabold text-[#F1EBDD] m-0">
               Enforcement & Licensing Operations
             </h2>
           </div>
-          <p className="text-[12px] text-[#8e887d] m-0">
+          <p className="text-[12px] text-[#A29B8F] m-0">
             Review confirmed candidate matches for legal takedown drafting or commercial licensing.
           </p>
         </div>
@@ -42,15 +42,15 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigat
       {matchIncidents.length === 0 ? (
         <div
           style={{
-            background: "#1a1918",
+            background: "#1B1A18",
             borderRadius: 16,
-            border: "1px dashed rgba(238, 231, 219, 0.12)",
+            border: "1px dashed #302E29",
           }}
           className="text-center py-20 px-4"
         >
-          <Gavel size={36} className="mx-auto text-[#736d62] mb-3" />
-          <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No Actionable Infringements</h3>
-          <p className="text-[12px] text-[#8e887d] mt-1 max-w-sm mx-auto">
+          <Gavel size={36} className="mx-auto text-[#736D62] mb-3" />
+          <h3 className="text-[15px] font-bold text-[#F1EBDD] m-0">No Actionable Infringements</h3>
+          <p className="text-[12px] text-[#A29B8F] mt-1 max-w-sm mx-auto">
             When a suspect video matches an official reference with confidence &gt; 60%, it will appear here for rights enforcement or revenue licensing.
           </p>
         </div>
@@ -60,14 +60,14 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigat
             <div
               key={inc.incident_id}
               style={{
-                background: "#1a1918",
-                border: "1px solid rgba(212, 163, 115, 0.2)",
+                background: "#1B1A18",
+                border: "1px solid rgba(217, 164, 65, 0.25)",
                 borderRadius: 14,
               }}
               className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
             >
               <div>
-                <span className="px-2 py-0.5 rounded bg-[rgba(212,163,115,0.15)] text-[#d4a373] border border-[rgba(212,163,115,0.25)] text-[10px] font-bold uppercase tracking-wider inline-block mb-1">
+                <span className="px-2 py-0.5 rounded bg-[rgba(217,164,65,0.12)] text-[#D9A441] border border-[rgba(217,164,65,0.28)] text-[10px] font-bold uppercase tracking-wider inline-block mb-1">
                   Actionable Candidate Match
                 </span>
                 <p className="text-[14px] font-bold text-[#f4efe6] m-0">

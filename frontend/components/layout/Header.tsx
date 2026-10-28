@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, RefreshCw, Wifi, WifiOff, ShieldCheck, Zap } from "lucide-react";
+import { Search, RefreshCw, Wifi, WifiOff, ShieldCheck, Zap, Menu } from "lucide-react";
 
 interface HeaderProps {
   title: string;
@@ -11,6 +11,7 @@ interface HeaderProps {
   isCloud?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,51 +22,82 @@ export const Header: React.FC<HeaderProps> = ({
   isCloud = false,
   onRefresh,
   refreshing = false,
+  onToggleMobileMenu,
 }) => {
   return (
     <header
       style={{
         height: 64,
-        background: "rgba(20, 19, 18, 0.95)",
-        borderBottom: "1px solid rgba(238, 231, 219, 0.08)",
+        background: "rgba(20, 20, 18, 0.95)",
+        borderBottom: "1px solid #302E29",
         backdropFilter: "blur(12px)",
       }}
-      className="sticky top-0 z-20 px-6 flex items-center justify-between shrink-0"
+      className="sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between shrink-0"
     >
-      {/* Title + Status Badges */}
-      <div className="flex items-center gap-3.5">
-        <h1 className="text-[15px] font-bold text-[#f4efe6] tracking-tight">{title}</h1>
-        <div className="h-4 w-[1px] bg-[rgba(238,231,219,0.1)]" />
+      {/* Title + Mobile Trigger + Status Badges */}
+      <div className="flex items-center gap-2.5 sm:gap-3.5">
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            aria-label="Open mobile navigation"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "#1B1A18",
+              border: "1px solid #302E29",
+              color: "#A29B8F",
+            }}
+            className="md:hidden flex items-center justify-center hover:text-[#F1EBDD] hover:bg-[#22211E] transition-colors cursor-pointer"
+          >
+            <Menu size={16} />
+          </button>
+        )}
+
+        <h1 className="text-[14px] sm:text-[15px] font-bold text-[#F1EBDD] tracking-tight truncate max-w-[160px] sm:max-w-none">
+          {title}
+        </h1>
+
+        <div className="hidden sm:block h-4 w-[1px] bg-[#302E29]" />
+
+        {/* Node Status Badge */}
         <div
           style={{
-            background: "rgba(238, 231, 219, 0.06)",
-            border: "1px solid rgba(238, 231, 219, 0.12)",
-            color: backendOnline ? "#f4efe6" : "#c48a56",
+            background: backendOnline ? "rgba(72, 199, 181, 0.1)" : "rgba(217, 164, 65, 0.1)",
+            border: `1px solid ${backendOnline ? "rgba(72, 199, 181, 0.28)" : "rgba(217, 164, 65, 0.28)"}`,
+            color: backendOnline ? "#F1EBDD" : "#D9A441",
           }}
           className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
         >
-          <Zap size={11} className={backendOnline ? "text-[#eee7db] fill-[#eee7db]" : "text-[#8e887d]"} />
-          <span>{backendOnline ? "Forensic Node Ready" : "Awaiting Backend"}</span>
+          <Zap
+            size={11}
+            className={backendOnline ? "text-[#48C7B5] fill-[#48C7B5]" : "text-[#D9A441]"}
+          />
+          <span className="hidden xs:inline">
+            {backendOnline ? "Forensic Node Ready" : "Awaiting Backend"}
+          </span>
+          <span className="xs:hidden">{backendOnline ? "Ready" : "Waiting"}</span>
         </div>
 
+        {/* Persistence Indicator */}
         {backendOnline && (
           <div
             style={{
-              background: "rgba(238, 231, 219, 0.04)",
-              border: "1px solid rgba(238, 231, 219, 0.09)",
-              color: "#aba497",
+              background: "#1B1A18",
+              border: "1px solid #302E29",
+              color: "#A29B8F",
             }}
-            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium hidden sm:flex"
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium hidden md:flex"
             title={isCloud ? "PostgreSQL & Supabase Storage Active" : "Local SQLite & Filesystem Active"}
           >
-            <ShieldCheck size={11} className="text-[#8e887d]" />
-            <span>{isCloud ? "Supabase Cloud" : "Local Mode"}</span>
+            <ShieldCheck size={11} className="text-[#48C7B5]" />
+            <span>{isCloud ? "Supabase Cloud" : "Local SQLite"}</span>
           </div>
         )}
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Refresh button */}
         {onRefresh && (
           <button
@@ -73,69 +105,69 @@ export const Header: React.FC<HeaderProps> = ({
             disabled={refreshing}
             title="Refresh vault & state"
             style={{
-              background: "#1c1b1a",
-              border: "1px solid rgba(238, 231, 219, 0.1)",
-              color: "#ded7cb",
+              background: "#1B1A18",
+              border: "1px solid #302E29",
+              color: "#F1EBDD",
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:text-[#f4efe6] hover:bg-[#262422] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22211E] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw
               size={13}
-              className={refreshing ? "animate-spin text-[#eee7db]" : ""}
+              className={refreshing ? "animate-spin text-[#48C7B5]" : "text-[#A29B8F]"}
             />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         )}
 
         {/* Search */}
-        <div className="relative hidden md:block">
+        <div className="relative hidden lg:block">
           <Search
             size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#736d62]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#736D62]"
           />
           <input
             type="text"
             placeholder="Search assets, incidents..."
             style={{
-              border: "1px solid rgba(238, 231, 219, 0.1)",
-              background: "#1c1b1a",
-              color: "#f4efe6",
+              border: "1px solid #302E29",
+              background: "#1B1A18",
+              color: "#F1EBDD",
             }}
-            className="w-56 pl-8 pr-3 py-1.5 rounded-lg text-[12px] placeholder-[#736d62] focus:outline-none focus:border-[#eee7db] transition-all"
+            className="w-52 pl-8 pr-3 py-1.5 rounded-lg text-[12px] placeholder-[#736D62] focus:outline-none focus:border-[#48C7B5]/60 transition-all"
           />
         </div>
 
         {/* Backend Connectivity Status Pill */}
         <div
           style={{
-            background: "rgba(238, 231, 219, 0.06)",
-            border: "1px solid rgba(238, 231, 219, 0.12)",
-            color: backendOnline ? "#f4efe6" : "#c48a56",
+            background: backendOnline ? "rgba(72, 199, 181, 0.08)" : "rgba(216, 107, 104, 0.1)",
+            border: `1px solid ${backendOnline ? "rgba(72, 199, 181, 0.25)" : "rgba(216, 107, 104, 0.25)"}`,
+            color: backendOnline ? "#48C7B5" : "#D86B68",
           }}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold"
         >
           {backendOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-          <span>{backendOnline ? "Live" : "Offline"}</span>
+          <span className="hidden sm:inline">{backendOnline ? "Live" : "Offline"}</span>
         </div>
 
         {/* User profile avatar */}
         <div
           style={{
-            background: "#1c1b1a",
-            border: "1px solid rgba(238, 231, 219, 0.1)",
+            background: "#1B1A18",
+            border: "1px solid #302E29",
           }}
-          className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full select-none"
+          className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full select-none"
         >
           <div
             style={{
-              background: "#eee7db",
-              color: "#141312",
+              background: "#F1EBDD",
+              color: "#141412",
             }}
             className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
           >
             FP
           </div>
-          <span className="text-[12px] font-medium text-[#ded7cb]">SecOps</span>
+          <span className="text-[12px] font-medium text-[#F1EBDD] hidden sm:inline">SecOps</span>
         </div>
       </div>
     </header>

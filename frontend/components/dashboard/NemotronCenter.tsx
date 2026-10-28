@@ -802,9 +802,9 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: "rgba(13, 148, 136, 0.12)",
-                color: "#14b8a6",
-                border: "1px solid rgba(20, 184, 166, 0.3)",
+                background: "rgba(169, 154, 232, 0.12)",
+                color: "#A99AE8",
+                border: "1px solid rgba(169, 154, 232, 0.28)",
               }}
               className="flex items-center justify-center shrink-0"
             >
@@ -812,20 +812,20 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-[17px] font-extrabold text-[#f4efe6] m-0">
+                <h1 className="text-[17px] font-extrabold text-[#F1EBDD] m-0">
                   Nemotron Intelligence & Action Center
                 </h1>
                 <span
                   style={{
                     background:
                       nemotronStatus?.status === "ready"
-                        ? "rgba(34, 197, 94, 0.12)"
-                        : "rgba(234, 179, 8, 0.12)",
-                    color: nemotronStatus?.status === "ready" ? "#4ade80" : "#facc15",
+                        ? "rgba(72, 199, 181, 0.12)"
+                        : "rgba(217, 164, 65, 0.12)",
+                    color: nemotronStatus?.status === "ready" ? "#48C7B5" : "#D9A441",
                     border: `1px solid ${
                       nemotronStatus?.status === "ready"
-                        ? "rgba(34, 197, 94, 0.25)"
-                        : "rgba(234, 179, 8, 0.25)"
+                        ? "rgba(72, 199, 181, 0.28)"
+                        : "rgba(217, 164, 65, 0.28)"
                     }`,
                   }}
                   className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
@@ -1445,10 +1445,10 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       onClick={handleGenerateDetailedReport}
                       disabled={detailedReportState === "GENERATING" || detailedReportState === "EMAIL_SENDING"}
                       style={{
-                        background: "linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)",
-                        color: "#ffffff",
+                        background: "#F1EBDD",
+                        color: "#141412",
                       }}
-                      className="flex-1 py-2 px-3.5 rounded-lg text-[12px] font-bold flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                      className="flex-1 py-2 px-3.5 rounded-lg text-[12px] font-bold flex items-center justify-center gap-2 shadow-md hover:bg-[#FAF6ED] transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {detailedReportState === "GENERATING" ? (
                         <>

@@ -226,15 +226,15 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <span
               style={{
-                background: backendOnline ? "#eee7db" : "#dfa974",
+                background: backendOnline ? "#48C7B5" : "#D86B68",
               }}
               className="w-2 h-2 rounded-full"
             />
-            <h2 className="text-[18px] font-bold text-[#f4efe6] tracking-tight m-0">
-              Forensic Event Explorer & Swarm Telemetry
+            <h2 className="text-[18px] font-bold text-[#F1EBDD] tracking-tight m-0">
+              Forensic Event Explorer &amp; Swarm Telemetry
             </h2>
           </div>
-          <p className="text-[12px] text-[#aba497] m-0">
+          <p className="text-[12px] text-[#A29B8F] m-0">
             Audit feed of reference ingestion, vector indexing checkpoints, and similarity scan evaluations.
           </p>
         </div>
@@ -243,25 +243,25 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
         <div className="flex items-center gap-2 text-[11px] font-mono">
           <div
             style={{
-              background: backendOnline ? "rgba(238, 231, 219, 0.08)" : "rgba(223, 169, 116, 0.15)",
-              border: `1px solid ${backendOnline ? "rgba(238, 231, 219, 0.15)" : "rgba(223, 169, 116, 0.3)"}`,
+              background: backendOnline ? "rgba(72, 199, 181, 0.08)" : "rgba(216, 107, 104, 0.12)",
+              border: `1px solid ${backendOnline ? "rgba(72, 199, 181, 0.25)" : "rgba(216, 107, 104, 0.3)"}`,
             }}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
           >
             {backendOnline ? (
               <>
-                <Wifi size={13} className="text-[#eee7db]" />
-                <span className="text-[#f4efe6] font-bold">Backend Online</span>
-                <span className="text-[#736d62]">|</span>
-                <span className="text-[#aba497]">
+                <Wifi size={13} className="text-[#48C7B5]" />
+                <span className="text-[#F1EBDD] font-bold">Backend Online</span>
+                <span className="text-[#736D62]">|</span>
+                <span className="text-[#A29B8F]">
                   FAISS: {vaultStatus?.vault_size ?? 0} vecs ({vaultStatus?.embedding_dim || 576}d)
                 </span>
               </>
             ) : (
               <>
-                <WifiOff size={13} className="text-[#dfa974]" />
-                <span className="text-[#dfa974] font-bold">Backend Offline</span>
-                <span className="text-[#aba497]">(Port 8000 Unreachable)</span>
+                <WifiOff size={13} className="text-[#D86B68]" />
+                <span className="text-[#D86B68] font-bold">Backend Offline</span>
+                <span className="text-[#A29B8F]">(Port 8000 Unreachable)</span>
               </>
             )}
           </div>
@@ -272,15 +272,15 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
       {!backendOnline && (
         <div
           style={{
-            background: "rgba(223, 169, 116, 0.08)",
-            border: "1px solid rgba(223, 169, 116, 0.25)",
+            background: "rgba(216, 107, 104, 0.08)",
+            border: "1px solid rgba(216, 107, 104, 0.25)",
             borderRadius: 12,
           }}
-          className="p-3.5 flex items-center gap-3 text-[12px] text-[#dfa974]"
+          className="p-3.5 flex items-center gap-3 text-[12px] text-[#D86B68]"
         >
           <AlertTriangle size={18} className="shrink-0" />
           <div>
-            <strong className="block text-[#f4efe6]">Service Communication Unavailable</strong>
+            <strong className="block text-[#F1EBDD]">Service Communication Unavailable</strong>
             <span>
               The forensic backend server is not responding to health checks. Displayed events reflect cached state.
             </span>
@@ -548,15 +548,17 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
                       <span
                         style={{
                           background: isFlagged
-                            ? "rgba(223, 169, 116, 0.18)"
+                            ? "rgba(216, 107, 104, 0.14)"
                             : isSuspect || isWarn
-                            ? "rgba(212, 163, 115, 0.12)"
-                            : "rgba(238, 231, 219, 0.08)",
-                          color: isFlagged ? "#dfa974" : isSuspect || isWarn ? "#d4a373" : "#ded7cb",
+                            ? "rgba(217, 164, 65, 0.12)"
+                            : "rgba(72, 199, 181, 0.08)",
+                          color: isFlagged ? "#D86B68" : isSuspect || isWarn ? "#D9A441" : "#48C7B5",
                           border: `1px solid ${
                             isFlagged
-                              ? "rgba(223, 169, 116, 0.3)"
-                              : "rgba(238, 231, 219, 0.1)"
+                              ? "rgba(216, 107, 104, 0.3)"
+                              : isSuspect || isWarn
+                              ? "rgba(217, 164, 65, 0.28)"
+                              : "rgba(72, 199, 181, 0.25)"
                           }`,
                         }}
                         className="px-1.5 py-0.2 rounded text-[8.5px] font-bold uppercase tracking-wider font-mono"
@@ -664,13 +666,13 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
                 <span className="text-[#736d62] shrink-0">{timeStr}</span>
                 <span
                   style={{
-                    color: isMatch ? "#dfa974" : "#aba497",
+                    color: isMatch ? "#D9A441" : "#A29B8F",
                   }}
                   className="shrink-0 font-bold"
                 >
                   [{ev.category}]
                 </span>
-                <span className={isMatch ? "text-[#dfa974]" : "text-[#ded7cb]"}>
+                <span className={isMatch ? "text-[#D9A441]" : "text-[#F1EBDD]"}>
                   {ev.summary}
                 </span>
               </div>
@@ -719,7 +721,7 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
                 </div>
                 <div>
                   <span className="text-[#736d62] block">Category:</span>
-                  <span className="text-[#dfa974] font-bold">{selectedEvent.category}</span>
+                  <span className="text-[#D9A441] font-bold">{selectedEvent.category}</span>
                 </div>
                 <div>
                   <span className="text-[#736d62] block">Severity Status:</span>

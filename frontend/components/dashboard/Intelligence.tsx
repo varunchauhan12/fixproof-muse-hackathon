@@ -210,7 +210,7 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
             icon: ShieldAlert,
             onClick: () => toggleFilter("CANDIDATE_MATCH"),
             active: selectedStatusFilter === "CANDIDATE_MATCH",
-            highlight: "#dfa974",
+            highlight: "#D9A441",
           },
           {
             label: "Clean Inquiries",
@@ -220,7 +220,7 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
             icon: CheckCircle2,
             onClick: () => toggleFilter("CLEAN"),
             active: selectedStatusFilter === "CLEAN",
-            highlight: "#eee7db",
+            highlight: "#48C7B5",
           },
           {
             label: "Review Needed",
@@ -230,7 +230,7 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
             icon: AlertTriangle,
             onClick: () => toggleFilter("NEEDS_FULL_VIDEO_REVIEW"),
             active: selectedStatusFilter === "NEEDS_FULL_VIDEO_REVIEW",
-            highlight: "#aba497",
+            highlight: "#A29B8F",
           },
         ].map((card, idx) => {
           const Icon = card.icon;
@@ -316,28 +316,28 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
                   statusKey: "CANDIDATE_MATCH",
                   label: "Candidate Match (Infringement Risk)",
                   count: matchCount,
-                  color: "#dfa974",
+                  color: "#D9A441",
                   desc: "L2 distance < 0.15 + confirmed perceptual hash match",
                 },
                 {
                   statusKey: "SUSPECT",
                   label: "Suspect Visual Proximity",
                   count: suspectCount,
-                  color: "rgba(212, 163, 115, 0.6)",
+                  color: "rgba(217, 164, 65, 0.6)",
                   desc: "Cosine proximity detected, secondary review suggested",
                 },
                 {
                   statusKey: "NEEDS_FULL_VIDEO_REVIEW",
                   label: "Single-Frame Screen (Full Review Needed)",
                   count: reviewNeededCount,
-                  color: "#aba497",
+                  color: "#A29B8F",
                   desc: "Static thumbnail screened; underlying video uninspected",
                 },
                 {
                   statusKey: "CLEAN",
                   label: "Clean / Distinct Visual Features",
                   count: cleanCount,
-                  color: "#eee7db",
+                  color: "#48C7B5",
                   desc: "Zero correlated vectors above sensitivity threshold",
                 },
                 {
