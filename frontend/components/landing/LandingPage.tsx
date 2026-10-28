@@ -28,6 +28,9 @@ import {
 import createGlobe from "cobe";
 import HalftoneBackground from "@/components/kokonutui/halftone-background";
 import { JudgeWelcomeOverlay } from "@/components/ui/JudgeWelcomeOverlay";
+import { CultGlobe } from "@/components/cultui/globe";
+import GridBeamCapabilities from "./GridBeamCapabilities";
+import AgentScrollStory from "./AgentScrollStory";
 
 // ─── Flip Words ─────────────────────────────────────────────────────────────
 export const FlipWords = ({
@@ -821,6 +824,13 @@ export const LandingNavbar = ({
           </div>
 
           <button
+            onClick={() => scrollTo("capabilities")}
+            className="px-4 py-1.5 text-[13px] font-medium text-slate-300 hover:text-white rounded-full hover:bg-white/5 transition-all duration-150"
+          >
+            Capabilities
+          </button>
+
+          <button
             onClick={() => scrollTo("agents")}
             className="px-4 py-1.5 text-[13px] font-medium text-slate-300 hover:text-white rounded-full hover:bg-white/5 transition-all duration-150"
           >
@@ -880,10 +890,10 @@ const STAT_CARDS = [
     rotate: -4,
   },
   {
-    label: "Scan Speed",
-    value: "0.05s",
-    sub: "Per frame, zero-download",
-    tag: "Real-Time",
+    label: "Threat Hunter",
+    value: "Max 3",
+    sub: "Sequential stream inspection",
+    tag: "Isolated Queue",
     delay: 0.38,
     rotate: 6,
   },
@@ -1062,7 +1072,7 @@ export const Hero = ({
           </HalftoneBackground>
         </div>
 
-        <div className="relative z-10" style={{ width: 520, height: 520 }}>
+        <div className="relative z-10 flex items-center justify-center" style={{ width: 560, height: 560 }}>
           <div
             className="absolute inset-0 rounded-full pointer-events-none"
             style={{
@@ -1073,12 +1083,12 @@ export const Hero = ({
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-            style={{ position: "absolute", top: -40, left: -40, width: 600, height: 600 }}
+            className="relative flex items-center justify-center"
           >
-            <CobeGlobe />
+            <CultGlobe globeSize={520} />
           </motion.div>
           {STAT_CARDS.map((card, i) => (
-            <div key={card.label} className="absolute z-10" style={CARD_POSITIONS[i] as any}>
+            <div key={card.label} className="absolute z-10 pointer-events-auto" style={CARD_POSITIONS[i] as any}>
               <StatCard {...card} />
             </div>
           ))}
@@ -1395,10 +1405,10 @@ export const AICoachBubble = () => (
 
 // ─── Metric Bars ─────────────────────────────────────────────────────────────
 const METRICS = [
-  { label: "MobileNetV3 Vector Match", value: 100, color: "#ef4444" },
-  { label: "pHash Confirmation", value: 100, color: "#f59e0b" },
-  { label: "Temporal Frame Alignment", value: 98, color: "#a855f7" },
-  { label: "Forensic Confidence Score", value: 100, color: "#0d9488" },
+  { label: "MobileNetV3 Vector Similarity", value: 94, color: "#0d9488" },
+  { label: "pHash Geometric Alignment", value: 91, color: "#0284c7" },
+  { label: "Temporal Overlap Window", value: 88, color: "#8b5cf6" },
+  { label: "Heuristic Match Confidence", value: 92, color: "#10b981" },
 ];
 
 export const MetricBars = () => (
@@ -1488,11 +1498,11 @@ export const VerdictDuel = () => (
 
 // ─── Stat Tiles ──────────────────────────────────────────────────────────────
 const STAT_TILES = [
-  { value: "100%", label: "Exact Match Precision", sub: "L2 = 0.0 on identical frames", color: "#0d9488" },
-  { value: "0.05s", label: "Query Speed", sub: "FAISS vector distance search", color: "#6366f1" },
-  { value: "576-D", label: "Feature Embeddings", sub: "PyTorch MobileNetV3 normalized", color: "#f87171" },
+  { value: "576-D", label: "Vector Dimension", sub: "PyTorch MobileNetV3 normalized", color: "#0d9488" },
+  { value: "Sub-Sec", label: "Search Latency", sub: "FAISS vector distance search", color: "#6366f1" },
+  { value: "Max 3", label: "Stream Hunter Queue", sub: "Sequential isolated screening", color: "#f87171" },
   { value: "Dual", label: "Verification Layers", sub: "MobileNetV3 L2 + pHash", color: "#34d399" },
-  { value: "18+", label: "Vault Vectors", sub: "Live FAISS reference vault", color: "#818cf8" },
+  { value: "Ed25519", label: "Evidence Packaging", sub: "SHA-256 + digital signatures", color: "#818cf8" },
   { value: "Zero", label: "Suspect Contamination", sub: "Isolated reference registry", color: "#fbbf24" },
 ];
 
@@ -1769,8 +1779,8 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
       />
       <LandingNavbar onLaunch={onLaunch} onReplayIntro={handleReplayWelcome} />
       <Hero onLaunch={onLaunch} onReplayIntro={handleReplayWelcome} />
-      <AgentsSection />
-      <PipelineSection />
+      <GridBeamCapabilities />
+      <AgentScrollStory />
       <ShowcaseSection />
       <CTA onLaunch={onLaunch} />
       <footer className="py-8 px-8 border-t border-slate-100 bg-[#f6f7fc]">

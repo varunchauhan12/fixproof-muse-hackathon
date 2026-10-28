@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.82",
     "clsx": "^2.1.1",
     "cobe": "^2.0.1",
     "framer-motion": "^14.6.0",
