@@ -18,11 +18,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Pass NEXT_PUBLIC_API_URL so it is embedded into client bundles at build time
-ARG NEXT_PUBLIC_API_URL=https://fixproof-backend-meta-1097663016023.europe-west1.run.app
+ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo 'NEXT_PUBLIC_API_URL build argument is required' >&2; exit 1)
 RUN npm run build
 
 # Stage 3: Production runner
