@@ -5,6 +5,10 @@
 > The new database and six private buckets are already initialized; do not rerun
 > the empty-project initializer. Build the frontend with the new backend URL.
 
+Confirmed backend URL: `https://fixproofbackendv2-1097663016023.europe-west1.run.app`.
+The frontend Dockerfile defaults its NEXT_PUBLIC_API_URL build argument to this
+service. An explicit build argument can override it; local .env.local stays local.
+
 New Supabase initialization is complete; no GCP deployment was executed. Keep Nemotron and all current
 provider code. Existing deployment secrets and resources must remain unchanged.
 
