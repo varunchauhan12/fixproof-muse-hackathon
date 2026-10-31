@@ -19,7 +19,7 @@ import {
 } from "./types";
 
 export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "https://fixproof-git-214713402646.europe-west1.run.app"
+  process.env.NEXT_PUBLIC_API_URL || "https://fixproof-backend-meta-1097663016023.europe-west1.run.app"
 ).replace(/\/+$/, "");
 
 const noCacheHeaders = {

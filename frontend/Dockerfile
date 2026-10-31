@@ -18,7 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Pass NEXT_PUBLIC_API_URL so it is embedded into client bundles at build time
-ARG NEXT_PUBLIC_API_URL=https://fixproof-git-214713402646.europe-west1.run.app
+ARG NEXT_PUBLIC_API_URL=https://fixproof-backend-meta-1097663016023.europe-west1.run.app
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
