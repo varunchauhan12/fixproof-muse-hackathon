@@ -195,6 +195,7 @@ def startup_event():
         from app.storage import validate_storage_config
         validate_storage_config(mode=db_cfg.mode.value)
         default_vault.reload(mode=db_cfg.mode.value)
+        default_vault.sync_with_registered_assets()
 
 # Isolated storage directory for untrusted suspect videos and frames
 SUSPECTS_DIR = Path(__file__).resolve().parent.parent / "storage" / "suspects"
@@ -281,6 +282,21 @@ def get_vault_status():
     status["db_mode"] = get_db_config().mode.value
     status["is_cloud"] = is_cloud_mode()
     return status
+
+
+@app.post("/api/vault/sync")
+def sync_vault():
+    """
+    Synchronizes the in-memory FAISS vault and cloud snapshot with registered reference assets in PostgreSQL.
+    Prunes any vectors belonging to assets that have been deleted from the database.
+    """
+    pruned = default_vault.sync_with_registered_assets()
+    status = get_vault_status()
+    return {
+        "status": "synchronized",
+        "pruned_vectors": pruned,
+        "vault": status,
+    }
 
 
 @app.get("/api/vault/assets")

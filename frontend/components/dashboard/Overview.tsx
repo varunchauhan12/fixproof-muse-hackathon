@@ -21,6 +21,11 @@ import { motion } from "framer-motion";
 import { AssetRecord, VaultStatus, MatchAnalysisResult } from "@/lib/types";
 import { formatBytes, getAssetThumbnailUrl } from "@/lib/api";
 import { Skiper61MouseFollow } from "@/components/ui/Skiper61MouseFollow";
+import {
+  MetricCardSkeleton,
+  SubsystemCardSkeleton,
+  TableRowSkeleton,
+} from "@/components/ui/Skeleton";
 
 interface OverviewProps {
   assets: AssetRecord[];
@@ -30,6 +35,7 @@ interface OverviewProps {
   onViewIncident?: (incident: MatchAnalysisResult) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  loading?: boolean;
 }
 
 export const Overview: React.FC<OverviewProps> = ({
@@ -40,6 +46,7 @@ export const Overview: React.FC<OverviewProps> = ({
   onViewIncident,
   onRefresh,
   refreshing = false,
+  loading = false,
 }) => {
   const headerRef = useRef<HTMLDivElement>(null);
   const protectedCount = assets.filter((a) => a.indexed).length;
@@ -223,92 +230,101 @@ export const Overview: React.FC<OverviewProps> = ({
 
       {/* ─── Operational Metrics KPI Row (4 Cards) ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Reference Assets",
-            value: assets.length.toString(),
-            sub: `${protectedCount} indexed in FAISS`,
-            accentColor: "#48C7B5",
-            accentBg: "rgba(72, 199, 181, 0.1)",
-            accentBorder: "rgba(72, 199, 181, 0.25)",
-            icon: Database,
-          },
-          {
-            label: "FAISS Vector Vault",
-            value: (vaultStatus?.vault_size ?? 0).toLocaleString(),
-            sub: "576-dim L2 MobileNetV3 vectors",
-            accentColor: "#48C7B5",
-            accentBg: "rgba(72, 199, 181, 0.1)",
-            accentBorder: "rgba(72, 199, 181, 0.25)",
-            icon: Layers,
-          },
-          {
-            label: "Scanned Incidents",
-            value: incidents.length.toString(),
-            sub:
-              matchIncidents.length > 0
-                ? `${matchIncidents.length} candidate match alert(s)`
-                : "No candidate matches detected",
-            accentColor: matchIncidents.length > 0 ? "#D9A441" : "#A29B8F",
-            accentBg: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.1)" : "rgba(241, 235, 221, 0.05)",
-            accentBorder: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.25)" : "rgba(241, 235, 221, 0.1)",
-            icon: Search,
-          },
-          {
-            label: "Mean Match Score",
-            value: avgConfidence ? `${avgConfidence}%` : "—",
-            sub:
-              matchIncidents.length > 0
-                ? `Across ${matchIncidents.length} candidate match incident(s)`
-                : "Dual-layer L2 + pHash engine ready",
-            accentColor: "#A99AE8",
-            accentBg: "rgba(169, 154, 232, 0.1)",
-            accentBorder: "rgba(169, 154, 232, 0.25)",
-            icon: ShieldCheck,
-          },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <motion.div
-              key={card.label}
-              whileHover={{ y: -2 }}
-              transition={{ duration: 0.18 }}
-              style={{
-                background: "#1B1A18",
-                border: "1px solid #302E29",
-                borderRadius: 14,
-              }}
-              className="p-4 sm:p-5 flex flex-col justify-between hover:border-[#48C7B5]/30 transition-colors shadow-sm"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A29B8F] mb-1">
-                    {card.label}
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F1EBDD] m-0">
-                    {card.value}
-                  </p>
+        {loading ? (
+          <>
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+          </>
+        ) : (
+          [
+            {
+              label: "Reference Assets",
+              value: assets.length.toString(),
+              sub: `${protectedCount} indexed in FAISS`,
+              accentColor: "#48C7B5",
+              accentBg: "rgba(72, 199, 181, 0.1)",
+              accentBorder: "rgba(72, 199, 181, 0.25)",
+              icon: Database,
+            },
+            {
+              label: "FAISS Vector Vault",
+              value: (vaultStatus?.vault_size ?? 0).toLocaleString(),
+              sub: "576-dim L2 MobileNetV3 vectors",
+              accentColor: "#48C7B5",
+              accentBg: "rgba(72, 199, 181, 0.1)",
+              accentBorder: "rgba(72, 199, 181, 0.25)",
+              icon: Layers,
+            },
+            {
+              label: "Scanned Incidents",
+              value: incidents.length.toString(),
+              sub:
+                matchIncidents.length > 0
+                  ? `${matchIncidents.length} candidate match alert(s)`
+                  : "No candidate matches detected",
+              accentColor: matchIncidents.length > 0 ? "#D9A441" : "#A29B8F",
+              accentBg: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.1)" : "rgba(241, 235, 221, 0.05)",
+              accentBorder: matchIncidents.length > 0 ? "rgba(217, 164, 65, 0.25)" : "rgba(241, 235, 221, 0.1)",
+              icon: Search,
+            },
+            {
+              label: "Mean Match Score",
+              value: avgConfidence ? `${avgConfidence}%` : "—",
+              sub:
+                matchIncidents.length > 0
+                  ? `Across ${matchIncidents.length} candidate match incident(s)`
+                  : "Dual-layer L2 + pHash engine ready",
+              accentColor: "#A99AE8",
+              accentBg: "rgba(169, 154, 232, 0.1)",
+              accentBorder: "rgba(169, 154, 232, 0.25)",
+              icon: ShieldCheck,
+            },
+          ].map((card) => {
+            const Icon = card.icon;
+            return (
+              <motion.div
+                key={card.label}
+                whileHover={{ y: -2 }}
+                transition={{ duration: 0.18 }}
+                style={{
+                  background: "#1B1A18",
+                  border: "1px solid #302E29",
+                  borderRadius: 14,
+                }}
+                className="p-4 sm:p-5 flex flex-col justify-between hover:border-[#48C7B5]/30 transition-colors shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A29B8F] mb-1">
+                      {card.label}
+                    </p>
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F1EBDD] m-0">
+                      {card.value}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 9,
+                      background: card.accentBg,
+                      border: `1px solid ${card.accentBorder}`,
+                      color: card.accentColor,
+                    }}
+                    className="flex items-center justify-center shrink-0"
+                  >
+                    <Icon size={17} />
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 9,
-                    background: card.accentBg,
-                    border: `1px solid ${card.accentBorder}`,
-                    color: card.accentColor,
-                  }}
-                  className="flex items-center justify-center shrink-0"
-                >
-                  <Icon size={17} />
-                </div>
-              </div>
-              <p className="text-[11px] text-[#736D62] mt-3 pt-3 border-t border-[#302E29]">
-                {card.sub}
-              </p>
-            </motion.div>
-          );
-        })}
+                <p className="text-[11px] text-[#736D62] mt-3 pt-3 border-t border-[#302E29]">
+                  {card.sub}
+                </p>
+              </motion.div>
+            );
+          })
+        )}
       </div>
 
       {/* ─── Forensic Subsystems Architecture & Heartbeat ─── */}
@@ -333,7 +349,17 @@ export const Overview: React.FC<OverviewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {subsystems.map((sub) => {
+          {loading ? (
+            <>
+              <SubsystemCardSkeleton />
+              <SubsystemCardSkeleton />
+              <SubsystemCardSkeleton />
+              <SubsystemCardSkeleton />
+              <SubsystemCardSkeleton />
+              <SubsystemCardSkeleton />
+            </>
+          ) : (
+            subsystems.map((sub) => {
             const Icon = sub.icon;
             const isAI = sub.category === "ai";
             const isReady = sub.statusType === "ready";
@@ -416,7 +442,8 @@ export const Overview: React.FC<OverviewProps> = ({
                 </p>
               </motion.div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
 
@@ -448,7 +475,13 @@ export const Overview: React.FC<OverviewProps> = ({
               </button>
             </div>
 
-            {assets.length === 0 ? (
+            {loading ? (
+              <div className="space-y-2">
+                <TableRowSkeleton />
+                <TableRowSkeleton />
+                <TableRowSkeleton />
+              </div>
+            ) : assets.length === 0 ? (
               <div className="text-center py-10 text-[#736D62]">
                 <Database size={28} className="mx-auto mb-2 text-[#736D62] opacity-60" />
                 <p className="text-[12px] font-medium m-0 text-[#A29B8F]">No reference footage registered yet</p>
@@ -550,7 +583,13 @@ export const Overview: React.FC<OverviewProps> = ({
               </button>
             </div>
 
-            {incidents.length === 0 ? (
+            {loading ? (
+              <div className="space-y-2">
+                <TableRowSkeleton />
+                <TableRowSkeleton />
+                <TableRowSkeleton />
+              </div>
+            ) : incidents.length === 0 ? (
               <div className="text-center py-10 text-[#736D62]">
                 <Search size={28} className="mx-auto mb-2 text-[#736D62] opacity-60" />
                 <p className="text-[12px] font-medium m-0 text-[#A29B8F]">No forensic scans performed yet</p>

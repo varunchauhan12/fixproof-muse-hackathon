@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import createGlobe from "cobe";
 import HalftoneBackground from "@/components/kokonutui/halftone-background";
-import { JudgeWelcomeOverlay } from "@/components/ui/JudgeWelcomeOverlay";
+import { NvidiaJudgePreloader } from "@/components/ui/NvidiaJudgePreloader";
 import { CultGlobe } from "@/components/cultui/globe";
 import { HaloButton } from "@/components/cultui/halo-button";
 import GridBeamCapabilities from "./GridBeamCapabilities";
@@ -1752,12 +1752,13 @@ export const CTA = ({ onLaunch }: { onLaunch: () => void }) => (
 export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
   const [isJudgeWelcomeOpen, setIsJudgeWelcomeOpen] = useState(false);
 
+  // Show intro only once per browser session
   useEffect(() => {
-    // Check sessionStorage for first-time judge visit (SSR safe)
     if (typeof window !== "undefined") {
-      const seen = sessionStorage.getItem("fixproof_judge_welcome_seen");
-      if (!seen) {
+      const hasSeen = sessionStorage.getItem("fixproof_judge_intro_seen");
+      if (!hasSeen) {
         setIsJudgeWelcomeOpen(true);
+        sessionStorage.setItem("fixproof_judge_intro_seen", "1");
       }
     }
   }, []);
@@ -1765,7 +1766,7 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
   const handleCloseWelcome = () => {
     setIsJudgeWelcomeOpen(false);
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("fixproof_judge_welcome_seen", "true");
+      sessionStorage.setItem("fixproof_judge_intro_seen", "1");
     }
   };
 
@@ -1780,7 +1781,7 @@ export const LandingPage = ({ onLaunch }: { onLaunch: () => void }) => {
 
   return (
     <div className="bg-[#F5F1E8] text-[#171717] min-h-screen overflow-x-clip selection:bg-[#009E91]/20 selection:text-[#009E91]">
-      <JudgeWelcomeOverlay
+      <NvidiaJudgePreloader
         isOpen={isJudgeWelcomeOpen}
         onClose={handleCloseWelcome}
         onLaunchConsole={handleLaunchFromWelcome}

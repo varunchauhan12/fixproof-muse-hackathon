@@ -21,13 +21,12 @@ COPY requirements.txt .
 # Pre-install PyTorch CPU wheel to significantly reduce download size and build time
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Copy application source code and migrations
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY scripts/ ./scripts/
-COPY acceptance_ref_broadcast.mp4 sample_match_highlight.mp4 ./
 
 # Create storage directories
 RUN mkdir -p storage/videos storage/frames storage/suspects storage/vault storage/detailed_reports storage/cloud_cache

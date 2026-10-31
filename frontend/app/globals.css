@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-bricolage, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif);
+}
+
 :root {
-  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-bricolage: 'Bricolage Grotesque', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-inter: var(--font-bricolage);
   
   /* FixProof Restrained Charcoal, Warm Cream & Purposeful Accent Tokens */
   --bg-main: #141412;
@@ -23,6 +28,14 @@
   --accent-cream-hover: #FAF6ED;
   --accent-cream-text: #141412;
 
+  /* Studio Purple Accent Tokens */
+  --accent-purple: #8B5CF6;
+  --accent-purple-light: #A78BFA;
+  --accent-purple-dark: #6D28D9;
+  --accent-purple-glow: rgba(139, 92, 246, 0.28);
+  --accent-purple-bg: rgba(139, 92, 246, 0.08);
+  --accent-purple-border: rgba(139, 92, 246, 0.24);
+
   /* Legacy compatibility mappings */
   --bg-dark: #141412;
   --card-dark: #1B1A18;
@@ -30,12 +43,17 @@
 }
 
 body {
-  font-family: var(--font-inter);
+  font-family: var(--font-bricolage), 'Bricolage Grotesque', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-dark);
   color: var(--text-primary);
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure monospace elements retain clean technical typography */
+.font-mono, code, kbd, samp, pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
 
 /* Custom Scrollbar — Subtle Cream / Charcoal */
@@ -70,6 +88,15 @@ body {
 }
 .animate-spin-smooth {
   animation: spinSmooth 0.9s linear infinite;
+}
+
+/* Shimmer animation for skeleton loaders */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.animate-shimmer {
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
 /* Globe canvas */

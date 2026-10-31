@@ -549,18 +549,12 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#1e1d1b] text-[#f4efe6] border border-[rgba(238,231,219,0.12)]">
               <Radio size={12} className={isVaultReady ? "text-teal-400" : "text-[#736d62]"} />
-              <span>{isVaultReady ? "FAISS Vault Online" : "Vault Empty"}</span>
+              <span>{!vaultStatus ? "Syncing Database..." : isVaultReady ? "FAISS Vault Online" : "Vault Empty"}</span>
             </span>
 
-            {vaultStatus?.is_cloud ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
-                Supabase Cloud Persistence
-              </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
-                Local SQLite Mode
-              </span>
-            )}
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#1e1d1b] text-[#aba497] border border-[rgba(238,231,219,0.08)]">
+              {!vaultStatus ? "Connecting Storage..." : vaultStatus.is_cloud ? "Supabase Cloud Persistence" : "Local SQLite Mode"}
+            </span>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#f4efe6] m-0">

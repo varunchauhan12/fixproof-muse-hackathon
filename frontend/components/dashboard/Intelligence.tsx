@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { AssetRecord, VaultStatus, MatchAnalysisResult } from "@/lib/types";
 import { formatBytes } from "@/lib/api";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface IntelligenceProps {
   assets: AssetRecord[];
@@ -171,9 +172,31 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
 
       {/* ─── A. Top KPI Row (6 Compact Cards) ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          {
-            label: "Registered Assets",
+        {!vaultStatus ? (
+          <>
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "#171615",
+                  border: "1px solid rgba(238, 231, 219, 0.08)",
+                  borderRadius: 14,
+                }}
+                className="p-3 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-16 rounded bg-[#2A2824]" />
+                  <Skeleton className="h-3.5 w-3.5 rounded bg-[#2A2824]" />
+                </div>
+                <Skeleton className="h-6 w-12 rounded bg-[#2A2824]" />
+                <Skeleton className="h-2.5 w-20 rounded bg-[#2A2824]" />
+              </div>
+            ))}
+          </>
+        ) : (
+          [
+            {
+              label: "Registered Assets",
             value: totalAssets.toString(),
             sub: `${indexedCount} in FAISS (${totalAssets > 0 ? Math.round((indexedCount / totalAssets) * 100) : 0}%)`,
             desc: `${totalFrames.toLocaleString()} frames`,
@@ -277,7 +300,8 @@ export const Intelligence: React.FC<IntelligenceProps> = ({
               <span className="text-[9px] text-[#736d62] block mt-0.5 truncate">{card.desc}</span>
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* ─── B. Main Intelligence Telemetry (2-Column Grid) ─── */}

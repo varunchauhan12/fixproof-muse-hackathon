@@ -49,6 +49,7 @@ import {
   formatDuration,
 } from "@/lib/api";
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
+import { TableRowSkeleton, FrameViewerSkeleton } from "@/components/ui/Skeleton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
 
 const packageVerificationStepsConfig = [
@@ -92,12 +93,16 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [incidentSearchQuery, setIncidentSearchQuery] = useState<string>("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("ALL");
   const [selectedFrameMatch, setSelectedFrameMatch] = useState<FrameMatchDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     if (initialIncident) {
       setSelectedIncident(initialIncident);
       setIsFocusedView(true);
+      setRefFrameLoading(true);
+      setSuspectFrameLoading(true);
+      setRefFrameError(false);
+      setSuspectFrameError(false);
     }
   }, [initialIncident]);
 
@@ -136,7 +141,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   // Keyframe sequence ledger filter
   const [keyframeFilter, setKeyframeFilter] = useState<"ALL" | "CONFIRMED" | "HIGH_SIMILARITY">("ALL");
 
-  // Image loading error tracking (prevents broken image icons)
+  // Image loading state & error tracking (shows forensic skeleton while frames stream from storage)
+  const [refFrameLoading, setRefFrameLoading] = useState<boolean>(true);
+  const [suspectFrameLoading, setSuspectFrameLoading] = useState<boolean>(true);
   const [refFrameError, setRefFrameError] = useState<boolean>(false);
   const [suspectFrameError, setSuspectFrameError] = useState<boolean>(false);
 
@@ -186,6 +193,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
   const fetchIncidents = async () => {
     setLoading(true);
+    const startMs = Date.now();
     try {
       const data = await getIncidentsList();
       setIncidents(data);
@@ -195,6 +203,10 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     } catch {
       // ignore
     } finally {
+      const elapsed = Date.now() - startMs;
+      if (elapsed < 600) {
+        await new Promise((r) => setTimeout(r, 600 - elapsed));
+      }
       setLoading(false);
     }
   };
@@ -313,6 +325,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
   const handleMarkerClick = (fm: FrameMatchDetail) => {
     setSelectedFrameMatch(fm);
+    setRefFrameLoading(true);
+    setSuspectFrameLoading(true);
     setRefFrameError(false);
     setSuspectFrameError(false);
 
@@ -336,6 +350,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   };
 
   useEffect(() => {
+    setRefFrameLoading(true);
+    setSuspectFrameLoading(true);
     setRefFrameError(false);
     setSuspectFrameError(false);
 
@@ -530,7 +546,13 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
           </div>
 
           {/* Full-Width Investigation Rows */}
-          {filteredIncidents.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2.5">
+              <TableRowSkeleton />
+              <TableRowSkeleton />
+              <TableRowSkeleton />
+            </div>
+          ) : filteredIncidents.length === 0 ? (
             <div
               style={{
                 background: "#171615",
@@ -564,6 +586,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                   onClick={() => {
                     setSelectedIncident(inc);
                     setIsFocusedView(true);
+                    setRefFrameLoading(true);
+                    setSuspectFrameLoading(true);
                   }}
                   style={{
                     background: "#171615",
@@ -1145,14 +1169,30 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                 <span className="text-[11px] font-semibold text-[#aba497]">Preview image unavailable</span>
                               </div>
                             ) : (
-                              <img
-                                src={suspectFrameUrl}
-                                alt="Screened Preview"
-                                onError={() => setSuspectFrameError(true)}
-                                className="max-h-full max-w-full object-contain"
-                              />
+                              <>
+                                {suspectFrameLoading && (
+                                  <FrameViewerSkeleton
+                                    label="Screened Public Frame"
+                                    subtext="Extracting captured preview from database..."
+                                  />
+                                )}
+                                <img
+                                  src={suspectFrameUrl}
+                                  alt="Screened Preview"
+                                  loading="eager"
+                                  decoding="async"
+                                  onLoad={() => setSuspectFrameLoading(false)}
+                                  onError={() => {
+                                    setSuspectFrameLoading(false);
+                                    setSuspectFrameError(true);
+                                  }}
+                                  className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${
+                                    suspectFrameLoading ? "hidden" : "block"
+                                  }`}
+                                />
+                              </>
                             )
-                          ) : (
+                          ) : isPlaying ? (
                             <>
                               <video
                                 ref={suspectVideoRef}
@@ -1168,6 +1208,50 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                               />
                               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[9px] font-mono text-[#eee7db] border border-[rgba(238,231,219,0.12)]">
                                 SUSPECT: {suspectCurrentTime.toFixed(2)}s
+                              </div>
+                            </>
+                          ) : suspectFrameError || !suspectFrameUrl ? (
+                            <>
+                              <video
+                                ref={suspectVideoRef}
+                                src={selectedIncident.incident_id ? getAssetVideoUrl(selectedIncident.incident_id) : undefined}
+                                className="w-full h-full object-contain"
+                                muted={isMuted}
+                                playsInline
+                                onTimeUpdate={handleSuspectTimeUpdate}
+                                onLoadedMetadata={(e) => {
+                                  const d = (e.target as HTMLVideoElement).duration;
+                                  if (!isNaN(d)) setSuspectDuration(d);
+                                }}
+                              />
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[9px] font-mono text-[#eee7db] border border-[rgba(238,231,219,0.12)]">
+                                SUSPECT: {suspectCurrentTime.toFixed(2)}s
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {suspectFrameLoading && (
+                                <FrameViewerSkeleton
+                                  label="Suspect Video Keyframe"
+                                  subtext={`Extracting frame at ${(selectedFrameMatch?.submitted_frame?.timestamp_sec ?? 0).toFixed(1)}s from storage...`}
+                                />
+                              )}
+                              <img
+                                src={suspectFrameUrl}
+                                alt="Suspect Video Keyframe"
+                                loading="eager"
+                                decoding="async"
+                                onLoad={() => setSuspectFrameLoading(false)}
+                                onError={() => {
+                                  setSuspectFrameLoading(false);
+                                  setSuspectFrameError(true);
+                                }}
+                                className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${
+                                  suspectFrameLoading ? "hidden" : "block"
+                                }`}
+                              />
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[9px] font-mono text-[#eee7db] border border-[rgba(238,231,219,0.12)]">
+                                SUSPECT: {(selectedFrameMatch?.submitted_frame?.timestamp_sec ?? 0).toFixed(2)}s
                               </div>
                             </>
                           )}
@@ -1227,12 +1311,28 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                                 )}
                               </div>
                             ) : (
-                              <img
-                                src={refFrameUrl}
-                                alt="Vaulted Reference Frame"
-                                onError={() => setRefFrameError(true)}
-                                className="max-h-full max-w-full object-contain"
-                              />
+                              <>
+                                {refFrameLoading && (
+                                  <FrameViewerSkeleton
+                                    label="Vault Reference Keyframe"
+                                    subtext={`Fetching reference frame at ${(selectedFrameMatch?.best_match?.source_timestamp_sec ?? 0).toFixed(1)}s from vault...`}
+                                  />
+                                )}
+                                <img
+                                  src={refFrameUrl}
+                                  alt="Vaulted Reference Frame"
+                                  loading="eager"
+                                  decoding="async"
+                                  onLoad={() => setRefFrameLoading(false)}
+                                  onError={() => {
+                                    setRefFrameLoading(false);
+                                    setRefFrameError(true);
+                                  }}
+                                  className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${
+                                    refFrameLoading ? "hidden" : "block"
+                                  }`}
+                                />
+                              </>
                             )
                           ) : (
                             <div className="text-[#736d62] text-[11px] flex flex-col items-center gap-1">
@@ -1265,28 +1365,60 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       >
                         {/* Base Suspect Frame */}
                         {suspectFrameUrl && !suspectFrameError ? (
-                          <img
-                            src={suspectFrameUrl}
-                            alt="Base Suspect"
-                            onError={() => setSuspectFrameError(true)}
-                            className="absolute inset-0 w-full h-full object-contain"
-                          />
+                          <>
+                            {suspectFrameLoading && (
+                              <FrameViewerSkeleton
+                                label="Suspect Layer"
+                                subtext="Loading base layer for difference blend..."
+                              />
+                            )}
+                            <img
+                              src={suspectFrameUrl}
+                              alt="Base Suspect"
+                              loading="eager"
+                              decoding="async"
+                              onLoad={() => setSuspectFrameLoading(false)}
+                              onError={() => {
+                                setSuspectFrameLoading(false);
+                                setSuspectFrameError(true);
+                              }}
+                              className={`absolute inset-0 w-full h-full object-contain ${
+                                suspectFrameLoading ? "hidden" : "block"
+                              }`}
+                            />
+                          </>
                         ) : (
                           <div className="text-[#736d62] text-[11px]">Suspect frame unavailable for overlay</div>
                         )}
 
                         {/* Top Reference Frame Overlay */}
                         {refFrameUrl && !refFrameError && (
-                          <img
-                            src={refFrameUrl}
-                            alt="Reference Overlay"
-                            onError={() => setRefFrameError(true)}
-                            style={{
-                              opacity: overlayOpacity / 100,
-                              mixBlendMode: blendDifference ? "difference" : "normal",
-                            }}
-                            className="absolute inset-0 w-full h-full object-contain transition-opacity duration-75"
-                          />
+                          <>
+                            {refFrameLoading && !suspectFrameLoading && (
+                              <FrameViewerSkeleton
+                                label="Reference Overlay"
+                                subtext="Aligning reference difference layer..."
+                              />
+                            )}
+                            <img
+                              src={refFrameUrl}
+                              alt="Reference Overlay"
+                              loading="eager"
+                              decoding="async"
+                              onLoad={() => setRefFrameLoading(false)}
+                              onError={() => {
+                                setRefFrameLoading(false);
+                                setRefFrameError(true);
+                              }}
+                              style={{
+                                opacity: overlayOpacity / 100,
+                                mixBlendMode: blendDifference ? "difference" : "normal",
+                              }}
+                              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-75 ${
+                                refFrameLoading ? "hidden" : "block"
+                              }`}
+                            />
+                          </>
                         )}
 
                         <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded bg-black/80 text-[9.5px] font-mono text-[#eee7db] border border-[rgba(238,231,219,0.12)]">

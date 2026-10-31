@@ -236,13 +236,17 @@ class SupabaseStorageClient:
         except Exception as e:
             raise StorageError(f"Failed to generate signed URL for '{bucket}/{clean_path}': {e}") from e
 
-    def delete_object(self, bucket: str, storage_path: str) -> bool:
-        """Deletes an object from a bucket."""
+    def delete_objects(self, bucket: str, storage_paths: List[str]) -> bool:
+        """Deletes multiple objects from a bucket in a single batch request."""
+        if not storage_paths:
+            return True
         base_url, key = self._require_configured()
-        clean_path = storage_path.lstrip("/")
+        prefixes = [p.lstrip("/") for p in storage_paths if p]
+        if not prefixes:
+            return True
         url = f"{base_url}/storage/v1/object/{bucket}"
 
-        payload = json.dumps({"prefixes": [clean_path]}).encode("utf-8")
+        payload = json.dumps({"prefixes": prefixes}).encode("utf-8")
         headers = {
             "Authorization": f"Bearer {key}",
             "apikey": key,
@@ -252,8 +256,12 @@ class SupabaseStorageClient:
         req = urllib.request.Request(url, data=payload, headers=headers, method="DELETE")
 
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 return resp.status in (200, 204)
         except Exception as e:
-            logger.warning(f"Failed to delete {bucket}/{clean_path}: {e}")
+            logger.warning(f"Failed to delete {len(prefixes)} objects from {bucket}: {e}")
             return False
+
+    def delete_object(self, bucket: str, storage_path: str) -> bool:
+        """Deletes an object from a bucket."""
+        return self.delete_objects(bucket, [storage_path])

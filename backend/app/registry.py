@@ -196,26 +196,6 @@ def list_registered_assets(vault: Optional[Any] = None) -> List[Dict[str, Any]]:
                 "thumbnail_url": frames[0]["url"] if frames else None,
                 "frames": frames,
             })
-        existing_ids = {a["asset_id"] for a in asset_list}
-        for d in FRAMES_DIR.iterdir():
-            if d.is_dir() and not d.name.startswith(".") and not d.name.startswith("suspect_") and d.name not in existing_ids:
-                local_frames = get_asset_frames_list(d.name)
-                if local_frames:
-                    v_count = vector_counts.get(d.name, 0)
-                    asset_list.append({
-                        "asset_id": d.name,
-                        "filename": f"{d.name}.mp4",
-                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
-                        "duration_seconds": 0.0,
-                        "frame_count": len(local_frames),
-                        "file_size": 0,
-                        "indexed": v_count > 0,
-                        "indexed_vectors": v_count,
-                        "sample_interval_seconds": 5,
-                        "video_url": f"/api/vault/assets/{d.name}/video",
-                        "thumbnail_url": local_frames[0]["url"] if local_frames else None,
-                        "frames": local_frames,
-                    })
         return asset_list
 
     # Local Mode: Source of truth is persistent assets_metadata.json, indexed vault assets,
@@ -320,7 +300,7 @@ def delete_asset_record(asset_id: str, vault: Any) -> bool:
         is_uuid = False
 
     if is_cloud_mode() and is_uuid:
-        # Query storage path before deletion
+        # 1. Query storage paths for video and all frames before deletion
         row = default_db_manager.fetch_one(
             "SELECT storage_path FROM reference_assets WHERE asset_id = %s;",
             (asset_id,),
@@ -332,63 +312,48 @@ def delete_asset_record(asset_id: str, vault: Any) -> bool:
         if not target_path:
             target_path = f"{asset_id}/{asset_id}.mp4"
 
-        # 1. Delete asset from PostgreSQL (foreign keys cascade to reference_frames & reference_vectors)
+        frame_rows = default_db_manager.fetch_all(
+            "SELECT storage_path FROM reference_frames WHERE asset_id = %s;",
+            (asset_id,),
+        )
+        frame_storage_paths = []
+        for fr in frame_rows:
+            f_sp = fr.get("storage_path") or ""
+            if f_sp.startswith("reference-frames/"):
+                f_sp = f_sp[len("reference-frames/"):]
+            if f_sp:
+                frame_storage_paths.append(f_sp)
+
+        # 2. Delete asset from PostgreSQL (foreign keys cascade to reference_frames & reference_vectors)
         default_db_manager.execute("DELETE FROM reference_assets WHERE asset_id = %s;", (asset_id,))
 
-        # 2. Delete storage objects if accessible
+        # 3. Delete cloud storage objects (video and all frames)
         try:
             from app.storage import SupabaseStorageClient
             storage_client = SupabaseStorageClient()
-            storage_client.delete_object("reference-assets", target_path)
+            if target_path:
+                storage_client.delete_object("reference-assets", target_path)
+            if frame_storage_paths:
+                storage_client.delete_objects("reference-frames", frame_storage_paths)
         except Exception as e:
-            logger.warning(f"[Registry] Could not delete cloud storage object for asset {asset_id}: {e}")
+            logger.warning(f"[Registry] Could not delete cloud storage objects for asset {asset_id}: {e}")
 
-        # 3. Update vault vectors and create new snapshot checkpoint
+        # 4. Remove vectors from vault and checkpoint new snapshot
         if vault and hasattr(vault, "remove_asset_vectors"):
-            removed = vault.remove_asset_vectors(asset_id)
-            if removed > 0 and hasattr(vault, "cloud_cache_dir"):
-                try:
-                    import faiss
-                    from app.cloud_ingest import sha256_of_file
-                    from app.storage import SupabaseStorageClient
-                    storage_client = SupabaseStorageClient()
-                    active_snapshot = default_db_manager.fetch_one(
-                        "SELECT version_number FROM vault_snapshots WHERE status = 'ACTIVE' ORDER BY version_number DESC LIMIT 1;"
-                    )
-                    curr_version = active_snapshot["version_number"] if active_snapshot else 0
-                    new_version = curr_version + 1
-                    cache_dir = vault.cloud_cache_dir
-                    new_idx_path = cache_dir / f"faiss_vault_v{new_version}.index"
-                    new_meta_path = cache_dir / f"vault_metadata_v{new_version}.json"
-                    faiss.write_index(vault.vector_db, str(new_idx_path))
-                    with open(new_meta_path, "w", encoding="utf-8") as f:
-                        json.dump(vault.metadata_store, f, indent=2)
-                    new_sha256 = sha256_of_file(new_idx_path)
-                    storage_client.upload_file("vault-snapshots", f"v{new_version}/faiss_vault.index", new_idx_path, content_type="application/octet-stream", upsert=True)
-                    storage_client.upload_file("vault-snapshots", f"v{new_version}/vault_metadata.json", new_meta_path, content_type="application/json", upsert=True)
-                    unique_assets_count = len({m["asset_id"] for m in vault.metadata_store.values() if "asset_id" in m})
-                    with default_db_manager.transaction() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute("UPDATE vault_snapshots SET status = 'SUPERSEDED' WHERE status = 'ACTIVE';")
-                            cur.execute(
-                                """
-                                INSERT INTO vault_snapshots (
-                                    version_number, total_vectors, total_assets, storage_index_path,
-                                    storage_meta_path, sha256_checksum, status, created_at
-                                ) VALUES (%s, %s, %s, %s, %s, %s, 'ACTIVE', NOW());
-                                """,
-                                (
-                                    new_version,
-                                    vault.vector_db.ntotal,
-                                    unique_assets_count,
-                                    f"vault-snapshots/v{new_version}/faiss_vault.index",
-                                    f"vault-snapshots/v{new_version}/vault_metadata.json",
-                                    new_sha256,
-                                ),
-                            )
-                    vault.snapshot_version = new_version
-                except Exception as snap_err:
-                    logger.error(f"[Registry] Failed to checkpoint snapshot after asset deletion: {snap_err}")
+            vault.remove_asset_vectors(asset_id, checkpoint=True)
+
+        # 5. Clean up local disk caches for this asset
+        import shutil
+        asset_frames_dir = FRAMES_DIR / asset_id
+        if asset_frames_dir.exists():
+            shutil.rmtree(asset_frames_dir, ignore_errors=True)
+        for f in VIDEOS_DIR.glob(f"{asset_id}.*"):
+            f.unlink(missing_ok=True)
+        if vault and hasattr(vault, "cloud_cache_dir"):
+            cache_frames_dir = vault.cloud_cache_dir.parent / "frames" / asset_id
+            if cache_frames_dir.exists():
+                shutil.rmtree(cache_frames_dir, ignore_errors=True)
+
         return True
 
     # Local mode deletion

@@ -28,10 +28,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-storage/*
-!storage/**/.gitkeep
-backend/storage/*
-!backend/storage/**/.gitkeep
+storage/
+backend/storage/
 
 
 # Python Virtual Environments
@@ -66,3 +64,5 @@ Thumbs.db
 *.avi
 *.mkv
 *.webm
+!backend/acceptance_ref_broadcast.mp4
+!backend/sample_match_highlight.mp4

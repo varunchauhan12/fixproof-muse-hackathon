@@ -34,6 +34,7 @@ import yt_dlp
 
 from app.matcher import (
     match_single_frame,
+    get_valid_asset_ids,
     l2_to_confidence,
     l2_to_visual_similarity,
     severity_from_confidence,
@@ -306,10 +307,93 @@ def detect_platform_from_info(info: Dict[str, Any], url: str) -> str:
     return "Public Video Platform"
 
 
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    """Extracts 11-character YouTube video ID from various YouTube URL formats."""
+    patterns = [
+        r'(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})',
+        r'^([a-zA-Z0-9_-]{11})$',
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def extract_youtube_metadata_via_oembed(url: str, video_id: str) -> Dict[str, Any]:
+    """
+    Extracts public YouTube video metadata using YouTube's official open oEmbed API
+    and public image endpoints. This bypasses datacenter IP / Cloud Run bot-detection
+    mechanisms used by the internal player.
+    """
+    import urllib.request
+    import json
+
+    oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+    req = urllib.request.Request(
+        oembed_url,
+        headers={
+            "User-Agent": "FixProof-URL-Screener/1.0 (+https://fixproof.internal)",
+            "Accept": "application/json",
+        },
+    )
+
+    title = "YouTube Video"
+    author = "YouTube Creator"
+    author_url = ""
+    thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            title = data.get("title") or title
+            author = data.get("author_name") or author
+            author_url = data.get("author_url") or author_url
+            if data.get("thumbnail_url"):
+                thumbnail_url = data["thumbnail_url"]
+    except Exception as e:
+        logger.warning(f"[URL Screener] YouTube oEmbed request failed for {video_id}: {e}")
+
+    # Discover candidate preview URLs for YouTube
+    candidate_urls = [
+        thumbnail_url,
+        f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+        f"https://i.ytimg.com/vi/{video_id}/1.jpg",
+        f"https://i.ytimg.com/vi/{video_id}/2.jpg",
+        f"https://i.ytimg.com/vi/{video_id}/3.jpg",
+    ]
+    # Deduplicate while preserving order
+    seen = set()
+    deduped_candidates = []
+    for u in candidate_urls:
+        if u not in seen:
+            seen.add(u)
+            deduped_candidates.append(u)
+
+    return {
+        "title": title,
+        "platform": "YouTube",
+        "uploader": author,
+        "uploader_id": author,
+        "channel_url": author_url,
+        "duration_seconds": 0.0,
+        "view_count": None,
+        "upload_date": "",
+        "description": f"Public YouTube video ({video_id}) screened via official metadata endpoint.",
+        "webpage_url": f"https://www.youtube.com/watch?v={video_id}",
+        "thumbnail_url": thumbnail_url,
+        "candidate_thumbnail_urls": deduped_candidates,
+        "candidate_count": len(deduped_candidates),
+        "storyboards": [],
+        "extraction_method": "youtube_oembed_cloud_fallback",
+    }
+
+
 def extract_public_video_metadata(url: str) -> Dict[str, Any]:
     """
     Extracts public video metadata and thumbnail URLs using yt-dlp without downloading streams.
     Discovers primary thumbnail plus permitted preview candidate URLs.
+    Includes automatic graceful fallback for YouTube via oEmbed on Cloud Run / datacenter IPs.
     """
     validate_url_for_ssrf(url)
 
@@ -319,8 +403,18 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
         "skip_download": True,
         "noplaylist": True,
         "extract_flat": False,
-        "socket_timeout": 10,
+        "socket_timeout": 12,
         "no_color": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web", "mweb"],
+                "player_skip": ["webpage", "configs"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
     }
 
     try:
@@ -333,11 +427,28 @@ def extract_public_video_metadata(url: str) -> Dict[str, Any]:
     except Exception as e:
         err_msg = str(e).strip()
         first_line = err_msg.split("\n")[0]
+
+        # Check if this is a YouTube URL that hit bot detection or extraction restrictions on Cloud Run
+        yt_id = extract_youtube_video_id(url)
+        if yt_id and any(term in err_msg.lower() for term in ["bot", "sign in", "confirm", "captcha", "forbidden", "403", "429", "private", "unavailable", "failed to extract"]):
+            logger.info(f"[URL Screener] yt-dlp encountered restriction on YouTube URL ({first_line}). Executing oEmbed fallback...")
+            try:
+                return extract_youtube_metadata_via_oembed(url, yt_id)
+            except Exception as fb_err:
+                logger.warning(f"[URL Screener] YouTube oEmbed fallback failed: {fb_err}")
+
         if "Unsupported URL" in err_msg or "is not a valid URL" in err_msg:
             raise UnsupportedPlatformError(
                 "Unsupported video URL or platform. FixProof URL screening currently supports public videos "
                 "from YouTube, Vimeo, Twitch, and other major video platforms. Direct video files or arbitrary URLs are not supported."
             )
+
+        if "bot" in err_msg.lower() or "sign in" in err_msg.lower():
+            raise MetadataExtractionError(
+                f"Platform bot verification required by YouTube for cloud runtime IPs: {first_line}. "
+                "The target platform restricted datacenter requests."
+            )
+
         raise MetadataExtractionError(f"Could not retrieve public metadata: {first_line}")
 
     # Determine best primary thumbnail URL
@@ -570,6 +681,8 @@ def screen_video_url(
     matched_asset_ids = set()
     candidate_pairs_to_verify: List[Dict[str, Any]] = []
 
+    valid_asset_ids = get_valid_asset_ids(vault)
+
     for item_idx, item in enumerate(candidate_items):
         try:
             pil_img = item["pil_img"]
@@ -587,6 +700,7 @@ def screen_video_url(
                 submitted_asset_id=incident_id,
                 vault=vault,
                 k=3,
+                valid_asset_ids=valid_asset_ids,
             )
 
             best_match = match_result.get("best_match") if match_result else None

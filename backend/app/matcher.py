@@ -14,7 +14,7 @@ Features:
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 import logging
 import math
 
@@ -168,18 +168,43 @@ def load_reference_frame_image(meta: Dict[str, Any]) -> Optional[Image.Image]:
     return None
 
 
+def get_valid_asset_ids(vault: Optional[ReferenceVault] = None) -> Set[str]:
+    """
+    Returns the set of registered asset IDs that exist in the database or registry.
+    Prevents matching against orphaned or stale FAISS vectors.
+    """
+    try:
+        from app.db import get_db_config, default_db_manager
+        if get_db_config().is_cloud:
+            rows = default_db_manager.fetch_all("SELECT asset_id FROM reference_assets;")
+            return {str(r["asset_id"]) for r in rows}
+        else:
+            from app.registry import load_assets_metadata
+            return set(load_assets_metadata().keys())
+    except Exception as e:
+        logger.warning(f"[Matcher] Could not query registered assets for validation: {e}")
+        if vault and hasattr(vault, "metadata_store"):
+            return {meta.get("asset_id") for meta in vault.metadata_store.values() if meta.get("asset_id")}
+        return set()
+
+
 def match_single_frame(
     suspect_img: Image.Image,
     submitted_asset_id: str,
     vault: ReferenceVault,
     k: int = 3,
+    valid_asset_ids: Optional[Set[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Searches the FAISS vault for the best candidate match for a single frame,
-    excluding any vectors belonging to the submitted asset (prevents self-matching).
+    excluding any vectors belonging to the submitted asset (prevents self-matching)
+    and filtering out any vectors belonging to stale or deleted assets.
     """
     if vault.vector_db.ntotal == 0:
         return None
+
+    if valid_asset_ids is None:
+        valid_asset_ids = get_valid_asset_ids(vault)
 
     # Entropy check for blank/solid color images
     entropy_val = compute_image_entropy(suspect_img)
@@ -187,7 +212,7 @@ def match_single_frame(
 
     suspect_embedding = extract_image_embedding(suspect_img)
 
-    # Query up to 20 neighbors so we can filter out self-matches
+    # Query up to 20 neighbors so we can filter out self-matches and stale vectors
     query_k = min(vault.vector_db.ntotal, max(k * 4, 10))
     distances, indices = vault.vector_db.search(suspect_embedding, query_k)
 
@@ -198,7 +223,12 @@ def match_single_frame(
         meta = vault.metadata_store.get(str(idx), {})
 
         # Prevent self-matching
-        if meta.get("asset_id") == submitted_asset_id:
+        target_aid = meta.get("asset_id")
+        if not target_aid or target_aid == submitted_asset_id:
+            continue
+
+        # Prevent matching against stale/deleted assets not in active registry
+        if valid_asset_ids is not None and target_aid not in valid_asset_ids:
             continue
 
         l2_dist = float(round(float(dist), 4))
@@ -270,10 +300,12 @@ def analyze_asset_matches(
     vault: ReferenceVault,
     k_candidates: int = 3,
     run_vision_verification: bool = True,
+    valid_asset_ids: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
     Analyzes all extracted frames of an already-uploaded video against the FAISS reference vault.
     Performs candidate ranking and executes bounded Nemotron vision verification on top pairs.
+    Strictly filters out any candidate matches against stale/deleted assets.
 
     Returns:
         Structured candidate similarity review containing match statistics,
@@ -292,10 +324,14 @@ def analyze_asset_matches(
             f"No extracted JPEG frames found for asset '{submitted_asset_id}'."
         )
 
-    # Check if vault has any external vectors
+    if valid_asset_ids is None:
+        valid_asset_ids = get_valid_asset_ids(vault)
+
+    # Check if vault has any valid external vectors
     external_vectors_exist = False
     for meta in vault.metadata_store.values():
-        if meta.get("asset_id") != submitted_asset_id:
+        aid = meta.get("asset_id")
+        if aid and aid != submitted_asset_id and aid in valid_asset_ids:
             external_vectors_exist = True
             break
 
@@ -341,6 +377,7 @@ def analyze_asset_matches(
                     submitted_asset_id=submitted_asset_id,
                     vault=vault,
                     k=k_candidates,
+                    valid_asset_ids=valid_asset_ids,
                 )
         except Exception as e:
             logger.error(f"[Matcher] Error reading frame {fpath}: {e}")

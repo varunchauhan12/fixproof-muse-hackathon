@@ -80,6 +80,8 @@ class ReferenceVault:
     """
 
     def __init__(self, vault_dir: Optional[Path] = None, mode: Optional[str] = None):
+        passed_vault_dir = vault_dir is not None
+        self.passed_vault_dir = passed_vault_dir
         if vault_dir is None:
             vault_dir = Path(__file__).resolve().parent.parent / "storage" / "vault"
         self.vault_dir = Path(vault_dir)
@@ -90,7 +92,7 @@ class ReferenceVault:
 
         if mode is not None:
             self.mode = mode.lower()
-        elif vault_dir is not None:
+        elif passed_vault_dir:
             self.mode = "local"
         else:
             self.mode = get_db_config().mode.value
@@ -143,10 +145,16 @@ class ReferenceVault:
             """
         )
         if not row:
-            raise RuntimeError(
-                "No active FAISS vault snapshot found in PostgreSQL table 'vault_snapshots'. "
-                "Cannot initialize cloud reference vault. Run migration or staging sync first."
+            logger.info(
+                "[Vault] No active cloud vault snapshot found in PostgreSQL table 'vault_snapshots' "
+                "(fresh database initialization). Starting with clean empty in-memory reference vault (0 vectors, dim=576)."
             )
+            self.vector_db = faiss.IndexFlatL2(EMBEDDING_DIM)
+            self.metadata_store = {}
+            self.snapshot_version = None
+            self.index_path = None
+            self.meta_path = None
+            return
 
         storage_client = SupabaseStorageClient()
         bucket = "vault-snapshots"
@@ -223,6 +231,8 @@ class ReferenceVault:
 
         if self.is_cloud:
             self._load_cloud_vault()
+            if self.vector_db.ntotal > 0:
+                self.sync_with_registered_assets()
             return
 
         # Local mode loading
@@ -261,6 +271,8 @@ class ReferenceVault:
                 f"[Vault] Sync warning: Index has {self.vector_db.ntotal} vectors, "
                 f"metadata has {len(self.metadata_store)} records."
             )
+        if self.vector_db.ntotal > 0:
+            self.sync_with_registered_assets()
 
     def save_vault(self) -> None:
         """Persists the FAISS index and metadata store to disk."""
@@ -395,8 +407,8 @@ class ReferenceVault:
             "embedding_dim": EMBEDDING_DIM,
             "total_indexed_assets": len(unique_assets),
             "indexed_assets": unique_assets,
-            "index_file": str(self.index_path),
-            "metadata_file": str(self.meta_path),
+            "index_file": str(self.index_path) if self.index_path else None,
+            "metadata_file": str(self.meta_path) if self.meta_path else None,
             "mode": self.mode,
             "snapshot_version": self.snapshot_version,
         }
@@ -424,7 +436,177 @@ class ReferenceVault:
 
         return dists, matches
 
-    def remove_asset_vectors(self, asset_id: str) -> int:
+    def checkpoint_cloud_snapshot(self) -> Optional[int]:
+        """
+        Persists the current in-memory FAISS index and metadata store as a new
+        ACTIVE version in Supabase Storage ('vault-snapshots' bucket) and 'vault_snapshots' table.
+        Marks previous snapshots as SUPERSEDED.
+        Returns the new version number, or None on failure.
+        """
+        if not self.is_cloud:
+            return None
+
+        try:
+            db_mgr = default_db_manager
+            if not db_mgr.is_cloud:
+                from app.db import DatabaseConfig, DBMode, DatabaseManager
+                conn_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+                if conn_url:
+                    db_mgr = DatabaseManager(DatabaseConfig(mode=DBMode.SUPABASE, connection_url=conn_url))
+
+            storage_client = SupabaseStorageClient()
+            active_snapshot = db_mgr.fetch_one(
+                "SELECT version_number FROM vault_snapshots WHERE status = 'ACTIVE' ORDER BY version_number DESC LIMIT 1;"
+            )
+            curr_version = active_snapshot["version_number"] if active_snapshot else (self.snapshot_version or 0)
+            new_version = curr_version + 1
+
+            cache_dir = self.cloud_cache_dir
+            new_idx_path = cache_dir / f"faiss_vault_v{new_version}.index"
+            new_meta_path = cache_dir / f"vault_metadata_v{new_version}.json"
+
+            faiss.write_index(self.vector_db, str(new_idx_path))
+            with open(new_meta_path, "w", encoding="utf-8") as f:
+                json.dump(self.metadata_store, f, indent=2)
+
+            idx_bytes = new_idx_path.read_bytes()
+            new_sha256 = hashlib.sha256(idx_bytes).hexdigest()
+
+            storage_client.upload_file(
+                "vault-snapshots",
+                f"v{new_version}/faiss_vault.index",
+                new_idx_path,
+                content_type="application/octet-stream",
+                upsert=True,
+            )
+            storage_client.upload_file(
+                "vault-snapshots",
+                f"v{new_version}/vault_metadata.json",
+                new_meta_path,
+                content_type="application/json",
+                upsert=True,
+            )
+
+            unique_assets_count = len({m["asset_id"] for m in self.metadata_store.values() if "asset_id" in m})
+            with db_mgr.transaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE vault_snapshots SET status = 'SUPERSEDED' WHERE status = 'ACTIVE';")
+                    cur.execute(
+                        """
+                        INSERT INTO vault_snapshots (
+                            version_number, total_vectors, total_assets, storage_index_path,
+                            storage_meta_path, sha256_checksum, status, created_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'ACTIVE', NOW());
+                        """,
+                        (
+                            new_version,
+                            self.vector_db.ntotal,
+                            unique_assets_count,
+                            f"vault-snapshots/v{new_version}/faiss_vault.index",
+                            f"vault-snapshots/v{new_version}/vault_metadata.json",
+                            new_sha256,
+                        ),
+                    )
+
+            self.snapshot_version = new_version
+            self.index_path = new_idx_path
+            self.meta_path = new_meta_path
+            logger.info(
+                f"[Vault] Successfully checkpointed cloud snapshot v{new_version} "
+                f"with {self.vector_db.ntotal} vectors across {unique_assets_count} assets."
+            )
+            return new_version
+        except Exception as e:
+            logger.error(f"[Vault] Failed to checkpoint cloud snapshot: {e}")
+            return None
+
+    def sync_with_registered_assets(self, valid_asset_ids: Optional[Any] = None) -> int:
+        """
+        Reconciles in-memory vectors with registered reference assets.
+        Prunes any vectors belonging to assets that do not exist in the active registry / database.
+        Returns the number of pruned vectors.
+        """
+        if self.vector_db.ntotal == 0 and not self.metadata_store:
+            return 0
+
+        target_ids: Optional[Set[str]] = None
+        if valid_asset_ids is not None:
+            target_ids = {str(aid) for aid in valid_asset_ids}
+        elif self.passed_vault_dir and not self.is_cloud:
+            return 0
+        elif self.is_cloud:
+            try:
+                db_mgr = default_db_manager
+                if not db_mgr.is_cloud:
+                    from app.db import DatabaseConfig, DBMode, DatabaseManager
+                    conn_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+                    if conn_url:
+                        db_mgr = DatabaseManager(DatabaseConfig(mode=DBMode.SUPABASE, connection_url=conn_url))
+                rows = db_mgr.fetch_all("SELECT asset_id FROM reference_assets;")
+                target_ids = {str(r["asset_id"]) for r in rows}
+            except Exception as e:
+                logger.warning(f"[Vault] Could not fetch reference_assets for sync: {e}")
+                return 0
+        else:
+            try:
+                from app.registry import load_assets_metadata
+                target_ids = set(load_assets_metadata().keys())
+            except Exception as e:
+                logger.warning(f"[Vault] Could not fetch local asset metadata for sync: {e}")
+                return 0
+
+        if target_ids is None:
+            return 0
+
+        # Identify orphaned vector IDs
+        orphaned_vids = {
+            vid for vid, meta in self.metadata_store.items()
+            if str(meta.get("asset_id")) not in target_ids
+        }
+
+        if not orphaned_vids:
+            logger.info("[Vault] Vector vault is fully in sync with registered reference assets.")
+            return 0
+
+        pruned_count = len(orphaned_vids)
+        logger.info(f"[Vault] Pruning {pruned_count} orphaned vectors from vault (assets not in registry)...")
+
+        remaining_items = [
+            (int(vid), meta)
+            for vid, meta in self.metadata_store.items()
+            if vid not in orphaned_vids
+        ]
+        remaining_items.sort(key=lambda x: x[0])
+
+        if not remaining_items:
+            self.clear()
+            if self.is_cloud:
+                self.checkpoint_cloud_snapshot()
+            return pruned_count
+
+        new_index = faiss.IndexFlatL2(EMBEDDING_DIM)
+        new_meta: Dict[str, Dict[str, Any]] = {}
+
+        for new_vid, (old_vid, meta) in enumerate(remaining_items):
+            if old_vid >= self.vector_db.ntotal:
+                continue
+            vec = self.vector_db.reconstruct(old_vid).reshape(1, -1)
+            new_index.add(vec)
+            updated_meta = dict(meta)
+            updated_meta["vector_id"] = new_vid
+            new_meta[str(new_vid)] = updated_meta
+
+        self.vector_db = new_index
+        self.metadata_store = new_meta
+        self.save_vault()
+
+        if self.is_cloud:
+            self.checkpoint_cloud_snapshot()
+
+        logger.info(f"[Vault] Sync complete. Pruned {pruned_count} vectors. New vault size: {self.vector_db.ntotal}.")
+        return pruned_count
+
+    def remove_asset_vectors(self, asset_id: str, checkpoint: bool = True) -> int:
         """
         Removes all vectors belonging to asset_id from FAISS and metadata_store.
         Rebuilds the FAISS index with remaining vectors and preserves synchronization.
@@ -447,6 +629,8 @@ class ReferenceVault:
 
         if not remaining_items:
             self.clear()
+            if checkpoint and self.is_cloud:
+                self.checkpoint_cloud_snapshot()
             return removed_count
 
         new_index = faiss.IndexFlatL2(EMBEDDING_DIM)
@@ -467,6 +651,8 @@ class ReferenceVault:
         self.vector_db = new_index
         self.metadata_store = new_meta
         self.save_vault()
+        if checkpoint and self.is_cloud:
+            self.checkpoint_cloud_snapshot()
         logger.info(f"[Vault] Removed {removed_count} vectors for asset '{asset_id}'. Vault size now {self.vector_db.ntotal}.")
         return removed_count
 

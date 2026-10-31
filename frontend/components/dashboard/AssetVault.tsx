@@ -33,12 +33,14 @@ import {
   formatDuration,
 } from "@/lib/api";
 import { useActivity } from "@/context/ActivityContext";
+import { MetricCardSkeleton, AssetCardSkeleton } from "@/components/ui/Skeleton";
 
 interface AssetVaultProps {
   assets: AssetRecord[];
   vaultStatus: VaultStatus | null;
   onRefresh: () => void;
   refreshing: boolean;
+  loading?: boolean;
 }
 
 type IngestStage = "idle" | "uploading" | "extracting" | "embedding" | "complete";
@@ -48,6 +50,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
   vaultStatus,
   onRefresh,
   refreshing,
+  loading = false,
 }) => {
   const { addTask, updateTask } = useActivity();
 
@@ -406,68 +409,76 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
 
       {/* ─── Summary KPI Metrics Row (3 cards) ─── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          {
-            label: "Reference Assets",
-            value: totalAssets.toString(),
-            sub: `${totalAssets} official reference items`,
-            icon: Database,
-          },
-          {
-            label: "FAISS Vectors Vaulted",
-            value: totalVectors > 0 ? totalVectors.toLocaleString() : "0",
-            sub: "576-dim MobileNetV3 embeddings",
-            icon: Layers,
-          },
-          {
-            label: "Protected References",
-            value: protectedAssets.toString(),
-            sub: `${totalAssets - protectedAssets} awaiting indexation`,
-            icon: ShieldCheck,
-          },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <motion.div
-              key={card.label}
-              whileHover={{ y: -2 }}
-              transition={{ duration: 0.18 }}
-              style={{
-                background: "#171615",
-                border: "1px solid rgba(238, 231, 219, 0.08)",
-                borderRadius: 14,
-              }}
-              className="p-4 sm:p-5 flex flex-col justify-between hover:border-[rgba(238,231,219,0.16)] transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e887d] mb-1">
-                    {card.label}
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#f4efe6] m-0">
-                    {card.value}
-                  </p>
+        {loading ? (
+          <>
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+          </>
+        ) : (
+          [
+            {
+              label: "Reference Assets",
+              value: totalAssets.toString(),
+              sub: `${totalAssets} official reference items`,
+              icon: Database,
+            },
+            {
+              label: "FAISS Vectors Vaulted",
+              value: totalVectors > 0 ? totalVectors.toLocaleString() : "0",
+              sub: "576-dim MobileNetV3 embeddings",
+              icon: Layers,
+            },
+            {
+              label: "Protected References",
+              value: protectedAssets.toString(),
+              sub: `${totalAssets - protectedAssets} awaiting indexation`,
+              icon: ShieldCheck,
+            },
+          ].map((card) => {
+            const Icon = card.icon;
+            return (
+              <motion.div
+                key={card.label}
+                whileHover={{ y: -2 }}
+                transition={{ duration: 0.18 }}
+                style={{
+                  background: "#171615",
+                  border: "1px solid rgba(238, 231, 219, 0.08)",
+                  borderRadius: 14,
+                }}
+                className="p-4 sm:p-5 flex flex-col justify-between hover:border-[rgba(238,231,219,0.16)] transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e887d] mb-1">
+                      {card.label}
+                    </p>
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#f4efe6] m-0">
+                      {card.value}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 9,
+                      background: "rgba(238, 231, 219, 0.06)",
+                      border: "1px solid rgba(238, 231, 219, 0.1)",
+                      color: "#eee7db",
+                    }}
+                    className="flex items-center justify-center shrink-0"
+                  >
+                    <Icon size={17} />
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 9,
-                    background: "rgba(238, 231, 219, 0.06)",
-                    border: "1px solid rgba(238, 231, 219, 0.1)",
-                    color: "#eee7db",
-                  }}
-                  className="flex items-center justify-center shrink-0"
-                >
-                  <Icon size={17} />
-                </div>
-              </div>
-              <p className="text-[11px] text-[#8e887d] mt-3 pt-3 border-t border-[rgba(238,231,219,0.08)]">
-                {card.sub}
-              </p>
-            </motion.div>
-          );
-        })}
+                <p className="text-[11px] text-[#8e887d] mt-3 pt-3 border-t border-[rgba(238,231,219,0.08)]">
+                  {card.sub}
+                </p>
+              </motion.div>
+            );
+          })
+        )}
       </div>
 
       {/* ─── Concise & Prominent Ingestion Section ─── */}
@@ -876,8 +887,14 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
           </div>
         </div>
 
-        {/* Empty State */}
-        {filteredAssets.length === 0 ? (
+        {/* Loading / Empty State */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <AssetCardSkeleton />
+            <AssetCardSkeleton />
+            <AssetCardSkeleton />
+          </div>
+        ) : filteredAssets.length === 0 ? (
           <div
             style={{
               background: "#171615",

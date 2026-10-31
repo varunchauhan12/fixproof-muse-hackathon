@@ -28,7 +28,7 @@ import numpy as np
 from PIL import Image
 
 from app.db import DatabaseManager, DatabaseConfig, DBMode, get_db_config, default_db_manager
-from app.storage import SupabaseStorageClient, StorageError
+from app.storage import SupabaseStorageClient, StorageError, StorageUploadError
 from app.vault import ReferenceVault, EMBEDDING_DIM, extract_image_embedding
 
 logger = logging.getLogger(__name__)
@@ -81,13 +81,29 @@ def ingest_reference_asset_cloud(
     try:
         # ── 1. Upload Video to Supabase Storage (reference-assets) ──
         logger.info(f"[Cloud Ingest] Uploading video to reference-assets/{video_storage_path}...")
-        storage_client.upload_file(
-            bucket="reference-assets",
-            storage_path=video_storage_path,
-            data_or_file=video_path,
-            content_type=content_type,
-            upsert=True,
-        )
+        try:
+            storage_client.upload_file(
+                bucket="reference-assets",
+                storage_path=video_storage_path,
+                data_or_file=video_path,
+                content_type=content_type,
+                upsert=True,
+            )
+        except StorageUploadError as e:
+            err_str = str(e).lower()
+            if "invalid_mime_type" in err_str or "invalidmimetype" in err_str or "415" in err_str:
+                logger.warning(
+                    f"[Cloud Ingest] Bucket rejected content_type '{content_type}', retrying with 'video/mp4' fallback: {e}"
+                )
+                storage_client.upload_file(
+                    bucket="reference-assets",
+                    storage_path=video_storage_path,
+                    data_or_file=video_path,
+                    content_type="video/mp4",
+                    upsert=True,
+                )
+            else:
+                raise
         uploaded_storage_paths.append(("reference-assets", video_storage_path))
 
         # ── 2. Upload Extracted Frames & Calculate pHash ──

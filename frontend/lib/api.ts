@@ -12,14 +12,15 @@ import {
   SendEmailPayload,
   SendEmailResult,
   EmailAuditEntry,
-  DetailedReportRecord,
   DetailedReportListItem,
   DetailedReportPayload,
   DetailedReportResponse,
   EmailDetailedReportPayload,
 } from "./types";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "https://fixproof-git-214713402646.europe-west1.run.app"
+).replace(/\/+$/, "");
 
 const noCacheHeaders = {
   "Cache-Control": "no-cache, no-store, must-revalidate",

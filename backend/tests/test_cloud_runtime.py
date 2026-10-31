@@ -56,9 +56,9 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
         cls.test_asset_id = "2c6fa947-96cb-40c8-971e-a82869ac2214"
         if cls.has_live_cloud:
             try:
-                from app.db import DatabaseManager, DatabaseConfig, DBMode
-                mgr = DatabaseManager(DatabaseConfig(mode=DBMode.SUPABASE))
-                row = mgr.fetch_one("SELECT asset_id FROM reference_assets LIMIT 1;")
+                from app.db import DatabaseConfig, DBMode, DatabaseManager
+                mgr = DatabaseManager(DatabaseConfig(mode=DBMode.SUPABASE, connection_url=db_url))
+                row = mgr.fetch_one("SELECT asset_id FROM reference_assets ORDER BY created_at DESC LIMIT 1;")
                 if row:
                     cls.test_asset_id = str(row["asset_id"])
             except Exception:
@@ -118,13 +118,20 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
                 self.assertIn("Cloud FAISS snapshot integrity failure", str(ctx.exception))
                 self.assertIn("SHA-256 mismatch", str(ctx.exception))
 
-    def test_cloud_vault_fails_on_missing_active_snapshot(self):
-        """Verifies ReferenceVault fails fast when no active snapshot exists in database."""
+    def test_cloud_vault_graceful_empty_start_on_missing_active_snapshot(self):
+        """Verifies ReferenceVault initializes an empty FAISS index when no active snapshot exists."""
         with patch("app.db.DatabaseManager.fetch_one") as mock_fetch:
             mock_fetch.return_value = None
-            with self.assertRaises(RuntimeError) as ctx:
-                ReferenceVault(mode="supabase")
-            self.assertIn("No active FAISS vault snapshot found", str(ctx.exception))
+            vault = ReferenceVault(mode="supabase")
+            self.assertEqual(vault.vector_db.ntotal, 0)
+            self.assertEqual(vault.metadata_store, {})
+            self.assertIsNone(vault.snapshot_version)
+            self.assertIsNone(vault.index_path)
+            self.assertIsNone(vault.meta_path)
+            status = vault.get_status()
+            self.assertEqual(status["status"], "empty")
+            self.assertEqual(status["vault_size"], 0)
+            self.assertEqual(status["embedding_dim"], 576)
 
     def test_cloud_vault_fails_on_storage_download_error(self):
         """Verifies ReferenceVault fails fast when snapshot storage is unreachable."""
@@ -235,17 +242,13 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
             self.skipTest("Live Supabase credentials not configured.")
 
         os.environ["FIXPROOF_DB_MODE"] = "supabase"
-        vault = ReferenceVault(mode="supabase")
-        sample_frame = None
-        for meta in vault.metadata_store.values():
-            if meta.get("asset_id") and meta.get("filename"):
-                sample_frame = meta
-                break
-        if not sample_frame:
+        row = default_db_manager.fetch_one("SELECT asset_id, storage_path FROM reference_frames LIMIT 1;")
+        if not row or not row.get("storage_path"):
             self.skipTest("No indexed frames available in live cloud vault.")
 
+        filename = row["storage_path"].split("/")[-1]
         resp = self.client.get(
-            f"/api/vault/assets/{sample_frame['asset_id']}/frames/{sample_frame['filename']}",
+            f"/api/vault/assets/{row['asset_id']}/frames/{filename}",
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.headers.get("content-type"), "image/jpeg")
@@ -348,6 +351,29 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
                     # Must fail with HTTP 503 or 422, NEVER return false CLEAN
                     self.assertIn(resp.status_code, (422, 503))
 
+    def test_scan_suspect_on_empty_vault_returns_zero_match(self):
+        """Verifies scanning a suspect video with an empty vault returns a 200 zero-match response."""
+        sample_path = BACKEND_DIR / "sample_match_highlight.mp4"
+        if not sample_path.exists():
+            self.skipTest("sample_match_highlight.mp4 not found.")
+
+        empty_vault = ReferenceVault(mode="local")
+        empty_vault.vector_db = faiss.IndexFlatL2(EMBEDDING_DIM)
+        empty_vault.metadata_store = {}
+
+        with patch("app.main.default_vault", empty_vault):
+            with open(sample_path, "rb") as f:
+                resp = self.client.post(
+                    "/api/threats/scan",
+                    files={"file": ("sample_match_highlight.mp4", f, "video/mp4")},
+                    headers={"X-Client-Session-Id": "test-empty-vault-scan"},
+                )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data.get("overall_status"), "NO_REFERENCE_DATA")
+            self.assertEqual(data.get("candidate_matches_found"), 0)
+            self.assertEqual(len(data.get("reference_matches", [])), 0)
+
     # ──────────────────────────────────────────────────────────────────────────
     # 5. Local Mode Backward Compatibility
     # ──────────────────────────────────────────────────────────────────────────
@@ -369,6 +395,117 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
         incidents = load_incidents()
         self.assertIsInstance(incidents, list)
         self.assertGreaterEqual(len(incidents), 0)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 6. Production Regression Tests: Sync, Stale Vector Filter, Deletion & URL Fallback
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def test_vault_sync_prunes_orphaned_vectors(self):
+        """Issue 1 Regression: Vault sync removes vectors belonging to deleted assets."""
+        import tempfile
+        import numpy as np
+        import faiss
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            v = ReferenceVault(vault_dir=Path(tmp_dir), mode="local")
+            v.vector_db = faiss.IndexFlatL2(EMBEDDING_DIM)
+            v.metadata_store = {}
+
+            # Add vectors for valid asset and orphaned asset
+            v1 = np.ones((1, EMBEDDING_DIM), dtype=np.float32)
+            faiss.normalize_L2(v1)
+            v.vector_db.add(v1)
+            v.metadata_store["0"] = {"asset_id": "valid-asset-1", "vector_id": 0}
+
+            v2 = np.zeros((1, EMBEDDING_DIM), dtype=np.float32)
+            v2[0, 0] = 1.0
+            v.vector_db.add(v2)
+            v.metadata_store["1"] = {"asset_id": "stale-asset-to-prune", "vector_id": 1}
+
+            self.assertEqual(v.vector_db.ntotal, 2)
+            pruned = v.sync_with_registered_assets(valid_asset_ids={"valid-asset-1"})
+            self.assertEqual(pruned, 1)
+            self.assertEqual(v.vector_db.ntotal, 1)
+            self.assertEqual(len(v.metadata_store), 1)
+            self.assertEqual(v.metadata_store["0"]["asset_id"], "valid-asset-1")
+
+    def test_matcher_filters_stale_vectors_not_in_registry(self):
+        """Issue 2 Regression: Matcher ignores vectors from deleted/stale assets."""
+        import tempfile
+        import numpy as np
+        import faiss
+        from PIL import Image
+        from app.matcher import match_single_frame
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            v = ReferenceVault(vault_dir=Path(tmp_dir), mode="local")
+            v.vector_db = faiss.IndexFlatL2(EMBEDDING_DIM)
+            v.metadata_store = {}
+
+            # Add an identical vector for a deleted/stale asset
+            test_img = Image.new("RGB", (224, 224), color=(128, 64, 32))
+            from app.vault import extract_image_embedding
+            emb = extract_image_embedding(test_img)
+            v.vector_db.add(emb)
+            v.metadata_store["0"] = {
+                "asset_id": "stale-deleted-asset",
+                "frame_id": 0,
+                "timestamp_sec": 0,
+                "filename": "frame_0000s.jpg",
+                "frame_path": "",
+            }
+
+            # If valid_asset_ids only has registered assets, stale asset should be filtered out
+            res = match_single_frame(
+                suspect_img=test_img,
+                submitted_asset_id="suspect-job-id",
+                vault=v,
+                k=3,
+                valid_asset_ids={"legitimate-active-asset"},
+            )
+            self.assertIsNone(res, "Matcher should return None when only stale vectors match")
+
+    def test_storage_client_delete_objects_batch(self):
+        """Issue 3 Regression: SupabaseStorageClient.delete_objects handles multiple paths."""
+        storage = SupabaseStorageClient()
+        with patch("urllib.request.urlopen") as mock_url:
+            mock_resp = MagicMock()
+            mock_resp.status = 200
+            mock_url.return_value.__enter__.return_value = mock_resp
+            result = storage.delete_objects("reference-frames", ["asset1/f1.jpg", "asset1/f2.jpg"])
+            self.assertTrue(result)
+            self.assertTrue(mock_url.called)
+
+    def test_youtube_metadata_fallback_on_bot_detection(self):
+        """Issue 4 Regression: URL screener falls back to oEmbed on YouTube bot-check error."""
+        from app.url_screener import extract_public_video_metadata
+
+        mock_oembed_return = {
+            "title": "Fallback Video Title",
+            "platform": "YouTube",
+            "uploader": "Fallback Channel",
+            "uploader_id": "Fallback Channel",
+            "channel_url": "https://www.youtube.com/@channel",
+            "duration_seconds": 0.0,
+            "view_count": None,
+            "upload_date": "",
+            "description": "Mocked fallback description",
+            "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "thumbnail_url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+            "candidate_thumbnail_urls": ["https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"],
+            "candidate_count": 1,
+            "storyboards": [],
+            "extraction_method": "youtube_oembed_cloud_fallback",
+        }
+
+        with patch("app.url_screener.yt_dlp.YoutubeDL") as mock_ydl_cls:
+            mock_ydl = MagicMock()
+            mock_ydl.extract_info.side_effect = Exception("Sign in to confirm you're not a bot")
+            mock_ydl_cls.return_value.__enter__.return_value = mock_ydl
+            with patch("app.url_screener.extract_youtube_metadata_via_oembed", return_value=mock_oembed_return):
+                meta = extract_public_video_metadata("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                self.assertEqual(meta["title"], "Fallback Video Title")
+                self.assertEqual(meta["platform"], "YouTube")
+                self.assertEqual(meta["extraction_method"], "youtube_oembed_cloud_fallback")
 
 
 if __name__ == "__main__":

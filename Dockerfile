@@ -17,12 +17,11 @@ COPY backend/requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 COPY backend/app/ ./app/
 COPY backend/migrations/ ./migrations/
 COPY backend/scripts/ ./scripts/
-COPY backend/acceptance_ref_broadcast.mp4 backend/sample_match_highlight.mp4 ./
 
 RUN mkdir -p storage/videos storage/frames storage/suspects storage/vault storage/detailed_reports storage/cloud_cache
 
