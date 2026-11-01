@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -392,7 +393,7 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                        matched_asset_ids, cv_evidence_dossier, scanned_at,
                        score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
                 FROM incidents
-                WHERE (session_id = %s OR session_id = 'demo-showcase')
+                WHERE (session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')
                 ORDER BY scanned_at DESC
                 LIMIT 100;
                 """,
@@ -462,6 +463,7 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                 "overall_status": row.get("overall_status") or "CLEAN",
                 "matched_assets": [str(m) for m in matched],
                 "frame_matches": dossier.get("frame_matches") or [],
+                "processing_timings": dossier.get("processing_timings") or {},
                 "scanned_at": scanned_at_str,
                 "file_size": int(row.get("file_size_bytes") or 0),
                 "duration_seconds": float(row.get("duration_seconds") or 0.0),
@@ -483,7 +485,7 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
             if session_id:
                 return [
                     inc for inc in all_local
-                    if inc.get("session_id") == session_id or inc.get("session_id") == "demo-showcase"
+                    if inc.get("session_id") == session_id or not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
                 ]
             return [
                 inc for inc in all_local
@@ -492,6 +494,17 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"[Registry] Failed to read {INCIDENTS_FILE}: {e}")
         return []
+
+
+def _load_all_local_incidents() -> List[Dict[str, Any]]:
+    """Internal persistence read; authorization is applied by list/detail routes."""
+    if not INCIDENTS_FILE.exists():
+        return []
+    with INCIDENTS_FILE.open(encoding="utf-8") as stream:
+        records = json.load(stream)
+    if not isinstance(records, list):
+        raise ValueError("Invalid incident registry; refusing to overwrite existing records")
+    return records
 
 
 def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = None) -> None:
@@ -516,6 +529,7 @@ def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = Non
         suspect_url = incident_data.get("suspect_url") or incident_data.get("source_url")
 
         dossier = {
+            "processing_timings": incident_data.get("processing_timings", {}),
             "frame_matches": incident_data.get("frame_matches", []),
             "submitted_asset_id": incident_data.get("submitted_asset_id") or iid,
             "disclaimer": incident_data.get("disclaimer", "Candidate visual similarity only; not a definitive copyright-infringement finding."),
@@ -603,12 +617,15 @@ def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = Non
         return
 
     # Local mode: append to incidents.json
-    incidents = load_incidents()
+    incidents = _load_all_local_incidents()
     incidents.insert(0, incident_data)
-    incidents = incidents[:100]
     try:
-        with open(INCIDENTS_FILE, "w", encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=INCIDENTS_FILE.parent, delete=False) as f:
             json.dump(incidents, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+            staged_path = f.name
+        os.replace(staged_path, INCIDENTS_FILE)
     except Exception as e:
         logger.error(f"[Registry] Failed to write {INCIDENTS_FILE}: {e}")
         raise
@@ -690,6 +707,7 @@ def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
                         "overall_status": row.get("overall_status") or "CLEAN",
                         "matched_assets": [str(m) for m in matched],
                         "frame_matches": dossier.get("frame_matches") or [],
+                        "processing_timings": dossier.get("processing_timings") or {},
                         "scanned_at": scanned_at_str,
                         "file_size": int(row.get("file_size_bytes") or 0),
                         "duration_seconds": float(row.get("duration_seconds") or 0.0),
@@ -703,7 +721,7 @@ def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
             except Exception as e:
                 logger.warning(f"[Registry] Error querying incident {incident_id} directly: {e}")
 
-    for inc in load_incidents():
+    for inc in (load_incidents() if is_cloud_mode() else _load_all_local_incidents()):
         if str(inc.get("incident_id")) == str(incident_id):
             return inc
     return None

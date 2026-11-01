@@ -9,18 +9,18 @@ from typing import Optional
 
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
 from app.providers.nemotron import NemotronVisionProvider, NemotronReasoningProvider
-from app.providers.muse import MuseVisionProvider, MuseReasoningProvider
+from app.providers.meta import MetaVisionProvider, MetaReasoningProvider
 
 _DEFAULT_PROVIDER = "nemotron"
 
 _VISION_PROVIDERS = {
     "nemotron": NemotronVisionProvider,
-    "muse": MuseVisionProvider,
+    "muse": MetaVisionProvider,
 }
 
 _REASONING_PROVIDERS = {
     "nemotron": NemotronReasoningProvider,
-    "muse": MuseReasoningProvider,
+    "muse": MetaReasoningProvider,
 }
 
 
@@ -50,3 +50,9 @@ def get_reasoning_provider(provider_name: Optional[str] = None) -> BaseReasoning
             f"Unsupported reasoning provider '{name}'. Supported: {sorted(_REASONING_PROVIDERS.keys())}"
         )
     return provider_cls()
+
+
+def reasoning_is_configured(provider: BaseReasoningProvider) -> bool:
+    """Check only the selected provider's credential, without returning it."""
+    key_name = "MODEL_API_KEY" if provider.provider_name == "muse" else "NEBIUS_API_KEY"
+    return bool(os.getenv(key_name, "").strip())

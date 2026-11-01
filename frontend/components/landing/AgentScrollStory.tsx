@@ -102,7 +102,7 @@ const AGENTS: AgentStep[] = [
       { label: "Embedding Distance", value: "FAISS L2 Norm", desc: "Dense feature vector proximity" },
       { label: "Perceptual Hash", value: "64-Bit DCT pHash", desc: "Geometric and photometric invariance" },
       { label: "Temporal Span", value: "Match Interval Mapping", desc: "Identifies start/stop scene overlap" },
-      { label: "Multimodal Vision", value: "Nemotron Vision", desc: "Deep visual confirmation on keyframes" },
+      { label: "Multimodal Vision", value: "Legacy vision verification", desc: "Deep visual confirmation on keyframes" },
     ],
     implementationDisclaimer:
       "Similarity scores are heuristic vector distances, not legal proof. Live in FixProof matching core.",
@@ -115,13 +115,13 @@ const AGENTS: AgentStep[] = [
     tagline: "Turn raw matches into an explainable assessment",
     story: "Model-assisted reasoning synthesizes forensic evidence for human review.",
     description:
-      "Nemotron reasoning evaluates recorded similarity metrics, visual verification results, and missing evidence to help human investigators understand confidence levels and fair-use factors.",
+      "Muse reasoning evaluates recorded similarity metrics, visual verification results, and missing evidence to help human investigators understand confidence levels and fair-use factors.",
     status: "live",
     statusLabel: "Live in FixProof",
     icon: Brain,
     accentColor: "violet",
     technicalSpecs: [
-      { label: "Reasoning Engine", value: "Nemotron 70B via Nebius", desc: "Structured forensic evaluation" },
+      { label: "Reasoning Engine", value: "Muse Spark 1.3", desc: "Structured forensic evaluation" },
       { label: "Evidence Anchoring", value: "Strict Frame Grounding", desc: "Hallucination-resistant analysis" },
       { label: "Triage Protocol", value: "Uncertainty Handling", desc: "Explicitly flags missing or weak signals" },
       { label: "Human Escalation", value: "Review Required", desc: "Assists human decision-makers" },
@@ -165,13 +165,13 @@ const AGENTS: AgentStep[] = [
     icon: Coins,
     accentColor: "amber",
     technicalSpecs: [
-      { label: "Proposal Drafting", value: "Rev-Share Offer Drafts", desc: "Live in Nemotron Action Center" },
+      { label: "Proposal Drafting", value: "Rev-Share Offer Drafts", desc: "Live in Muse Action Center" },
       { label: "Fair-Use Filter", value: "Commercial vs Editorial", desc: "Triage derivative fan creations" },
       { label: "Smart Settlement", value: "On-Chain Escrow", desc: "Automated rights split (Roadmap Vision)" },
       { label: "Micro-Licensing", value: "Decentralized Registry", desc: "Instant tokenized clearance (Roadmap Vision)" },
     ],
     implementationDisclaimer:
-      "Proposal drafting is live in Nemotron Center. On-chain settlement and automated payout distribution represent original MediaGuard vision.",
+      "Proposal drafting is live in Muse Center. On-chain settlement and automated payout distribution represent original MediaGuard vision.",
   },
 ];
 
@@ -362,7 +362,7 @@ function AgentPanel({
               {index === 3 && (
                 <div className="w-full flex flex-col items-center">
                   <div className="text-xs font-mono uppercase tracking-[0.2em] text-[#a78bfa] mb-3 text-center font-bold">
-                    Nemotron Reasoning &amp; Evidence Triage
+                    Muse Reasoning &amp; Evidence Triage
                   </div>
                   <div className="w-full max-w-md p-4 rounded-xl bg-[#202221] border border-violet-500/30 shadow-xl space-y-3">
                     <div className="flex items-center justify-between border-b border-zinc-700 pb-2">
@@ -374,7 +374,7 @@ function AgentPanel({
                     <div className="space-y-2 text-xs font-mono">
                       <div className="flex justify-between text-[#ded7cb]">
                         <span>Keyframe Verification:</span>
-                        <span className="text-emerald-400 font-bold">Nemotron Vision Match</span>
+                        <span className="text-emerald-400 font-bold">Visual correspondence</span>
                       </div>
                       <div className="flex justify-between text-[#ded7cb]">
                         <span>Temporal Alignment:</span>
@@ -434,7 +434,7 @@ function AgentPanel({
                       </div>
                     </div>
                     <div className="p-3 rounded-lg bg-amber-950/30 border border-amber-500/20 text-xs font-mono text-amber-200 leading-relaxed">
-                      <strong>Revenue-Sharing Draft:</strong> Live in Nemotron Center. Rights holders can offer 70/30 revenue splits to creator channels directly from the evidence dashboard.
+                      <strong>Revenue-Sharing Draft:</strong> Live in Muse Center. Rights holders can offer 70/30 revenue splits to creator channels directly from the evidence dashboard.
                     </div>
                     <div className="text-[10px] font-mono text-[#a8a196] text-center">
                       Future Vision: On-chain smart contract escrow &amp; automated creator payouts

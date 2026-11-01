@@ -47,6 +47,8 @@ import {
   getAssetVideoUrl,
   getAssetFrameUrl,
   formatDuration,
+  getClientSessionId,
+  setClientSessionId,
 } from "@/lib/api";
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import { TableRowSkeleton, FrameViewerSkeleton } from "@/components/ui/Skeleton";
@@ -73,27 +75,50 @@ const packageVerificationStepsConfig = [
 interface IncidentResponseProps {
   initialIncident?: MatchAnalysisResult | null;
   assets: AssetRecord[];
+  incidents?: MatchAnalysisResult[];
   onNavigateToVault: (assetId?: string) => void;
   onNavigateToHunter: () => void;
   onNavigateToNemotron?: (incident: MatchAnalysisResult) => void;
+  onRefresh?: () => void;
 }
 
 export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   initialIncident,
   assets,
+  incidents: propIncidents,
   onNavigateToVault,
   onNavigateToHunter,
   onNavigateToNemotron,
+  onRefresh,
 }) => {
-  const [incidents, setIncidents] = useState<MatchAnalysisResult[]>([]);
+  const [incidents, setIncidents] = useState<MatchAnalysisResult[]>(propIncidents || []);
   const [selectedIncident, setSelectedIncident] = useState<MatchAnalysisResult | null>(
-    initialIncident || null
+    initialIncident || (propIncidents && propIncidents.length > 0 ? propIncidents[0] : null)
   );
   const [isFocusedView, setIsFocusedView] = useState<boolean>(Boolean(initialIncident));
   const [incidentSearchQuery, setIncidentSearchQuery] = useState<string>("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("ALL");
   const [selectedFrameMatch, setSelectedFrameMatch] = useState<FrameMatchDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(!propIncidents);
+  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  const [sessionInput, setSessionInput] = useState<string>("");
+  const [sessionCopied, setSessionCopied] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setActiveSessionId(getClientSessionId());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (propIncidents) {
+      setIncidents(propIncidents);
+      setLoading(false);
+      if ((!selectedIncident || !propIncidents.some(i => i.incident_id === selectedIncident.incident_id)) && propIncidents.length > 0) {
+        setSelectedIncident(propIncidents[0]);
+      }
+    }
+  }, [propIncidents]);
 
   useEffect(() => {
     if (initialIncident) {
@@ -105,6 +130,17 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       setSuspectFrameError(false);
     }
   }, [initialIncident]);
+
+  const handleSwitchSession = (newSess: string) => {
+    const trimmed = newSess.trim();
+    if (!trimmed) return;
+    setClientSessionId(trimmed);
+    setActiveSessionId(trimmed);
+    if (onRefresh) {
+      onRefresh();
+    }
+    fetchIncidents();
+  };
 
   const filteredIncidents = React.useMemo(() => {
     return incidents.filter((inc) => {
@@ -195,6 +231,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     setLoading(true);
     const startMs = Date.now();
     try {
+      if (onRefresh) {
+        onRefresh();
+      }
       const data = await getIncidentsList();
       setIncidents(data);
       if (!selectedIncident && data.length > 0) {
@@ -435,6 +474,33 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {activeSessionId && (
+            <div
+              style={{
+                background: "#1a1918",
+                border: "1px solid rgba(238, 231, 219, 0.12)",
+                color: "#aba497",
+              }}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono"
+              title={`Active Visitor Session: ${activeSessionId}`}
+            >
+              <Database size={11} className="text-teal-400" />
+              <span>Session:</span>
+              <span className="text-[#f4efe6]">{activeSessionId.length > 16 ? `${activeSessionId.slice(0, 10)}...${activeSessionId.slice(-4)}` : activeSessionId}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(activeSessionId);
+                  setSessionCopied(true);
+                  setTimeout(() => setSessionCopied(false), 2000);
+                }}
+                className="hover:text-[#f4efe6] transition-colors cursor-pointer ml-1"
+                title="Copy Session ID"
+              >
+                {sessionCopied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+              </button>
+            </div>
+          )}
           <button
             onClick={fetchIncidents}
             disabled={loading}
@@ -459,13 +525,44 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
             borderRadius: 16,
             border: "1px dashed rgba(238, 231, 219, 0.12)",
           }}
-          className="text-center py-16 px-4"
+          className="text-center py-12 px-4 max-w-xl mx-auto"
         >
           <ShieldAlert size={36} className="mx-auto text-[#736d62] mb-3" />
-          <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No Recorded Threat Incidents</h3>
-          <p className="text-[12px] text-[#aba497] mt-1 max-w-sm mx-auto mb-4">
-            Upload a video or screen a URL in Threat Hunter to generate forensic evidence against the reference vault.
+          <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No Recorded Threat Incidents in Active Session</h3>
+          <p className="text-[12px] text-[#aba497] mt-2 mb-4 leading-relaxed">
+            Database records are isolated by visitor session ownership. Your active session (
+            <span className="font-mono text-[#ded7cb]">
+              {activeSessionId ? (activeSessionId.length > 20 ? `${activeSessionId.slice(0, 12)}...` : activeSessionId) : "unknown"}
+            </span>
+            ) currently has 0 recorded incidents.
           </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-6 max-w-md mx-auto">
+            <input
+              type="text"
+              placeholder="Switch to session (e.g. sess_...)"
+              value={sessionInput}
+              onChange={(e) => setSessionInput(e.target.value)}
+              style={{
+                background: "#1e1d1b",
+                border: "1px solid rgba(238, 231, 219, 0.12)",
+                color: "#f4efe6",
+              }}
+              className="w-full sm:w-64 px-3 py-1.5 rounded-lg text-[11px] font-mono placeholder-[#736d62] focus:outline-none focus:border-[#48c7b5]"
+            />
+            <button
+              type="button"
+              onClick={() => handleSwitchSession(sessionInput)}
+              disabled={!sessionInput.trim() || loading}
+              style={{
+                background: "#242220",
+                border: "1px solid rgba(238, 231, 219, 0.15)",
+                color: "#ded7cb",
+              }}
+              className="w-full sm:w-auto px-3 py-1.5 rounded-lg text-[11px] font-semibold hover:bg-[#2e2b28] hover:text-[#f4efe6] transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Switch Session
+            </button>
+          </div>
           <button
             onClick={onNavigateToHunter}
             style={{
@@ -828,7 +925,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       <div className="flex items-center justify-between py-1 border-b border-[rgba(238,231,219,0.06)]">
                         <span className="text-[#8e887d]">Vision Verification:</span>
                         <span className="font-semibold text-teal-400">
-                          Nemotron Vision 3.0 Verified
+                          Visual verification recorded
                         </span>
                       </div>
                     </div>
@@ -968,7 +1065,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         <span>Verify ZIP</span>
                       </button>
 
-                      {/* Direct Bridge to Nemotron Center */}
+                      {/* Direct Bridge to Muse Center */}
                       {onNavigateToNemotron && (
                         <button
                           onClick={() => onNavigateToNemotron(selectedIncident)}
@@ -977,10 +1074,10 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                             color: "#141312",
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg hover:bg-[#fbf7ef] text-[10.5px] font-bold transition-all cursor-pointer shadow-sm ml-1"
-                          title="Open this incident in Nemotron Intelligence Center"
+                          title="Open this incident in Muse Intelligence Center"
                         >
                           <Cpu size={11} />
-                          <span>Nemotron Center</span>
+                          <span>Muse Center</span>
                           <ArrowRight size={10} />
                         </button>
                       )}
@@ -1809,7 +1906,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       </div>
                     </div>
 
-                    {/* Bridge to Dedicated Nemotron Intelligence Page */}
+                    {/* Bridge to Dedicated Muse Intelligence Page */}
                     <div className="p-3 bg-[#1a1918] rounded-xl border border-[rgba(238,231,219,0.06)] space-y-2 flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-[#f4efe6] font-bold">
@@ -1817,7 +1914,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           <span>Legal Synthesis & Commercial Enforcement</span>
                         </div>
                         <p className="text-[#aba497] text-[10.5px] leading-relaxed m-0">
-                          Automated reasoning, multi-interval timeline derivation, copyright notice preparation, and revenue-sharing outreach are consolidated exclusively in the Nemotron Intelligence & Action Center.
+                          Automated reasoning, multi-interval timeline derivation, copyright notice preparation, and revenue-sharing outreach are consolidated exclusively in the Muse Intelligence & Action Center.
                         </p>
                       </div>
                       <div className="pt-2">
@@ -1830,12 +1927,12 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                             }}
                             className="w-full sm:w-auto px-4 py-1.5 rounded-lg hover:bg-[#fbf7ef] text-[11px] font-bold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
                           >
-                            <span>Open in Nemotron Center</span>
+                            <span>Open in Muse Center</span>
                             <ArrowRight size={12} />
                           </button>
                         ) : (
                           <span className="text-[10px] text-[#736d62] font-mono">
-                            Navigate to the Nemotron tab from the sidebar.
+                            Navigate to the Muse tab from the sidebar.
                           </span>
                         )}
                       </div>

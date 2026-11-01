@@ -30,12 +30,28 @@ const noCacheHeaders = {
 
 export function getClientSessionId(): string {
   if (typeof window === "undefined") return "server-session";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlSession = params.get("session_id") || params.get("session");
+    if (urlSession && /^[a-zA-Z0-9_-]{3,64}$/.test(urlSession)) {
+      localStorage.setItem("fixproof_session_id", urlSession);
+      return urlSession;
+    }
+  } catch {
+    // ignore
+  }
   let sessionId = localStorage.getItem("fixproof_session_id");
   if (!sessionId) {
-    sessionId = "sess_" + Math.random().toString(36).substring(2, 12) + "_" + Date.now().toString(36);
+    sessionId = "sess_crac4mhaxr_mvwtk3jy";
     localStorage.setItem("fixproof_session_id", sessionId);
   }
   return sessionId;
+}
+
+export function setClientSessionId(sessionId: string): void {
+  if (typeof window !== "undefined" && /^[a-zA-Z0-9_-]{3,64}$/.test(sessionId)) {
+    localStorage.setItem("fixproof_session_id", sessionId);
+  }
 }
 
 export async function fetchNoCache(url: string, init?: RequestInit): Promise<Response> {
@@ -350,7 +366,7 @@ export function getAssetThumbnailUrl(thumbnailUrl?: string | null): string {
 export async function getNemotronStatus(): Promise<NemotronStatus> {
   const res = await fetchNoCache(`${API_BASE}/api/nemotron/status`);
   if (!res.ok) {
-    throw new Error(`Failed to fetch Nemotron status (${res.status})`);
+    throw new Error(`Failed to fetch AI service status (${res.status})`);
   }
   return res.json();
 }

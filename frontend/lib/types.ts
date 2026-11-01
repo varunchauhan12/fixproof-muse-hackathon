@@ -244,6 +244,10 @@ export interface PackageVerificationResult {
 
 export interface NemotronStatus {
   status: "ready" | "degraded";
+  provider?: string;
+  vision_provider?: string;
+  status_scope?: "configuration";
+  db_mode?: string;
   configured_model: string;
   vision_model: string;
   detailed_report_model?: string;

@@ -93,7 +93,7 @@ const videoScanStepsConfig = [
     detail: [
       "computing 64-bit DCT perceptual hash signatures",
       "evaluating Hamming distance threshold",
-      "triggering pairwise Nemotron Vision verification check",
+      "triggering pairwise recorded vision verification check",
     ],
   },
 ];
@@ -123,7 +123,7 @@ const urlScreenStepsConfig = [
     detail: [
       "computing 64-bit DCT pHash signature",
       "cross-checking against official reference frames",
-      "triggering Nemotron Vision thumbnail verification",
+      "triggering legacy vision thumbnail verification",
     ],
   },
 ];

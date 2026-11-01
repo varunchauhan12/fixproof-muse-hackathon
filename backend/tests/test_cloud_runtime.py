@@ -466,7 +466,13 @@ class TestCloudRuntimeIntegration(unittest.TestCase):
 
     def test_storage_client_delete_objects_batch(self):
         """Issue 3 Regression: SupabaseStorageClient.delete_objects handles multiple paths."""
-        storage = SupabaseStorageClient()
+        from app.storage import StorageConfig
+        config = StorageConfig(
+            supabase_url="https://mock.supabase.co",
+            service_role_key="mock-service-key",
+            anon_key="mock-anon-key",
+        )
+        storage = SupabaseStorageClient(config=config)
         with patch("urllib.request.urlopen") as mock_url:
             mock_resp = MagicMock()
             mock_resp.status = 200

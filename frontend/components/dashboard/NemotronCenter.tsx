@@ -43,6 +43,7 @@ import {
 } from "@/lib/types";
 import {
   getNemotronStatus,
+  fetchNoCache,
   draftNemotronDocument,
   sendNemotronEmail,
   getEmailAuditLog,
@@ -71,9 +72,9 @@ const nemotronInvestigationStepsConfig = [
   },
   {
     id: "vision",
-    label: "Evaluating Nemotron Vision verification",
+    label: "Evaluating recorded vision verification",
     detail: [
-      "querying nvidia/Nemotron-3.5-Super-VL",
+      "reviewing recorded vision findings and model provenance",
       "inspecting keyframe visual correspondence",
       "detecting feature alignments & contradictions",
     ],
@@ -89,9 +90,9 @@ const nemotronInvestigationStepsConfig = [
   },
   {
     id: "synthesis",
-    label: "Nemotron forensic reasoning",
+    label: "Configured forensic reasoning",
     detail: [
-      "calling nvidia/Nemotron-3_5-Lightning",
+      "using the selected reasoning model",
       "structuring non-adjudicative findings & citations",
       "generating human review recommendation",
     ],
@@ -105,14 +106,14 @@ const detailedReportStepsConfig = [
     detail: [
       "extracting suspect keyframe telemetry",
       "retrieving matched vault reference frames",
-      "aggregating Nemotron-3.5-Super-VL visual records",
+      "aggregating recorded visual verification results",
     ],
   },
   {
     id: "token_factory",
-    label: "Nebius Token Factory 120B reasoning",
+    label: "Selected-provider reasoning",
     detail: [
-      "invoking nvidia/nemotron-3-super-120b-a12b",
+      "invoking the configured reasoning model",
       "synthesizing Sections A through I",
       "enforcing non-adjudication & disclaimer invariants",
     ],
@@ -161,7 +162,7 @@ const documentDraftStepsConfig = [
     label: "Synthesizing legal document",
     detail: [
       "applying statutory non-infringement disclaimers",
-      "polishing legal terminology with Nemotron",
+      "polishing legal terminology with the selected model",
       "generating editable preview for human review",
     ],
   },
@@ -170,6 +171,8 @@ const documentDraftStepsConfig = [
 interface NemotronCenterProps {
   incidents: MatchAnalysisResult[];
   assets: AssetRecord[];
+  incidentsLoading?: boolean;
+  incidentsError?: string | null;
   preselectedIncident?: MatchAnalysisResult | null;
   preselectedDocType?: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER" | null;
   onNavigateToIncidents?: (incident: MatchAnalysisResult) => void;
@@ -178,13 +181,20 @@ interface NemotronCenterProps {
 export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   incidents,
   assets,
+  incidentsLoading = false,
+  incidentsError = null,
   preselectedIncident,
   preselectedDocType,
   onNavigateToIncidents,
 }) => {
   // Model & Service Status
   const [nemotronStatus, setNemotronStatus] = useState<NemotronStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const providerLabel = nemotronStatus?.provider === "muse" ? "Meta Muse"
+    : nemotronStatus?.provider === "nemotron" ? "Nemotron" : "AI";
+  const providerTransport = nemotronStatus?.provider === "muse" ? "Meta Model API"
+    : nemotronStatus?.provider === "nemotron" ? "Nebius Token Factory" : "Provider not reported";
 
   // Selected Incident
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(
@@ -267,6 +277,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [detailedReportResult, setDetailedReportResult] = useState<DetailedReportResponse | null>(null);
   const [detailedReportError, setDetailedReportError] = useState<string | null>(null);
   const [detailedReportsList, setDetailedReportsList] = useState<DetailedReportListItem[]>([]);
+  const [detailedReportsLoadError, setDetailedReportsLoadError] = useState<string | null>(null);
   const [activeDetailedReport, setActiveDetailedReport] = useState<DetailedReportRecord | null>(null);
   const [showDetailedSections, setShowDetailedSections] = useState(false);
   const [retryingEmail, setRetryingEmail] = useState(false);
@@ -316,6 +327,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     }
   }, [preselectedIncident]);
 
+  // Sync selectedIncidentId when incidents prop updates
+  useEffect(() => {
+    if (!selectedIncidentId && incidents.length > 0 && incidents[0].incident_id) {
+      setSelectedIncidentId(incidents[0].incident_id);
+    }
+  }, [incidents, selectedIncidentId]);
+
   useEffect(() => {
     if (preselectedDocType) {
       setActiveDocType(preselectedDocType);
@@ -325,11 +343,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   // Load Nemotron status
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
+    setStatusError(null);
     try {
       const st = await getNemotronStatus();
       setNemotronStatus(st);
     } catch {
-      // Degraded or backend offline
+      setNemotronStatus(null);
+      setStatusError("Unable to load provider status. Check the backend connection and retry Refresh Service Status.");
     } finally {
       setStatusLoading(false);
     }
@@ -366,12 +386,14 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     setInvestigationError(null);
     try {
       const [rep, hist] = await Promise.all([
-        getIncidentLatestReport(incId).catch(() => null),
-        getIncidentReportHistory(incId).catch(() => []),
+        getIncidentLatestReport(incId),
+        getIncidentReportHistory(incId),
       ]);
       setLatestReport(rep);
       setReportHistory(hist);
     } catch (err: any) {
+      setLatestReport(null);
+      setReportHistory([]);
       setInvestigationError(err.message || "Failed to load report");
     } finally {
       setReportLoading(false);
@@ -380,11 +402,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
 
   const loadDetailedReports = useCallback(async (incId: string) => {
     if (!incId) return;
+    setDetailedReportsLoadError(null);
     try {
-      const list = await getDetailedReportsForIncident(incId).catch(() => []);
+      const list = await getDetailedReportsForIncident(incId);
       setDetailedReportsList(list);
-    } catch (err) {
-      console.warn("Failed to load detailed reports list:", err);
+    } catch {
+      setDetailedReportsList([]);
+      setDetailedReportsLoadError("Unable to load saved detailed reports. Select the incident again to retry.");
     }
   }, []);
 
@@ -497,7 +521,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const handleDownloadSummary = async () => {
     if (!selectedIncident?.incident_id) throw new Error("No incident selected");
     const url = getSummaryDownloadUrl(selectedIncident.incident_id);
-    const res = await fetch(url);
+    const res = await fetchNoCache(url);
     if (!res.ok) throw new Error(`Summary download failed (${res.status})`);
     const blob = await res.blob();
     const downloadUrl = URL.createObjectURL(blob);
@@ -514,7 +538,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     const targetId = reportId || activeDetailedReport?.report_id;
     if (!targetId) throw new Error("No detailed report selected for download");
     const url = getDetailedReportPdfUrl(targetId);
-    const res = await fetch(url);
+    const res = await fetchNoCache(url);
     if (!res.ok) throw new Error(`PDF download failed (${res.status})`);
     const blob = await res.blob();
     const downloadUrl = URL.createObjectURL(blob);
@@ -813,7 +837,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-[17px] font-extrabold text-[#F1EBDD] m-0">
-                  Nemotron Intelligence & Action Center
+                  {providerLabel} Intelligence & Action Center
                 </h1>
                 <span
                   style={{
@@ -830,7 +854,8 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   }}
                   className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
                 >
-                  {nemotronStatus?.status === "ready" ? "Service Online" : "Degraded / Unconfigured"}
+                  {statusLoading ? "Loading status" : statusError ? "Status unavailable"
+                    : nemotronStatus?.status === "ready" ? "Credentials configured" : "Unconfigured"}
                 </span>
               </div>
               <p className="text-[12px] text-[#8e887d] m-0 mt-0.5">
@@ -868,6 +893,14 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
           </div>
         </div>
 
+        {statusError && <p role="alert" className="mt-3 text-[12px] text-amber-300">{statusError}</p>}
+        {!statusLoading && nemotronStatus && (
+          <p className="mt-3 text-[12px] text-[#8e887d]">
+            Configuration status only. Model access and email delivery have not been tested.
+            {nemotronStatus.db_mode === "local" && " Using the local database; incidents are scoped to this browser session."}
+          </p>
+        )}
+
         {/* Capability Indicators Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-[12px]">
           <div
@@ -887,9 +920,9 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               />
             </div>
             <div className="font-mono text-[11px] text-[#f4efe6] truncate">
-              {nemotronStatus?.configured_model || "nvidia/Nemotron-3_5-Lightning"}
+              {statusLoading ? "Loading…" : nemotronStatus?.configured_model || "Configuration unavailable"}
             </div>
-            <div className="text-[10px] text-[#736d62] mt-0.5">Nebius Token Factory</div>
+            <div className="text-[10px] text-[#736d62] mt-0.5">{providerTransport}</div>
           </div>
 
           <div
@@ -909,7 +942,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               />
             </div>
             <div className="font-mono text-[11px] text-[#f4efe6] truncate">
-              {nemotronStatus?.vision_model || "nvidia/Nemotron-3.5-Super-VL"}
+              {statusLoading ? "Loading…" : nemotronStatus?.vision_model || "Configuration unavailable"}
             </div>
             <div className="text-[10px] text-[#736d62] mt-0.5">Frame Correspondence</div>
           </div>
@@ -931,7 +964,8 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               />
             </div>
             <div className="text-[11px] text-[#f4efe6] font-medium">
-              {nemotronStatus?.email_delivery_available ? "Resend API Active" : "Resend (Unconfigured)"}
+              {statusLoading ? "Loading…" : !nemotronStatus ? "Status unavailable"
+                : nemotronStatus.email_delivery_available ? "Resend configured" : "Resend (Unconfigured)"}
             </div>
             <div className="text-[10px] text-[#736d62] mt-0.5 truncate">
               {nemotronStatus?.email_from || "RESEND_API_KEY required in .env"}
@@ -1012,9 +1046,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
 
           {/* Incidents List */}
           <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-            {filteredIncidents.length === 0 ? (
+            {incidentsLoading ? (
+              <div role="status" className="text-center py-10 text-[12px] text-[#8e887d]">Loading incidents…</div>
+            ) : incidentsError ? (
+              <div role="alert" className="py-6 text-[12px] text-amber-300">{incidentsError}</div>
+            ) : filteredIncidents.length === 0 ? (
               <div className="text-center py-10 text-[12px] text-[#736d62]">
-                No matching incidents found.
+                {incidents.length === 0 ? "No incidents in this browser session. Run an investigation from Threat Hunter when you are ready." : "No incidents match these filters."}
               </div>
             ) : (
               filteredIncidents.map((inc, incIdx) => {
@@ -1261,7 +1299,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   </div>
                 </div>
 
-                {/* Latest Nemotron Reasoning Summary */}
+                {/* Latest Muse Reasoning Summary */}
                 <div
                   style={{
                     background: "#141312",
@@ -1273,7 +1311,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-[#f4efe6] flex items-center gap-1.5">
                       <Sparkles size={13} className="text-[#14b8a6]" />
-                      <span>Nemotron Investigation Synthesis</span>
+                      <span>Recorded Investigation Synthesis</span>
                     </span>
                     <div className="flex items-center gap-2">
                       {latestReport && (
@@ -1342,7 +1380,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     </div>
                   ) : (
                     <div className="text-[12px] text-[#736d62] py-2">
-                      No Nemotron report currently persisted for this incident. Click &quot;Refresh Report&quot; to synthesize forensic telemetry.
+                      No Muse report currently persisted for this incident. Click &quot;Refresh Report&quot; to synthesize forensic telemetry.
                     </div>
                   )}
 
@@ -1372,7 +1410,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       </h3>
                     </div>
                     <p className="text-[11px] text-[#8e887d] mt-1 m-0">
-                      Synthesizes deep forensic evidence via Nebius Token Factory with verified Nemotron Vision correspondence
+                      Synthesizes recorded forensic evidence using the configured provider, retaining vision findings and limitations.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1405,7 +1443,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       }}
                       className="px-2.5 py-1 rounded-md text-[10px] font-mono"
                     >
-                      Model: {nemotronStatus?.detailed_report_model || "nvidia/nemotron-3-super-120b-a12b"}
+                      Model: {nemotronStatus?.detailed_report_model || "Configuration unavailable"}
                     </span>
                   </div>
                 </div>
@@ -1475,7 +1513,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   <div className="p-4 bg-[#141312] border border-teal-800/40 rounded-xl space-y-2">
                     <div className="text-[11px] font-bold text-[#5eead4] flex items-center gap-2">
                       <Sparkles size={13} className="text-[#14b8a6] animate-pulse" />
-                      <span>Nebius Token Factory Evidence Synthesis Active</span>
+                      <span>Configured model evidence synthesis in progress</span>
                     </div>
                     <AILoadingState steps={detailedReportSteps} />
                   </div>
@@ -1581,7 +1619,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                             }}
                             className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
                           >
-                            {activeDetailedReport.ai_synthesized ? "AI Synthesized (Nebius)" : "Deterministic Fallback"}
+                            {activeDetailedReport.ai_synthesized ? "AI Synthesized (see model provenance)" : "Deterministic Fallback"}
                           </span>
                         </div>
                         <div className="text-[10px] text-[#8e887d] font-mono">
@@ -1633,7 +1671,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       <span className="text-[#8e887d]">
                         Vision Verifier:{" "}
                         <strong className="text-[#f4efe6]">
-                          {activeDetailedReport.sections?.provenance?.vision_verifier_model || "nvidia/Nemotron-3.5-Super-VL"}
+                          {activeDetailedReport.sections?.provenance?.vision_verifier_model || "not-recorded"}
                         </strong>
                       </span>
                       <span className="text-[#5a554c]">•</span>
@@ -1731,6 +1769,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                 )}
 
                 {/* Prior Detailed Reports History list */}
+                {detailedReportsLoadError && <p role="alert" className="text-[12px] text-amber-300">{detailedReportsLoadError}</p>}
                 {detailedReportsList.length > 0 && (
                   <div className="pt-2 border-t border-[rgba(238,231,219,0.06)]">
                     <div className="text-[10px] font-bold text-[#8e887d] uppercase tracking-wider mb-1.5 flex items-center justify-between">
@@ -2056,7 +2095,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       onChange={(e) => setUseAiSynthesis(e.target.checked)}
                       className="rounded accent-[#14b8a6]"
                     />
-                    <span>Enhance introductory narrative with Nemotron reasoning</span>
+                    <span>Enhance introductory narrative with Muse reasoning</span>
                   </label>
 
                   <button
@@ -2090,7 +2129,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   <div className="p-4 bg-[#141312] border border-[rgba(238,231,219,0.12)] rounded-xl space-y-2">
                     <div className="text-[11px] font-bold text-[#f4efe6] flex items-center gap-2">
                       <FileText size={13} className="text-[#14b8a6] animate-pulse" />
-                      <span>Drafting Document with Nemotron AI</span>
+                      <span>Drafting Document with Muse AI</span>
                     </div>
                     <AILoadingState steps={documentDraftSteps} />
                   </div>
@@ -2149,7 +2188,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                         {currentDraft.ai_enhanced ? (
                           <span className="text-[10px] text-[#14b8a6] bg-[rgba(20,184,166,0.12)] border border-[rgba(20,184,166,0.3)] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
                             <Sparkles size={11} />
-                            <span>Nemotron AI Synthesized ({currentDraft.model_id})</span>
+                            <span>Muse AI Synthesized ({currentDraft.model_id})</span>
                           </span>
                         ) : (
                           <span className="text-[10px] text-[#aba497] bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">

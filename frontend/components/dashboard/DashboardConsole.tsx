@@ -29,7 +29,7 @@ const PAGE_TITLES: Record<NavTab, string> = {
   vault: "Digital Asset Vault",
   hunter: "Sentinel Threat Hunter",
   incidents: "Incident Response",
-  nemotron: "Nemotron Intelligence & Action Center",
+  nemotron: "Muse Intelligence & Action Center",
   intelligence: "Intelligence & Analytics",
   enforcer: "Enforcement & Licensing",
   notifications: "Forensics Swarm Logs",
@@ -90,6 +90,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [incidents, setIncidents] = useState<MatchAnalysisResult[]>([]);
+  const [incidentsError, setIncidentsError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
 
@@ -99,6 +100,11 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
 
   const loadBackendState = useCallback(async () => {
     setRefreshing(true);
+    setIncidentsError(null);
+    const loadIncidents = () => getIncidentsList().catch(() => {
+      setIncidentsError("Unable to load incidents from the backend. Refresh vault & state to retry.");
+      return [];
+    });
     const startMs = Date.now();
     try {
       const isHealthy = await checkBackendHealth();
@@ -108,7 +114,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
         const [statusData, assetsData, incidentsData] = await Promise.all([
           getVaultStatus().catch(() => null),
           getRegisteredAssets().catch(() => []),
-          getIncidentsList().catch(() => []),
+          loadIncidents(),
         ]);
         setVaultStatus(statusData);
         setAssets(assetsData);
@@ -121,16 +127,18 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
           setVaultStatus(statusData);
           const [assetsData, incidentsData] = await Promise.all([
             getRegisteredAssets().catch(() => []),
-            getIncidentsList().catch(() => []),
+            loadIncidents(),
           ]);
           setAssets(assetsData);
           setIncidents(incidentsData);
         } else {
           setVaultStatus(null);
+          setIncidentsError("Backend unavailable. Check the local backend and refresh vault & state.");
         }
       }
     } catch {
       setBackendOnline(false);
+      setIncidentsError("Unable to connect to the backend. Refresh vault & state to retry.");
     } finally {
       // Ensure skeleton is visible during data extraction (minimum 700ms)
       const elapsed = Date.now() - startMs;
@@ -287,11 +295,13 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
             <IncidentResponse
               initialIncident={selectedIncidentForInspection}
               assets={assets}
+              incidents={incidents}
               onNavigateToVault={() => {
                 setActiveTab("vault");
               }}
               onNavigateToHunter={() => setActiveTab("hunter")}
               onNavigateToNemotron={handleNavigateToNemotron}
+              onRefresh={loadBackendState}
             />
           )}
 
@@ -299,6 +309,8 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
             <NemotronCenter
               incidents={incidents}
               assets={assets}
+              incidentsLoading={initialLoading || refreshing}
+              incidentsError={incidentsError}
               preselectedIncident={nemotronPreselectedIncident}
               preselectedDocType={nemotronPreselectedDocType}
               onNavigateToIncidents={handleNavigateToIncidents}

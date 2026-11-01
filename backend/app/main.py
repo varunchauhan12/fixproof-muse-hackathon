@@ -13,23 +13,42 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, RedirectResponse
+from fastapi.responses import FileResponse, Response, RedirectResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.security import RequestProtectionMiddleware, cors_origins
 import logging
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
 load_dotenv()
 logger = logging.getLogger("fixproof.main")
 
 app = FastAPI(title="FixProof API")
+app.add_middleware(RequestProtectionMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def safe_http_error(request, exc):
+    if exc.status_code >= 500:
+        logger.warning("Request failed: status=%s", exc.status_code)
+        detail = "The operation could not be completed. Check server configuration and logs."
+        if request.url.path == "/api/threats/scan":
+            detail = "Failed to scan suspect video. Check server logs."
+        return JSONResponse({"detail": detail}, status_code=exc.status_code, headers=exc.headers)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
+
+@app.exception_handler(Exception)
+async def safe_unhandled_error(request, exc):
+    logger.error("Unhandled request failure: type=%s", type(exc).__name__)
+    return JSONResponse({"detail": "Internal server error."}, status_code=500)
 
 
 @app.middleware("http")
@@ -81,11 +100,11 @@ from app.evidence_package import (
 )
 from app.timeline import cluster_frame_matches
 from app.nemotron_engine import (
-    generate_nemotron_report,
     get_allowed_models,
     normalize_model_override,
     DEFAULT_MODEL,
 )
+from app.providers import factory as provider_factory
 from app.nemotron_action import (
     get_email_config,
     load_email_audit_log,
@@ -438,11 +457,23 @@ def stream_asset_video(asset_id: str):
         storage_client = SupabaseStorageClient()
 
         # Check suspect video first if it's an incident or suspect asset
+        if not incident and not suspect_path_from_meta and is_valid_uuid(resolved_id):
+            try:
+                inc_row = default_db_manager.fetch_one(
+                    "SELECT suspect_storage_path FROM incidents WHERE (cv_evidence_dossier->>'submitted_asset_id') = %s OR suspect_storage_path LIKE %s LIMIT 1",
+                    (str(resolved_id), f"%{resolved_id}%"),
+                )
+                if inc_row and inc_row.get("suspect_storage_path"):
+                    suspect_path_from_meta = inc_row["suspect_storage_path"]
+                    incident = inc_row
+            except Exception as e:
+                logger.warning(f"[StreamVideo] Error checking suspect video catalog: {e}")
+
         if incident or suspect_path_from_meta:
             target_path = suspect_path_from_meta
             if not target_path and is_valid_uuid(resolved_id):
                 inc_row = default_db_manager.fetch_one(
-                    "SELECT suspect_storage_path FROM incidents WHERE incident_id = %s OR submitted_asset_id = %s LIMIT 1",
+                    "SELECT suspect_storage_path FROM incidents WHERE incident_id = %s OR (cv_evidence_dossier->>'submitted_asset_id') = %s LIMIT 1",
                     (resolved_id, resolved_id),
                 )
                 if inc_row and inc_row.get("suspect_storage_path"):
@@ -740,6 +771,8 @@ async def scan_suspect_video(
             detail=f"Unsupported video format '{file_ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
+    from time import perf_counter
+    started = perf_counter()
     suspect_id = str(uuid.uuid4())
     stored_filename = f"{suspect_id}{file_ext}"
     target_path = SUSPECTS_VIDEOS_DIR / stored_filename
@@ -769,6 +802,7 @@ async def scan_suspect_video(
             preflight_info=probe_info,
         )
 
+        extracted_at = perf_counter()
         match_results = analyze_asset_matches(
             submitted_asset_id=suspect_id,
             frames_dir=suspect_frames_dir,
@@ -776,6 +810,7 @@ async def scan_suspect_video(
             k_candidates=3,
         )
 
+        matched_at = perf_counter()
         suspect_storage_path = None
         if is_cloud_mode():
             try:
@@ -798,7 +833,8 @@ async def scan_suspect_video(
                         upsert=True,
                     )
             except Exception as up_err:
-                logger.warning(f"[CloudStorage] Uploading suspect video/frames failed: {up_err}")
+                logger.warning("[CloudStorage] Suspect media persistence failed; incident was not saved.")
+                raise HTTPException(status_code=503, detail="Unable to persist suspect video and frames. Investigation was not completed.") from up_err
 
         match_results["suspect_filename"] = file.filename
         match_results["file_size"] = total_bytes
@@ -811,6 +847,11 @@ async def scan_suspect_video(
         match_results["score_version"] = SCORE_VERSION
         match_results["session_id"] = x_client_session_id
 
+        match_results["processing_timings"] = {
+            "upload_validation_extraction_seconds": extracted_at - started,
+            "cv_and_vision_seconds": matched_at - extracted_at,
+            "media_persistence_seconds": perf_counter() - matched_at,
+        }
         save_incident(match_results, session_id=x_client_session_id)
         return match_results
     except HTTPException:
@@ -903,10 +944,10 @@ def get_single_incident(
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found.")
     inc_sess = inc.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied to incident {incident_id}: "
-            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+            "session mismatch"
         )
         raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
     return inc
@@ -931,7 +972,9 @@ def investigate_threat_incident(
 
     # Normalize Swagger placeholder ('string') and empty strings
     normalized_model = normalize_model_override(raw_model)
-    allowed_models = get_allowed_models()
+    provider = provider_factory.get_reasoning_provider()
+    is_muse = provider.provider_name == "muse"
+    allowed_models = {provider.model_id} if is_muse else get_allowed_models()
     if normalized_model is not None and normalized_model not in allowed_models:
         raise HTTPException(
             status_code=400,
@@ -941,17 +984,17 @@ def investigate_threat_incident(
             ),
         )
 
-    target_model = normalized_model or os.getenv("NEBIUS_MODEL", DEFAULT_MODEL)
+    target_model = normalized_model or (provider.model_id if is_muse else os.getenv("NEBIUS_MODEL", DEFAULT_MODEL))
 
     incident = get_incident_by_id(incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied to incident {incident_id}: "
-            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+            "session mismatch"
         )
         raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
@@ -962,6 +1005,7 @@ def investigate_threat_incident(
             r
             for r in existing_reports
             if is_valid_completed_report(r) and (normalized_model is None or r.get("model_id") == target_model)
+            and (not is_muse or r.get("model_id") == target_model)
         ]
         if valid_reports:
             return valid_reports[0]
@@ -970,7 +1014,9 @@ def investigate_threat_incident(
     intervals = cluster_frame_matches(frames_ev)
     investigation_input = build_investigation_input_from_incident(incident, intervals)
 
-    report = generate_nemotron_report(investigation_input, model_override=normalized_model)
+    report = provider.generate_investigation_report(
+        investigation_input, model_override=normalized_model
+    )
     try:
         saved_record = save_nemotron_report(report)
         return saved_record
@@ -993,7 +1039,7 @@ def get_incident_latest_report(
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
     reports = get_nemotron_reports_for_incident(incident_id)
     if not reports:
@@ -1018,7 +1064,7 @@ def get_incident_reports_history(
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
@@ -1057,10 +1103,10 @@ def export_incident_evidence_package_endpoint(
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied to incident {incident_id}: "
-            f"session mismatch (header={x_client_session_id} != record={inc_sess})"
+            "session mismatch"
         )
         raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
@@ -1159,9 +1205,16 @@ async def verify_evidence_package_endpoint(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Uploaded file must be a .zip evidence package.")
 
     try:
-        content = await file.read()
+        from app.evidence_package import MAX_VERIFICATION_ZIP_BYTES
+        content = await file.read(MAX_VERIFICATION_ZIP_BYTES + 1)
+        if len(content) > MAX_VERIFICATION_ZIP_BYTES:
+            raise HTTPException(status_code=413, detail="Evidence package exceeds 50 MiB limit.")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {e}")
+        raise HTTPException(status_code=400, detail="Failed to read uploaded file.")
+    finally:
+        await file.close()
 
     try:
         result = verify_evidence_package(content)
@@ -1177,26 +1230,23 @@ async def verify_evidence_package_endpoint(file: UploadFile = File(...)):
 
 @app.post("/diagnose")
 def diagnose(request: DiagnoseRequest):
-    api_key = os.getenv("NEBIUS_API_KEY")
-    model = os.getenv(
+    provider = provider_factory.get_reasoning_provider()
+    is_muse = provider.provider_name == "muse"
+    api_key = None if is_muse else os.getenv("NEBIUS_API_KEY")
+    model = provider.model_id if is_muse else os.getenv(
         "NEBIUS_MODEL",
         "nvidia/Nemotron-3_5-Lightning",
     )
 
-    if not api_key:
+    if not provider_factory.reasoning_is_configured(provider):
         raise HTTPException(
             status_code=500,
-            detail="NEBIUS_API_KEY is not configured",
+            detail="Reasoning provider credential is not configured",
         )
 
-    client = OpenAI(
-        base_url="https://api.tokenfactory.nebius.com/v1/",
-        api_key=api_key,
-    )
-
     try:
-        response = client.chat.completions.create(
-            model=model,
+        response = provider.create_text_completion(
+            request=dict(model=model,
             messages=[
                 {
                     "role": "system",
@@ -1215,7 +1265,8 @@ def diagnose(request: DiagnoseRequest):
                 },
             ],
             max_tokens=500,
-            temperature=0.1,
+            temperature=0.1),
+            client_options=None if is_muse else {"base_url": "https://api.tokenfactory.nebius.com/v1/", "api_key": api_key},
         )
 
         return {
@@ -1223,7 +1274,7 @@ def diagnose(request: DiagnoseRequest):
                 response.choices[0].message.content or ""
             ),
             "model": model,
-            "provider": "Nebius Token Factory",
+            "provider": "Meta Model API" if is_muse else "Nebius Token Factory",
         }
 
     except Exception:
@@ -1239,16 +1290,25 @@ def diagnose(request: DiagnoseRequest):
 
 @app.get("/api/nemotron/status")
 def get_nemotron_status_endpoint():
-    """Returns runtime status and capability overview for Nemotron and email dispatch."""
+    """Returns selected-provider configuration status and email dispatch availability."""
     configured, _, from_email = get_email_config()
-    nebius_key = bool(os.getenv("NEBIUS_API_KEY"))
+    vision_provider = provider_factory.get_vision_provider()
+    vision_key_name = "MODEL_API_KEY" if vision_provider.provider_name == "muse" else "NEBIUS_API_KEY"
+    vision_available = bool(os.getenv(vision_key_name, "").strip())
+    provider = provider_factory.get_reasoning_provider()
+    available = provider_factory.reasoning_is_configured(provider)
+    is_muse = provider.provider_name == "muse"
     return {
-        "status": "ready" if nebius_key else "degraded",
-        "configured_model": DEFAULT_MODEL,
-        "vision_model": "nvidia/Nemotron-3.5-Super-VL",
-        "detailed_report_model": DEFAULT_DETAILED_MODEL,
-        "text_reasoning_available": nebius_key,
-        "vision_verification_available": nebius_key,
+        "status": "ready" if available else "degraded",
+        "provider": provider.provider_name,
+        "vision_provider": vision_provider.provider_name,
+        "status_scope": "configuration",
+        "db_mode": get_db_config().mode.value,
+        "configured_model": provider.model_id if is_muse else DEFAULT_MODEL,
+        "vision_model": vision_provider.model_id,
+        "detailed_report_model": provider.model_id if is_muse else DEFAULT_DETAILED_MODEL,
+        "text_reasoning_available": available,
+        "vision_verification_available": vision_available,
         "email_delivery_available": configured,
         "email_provider": "Resend",
         "email_from": from_email if configured else None,
@@ -1274,7 +1334,7 @@ def draft_nemotron_document_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied drafting for incident {req.incident_id}: session mismatch"
         )
@@ -1335,7 +1395,7 @@ def send_nemotron_email_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied sending email for incident {req.incident_id}: session mismatch"
         )
@@ -1406,7 +1466,7 @@ def generate_detailed_report_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         logger.warning(
             f"[Security] Access denied generating detailed report for incident {req.incident_id}: session mismatch"
         )
@@ -1466,7 +1526,7 @@ def get_detailed_report_pdf_endpoint(
         incident = get_incident_by_id(incident_id)
         if incident:
             inc_sess = incident.get("session_id")
-            if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+            if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
                 raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
 
     pdf_bytes = get_detailed_report_pdf_bytes(report_id)
@@ -1496,7 +1556,7 @@ def list_detailed_reports_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         raise HTTPException(status_code=403, detail="Access denied.")
 
     return list_detailed_reports_for_incident(incident_id)
@@ -1519,7 +1579,7 @@ def email_detailed_report_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         raise HTTPException(status_code=403, detail="Access denied.")
 
     record = get_detailed_report_record(req.report_id)
@@ -1568,7 +1628,7 @@ def download_summary_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and x_client_session_id and inc_sess != x_client_session_id:
+    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
         raise HTTPException(status_code=403, detail="Access denied.")
 
     try:

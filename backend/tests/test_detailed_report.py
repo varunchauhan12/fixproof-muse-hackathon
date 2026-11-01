@@ -58,6 +58,7 @@ class TestDetailedReportWorkflow(unittest.TestCase):
                         "source_timestamp_sec": 12.0,
                         "source_asset_id": "vault-asset-ref-abc1",
                         "vision_verification": {
+                            "model_id": VISION_MODEL_ID,
                             "visual_correspondence": "CONFIRMED",
                             "matching_features": ["Identical logo placement", "Synchronized field angles"],
                             "contradictions": [],
@@ -77,6 +78,7 @@ class TestDetailedReportWorkflow(unittest.TestCase):
                         "source_timestamp_sec": 17.0,
                         "source_asset_id": "vault-asset-ref-abc1",
                         "vision_verification": {
+                            "model_id": VISION_MODEL_ID,
                             "visual_correspondence": "UNVERIFIED",
                             "matching_features": ["Partial stadium outline"],
                             "contradictions": ["Different scoreboard color"],

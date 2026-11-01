@@ -20,10 +20,10 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import uuid
 
 import requests
-from openai import OpenAI
 
 from app.registry import get_incident_by_id, is_cloud_mode
-from app.nemotron_engine import get_openai_client, DEFAULT_MODEL, resolve_model_id
+from app.nemotron_engine import DEFAULT_MODEL, resolve_model_id
+from app.providers import factory as provider_factory
 
 logger = logging.getLogger(__name__)
 
@@ -250,10 +250,11 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
 
     # AI Enhancement if requested and API key available
     ai_enhanced = False
-    if use_ai_synthesis and os.getenv("NEBIUS_API_KEY"):
+    provider = provider_factory.get_reasoning_provider()
+    is_muse = provider.provider_name == "muse"
+    if use_ai_synthesis and provider_factory.reasoning_is_configured(provider):
         try:
-            client = get_openai_client()
-            model_id = resolve_model_id()
+            model_id = provider.model_id if is_muse else resolve_model_id()
             prompt = (
                 f"You are a professional intellectual property paralegal assistant. "
                 f"Review this draft notice and polish the introductory and evidence explanation sections. "
@@ -261,7 +262,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
                 f"Do NOT invent statutory sections or legal citations. Preserve all placeholders like [Rights Holder].\n\n"
                 f"DRAFT NOTICE:\n{body_template}"
             )
-            resp = client.chat.completions.create(
+            resp = provider.create_text_completion(dict(
                 model=model_id,
                 messages=[
                     {"role": "system", "content": "You are a professional forensic legal drafter."},
@@ -269,7 +270,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
                 ],
                 max_tokens=2500,
                 temperature=0.1,
-            )
+            ))
             polished = resp.choices[0].message.content
             if polished and len(polished.strip()) > 200:
                 body_template = polished.strip()
@@ -299,7 +300,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
         "ai_enhanced": ai_enhanced,
-        "model_id": DEFAULT_MODEL if ai_enhanced else "deterministic-template-v1.0",
+        "model_id": (model_id if is_muse else DEFAULT_MODEL) if ai_enhanced else "deterministic-template-v1.0",
         "declarations_required": [
             "I have reviewed the identified suspect material and verified ownership of the claimed work.",
             "I declare in good faith that this notice is accurate and that I am authorized to act on behalf of the rights holder.",
@@ -405,10 +406,11 @@ Forensic Record ID: {evidence['incident_id']}
 """
 
     ai_enhanced = False
-    if use_ai_synthesis and os.getenv("NEBIUS_API_KEY"):
+    provider = provider_factory.get_reasoning_provider()
+    is_muse = provider.provider_name == "muse"
+    if use_ai_synthesis and provider_factory.reasoning_is_configured(provider):
         try:
-            client = get_openai_client()
-            model_id = resolve_model_id()
+            model_id = provider.model_id if is_muse else resolve_model_id()
             prompt = (
                 f"You are a professional digital media partnership and licensing manager. "
                 f"Polish this commercial revenue-sharing proposal email to make it professional, engaging, and collaborative. "
@@ -416,7 +418,7 @@ Forensic Record ID: {evidence['incident_id']}
                 f"do NOT claim an agreement has already been executed, and do NOT allege criminal liability.\n\n"
                 f"DRAFT PROPOSAL:\n{body_template}"
             )
-            resp = client.chat.completions.create(
+            resp = provider.create_text_completion(dict(
                 model=model_id,
                 messages=[
                     {"role": "system", "content": "You are a professional digital media licensing manager."},
@@ -424,7 +426,7 @@ Forensic Record ID: {evidence['incident_id']}
                 ],
                 max_tokens=2500,
                 temperature=0.2,
-            )
+            ))
             polished = resp.choices[0].message.content
             if polished and len(polished.strip()) > 200:
                 body_template = polished.strip()
@@ -443,7 +445,7 @@ Forensic Record ID: {evidence['incident_id']}
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
         "ai_enhanced": ai_enhanced,
-        "model_id": DEFAULT_MODEL if ai_enhanced else "deterministic-template-v1.0",
+        "model_id": (model_id if is_muse else DEFAULT_MODEL) if ai_enhanced else "deterministic-template-v1.0",
         "declarations_required": [
             "I confirm that I am authorized to represent the rights holder in commercial licensing discussions.",
             "I understand that this proposal is an invitation to treat and not an executed contract.",

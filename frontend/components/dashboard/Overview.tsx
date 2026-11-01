@@ -107,7 +107,7 @@ export const Overview: React.FC<OverviewProps> = ({
     {
       id: "vision",
       name: "Vision Verifier",
-      technology: "Nemotron-3.5-Super-VL",
+      technology: "Selected vision provider",
       description: "Multimodal verification for borderline match candidates",
       status: isOnline ? "Standby" : "Unavailable",
       statusType: isOnline ? "standby" : "offline",
@@ -117,7 +117,7 @@ export const Overview: React.FC<OverviewProps> = ({
     {
       id: "reasoning",
       name: "Forensic Reasoning",
-      technology: "Nemotron-3_5-Lightning",
+      technology: "muse-spark-1.3",
       description: "Timeline clustering, statutory triage & signed dossier synthesis",
       status: isOnline ? "Standby" : "Unavailable",
       statusType: isOnline ? "standby" : "offline",

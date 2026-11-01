@@ -40,6 +40,18 @@ class BaseVisionProvider(ABC):
 class BaseReasoningProvider(ABC):
     """Abstract interface for forensic investigation report generation models."""
 
+    def create_text_completion(
+        self,
+        request: Dict[str, Any],
+        client_options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Complete existing drafting/diagnostic requests without changing their schemas.
+
+        client_options preserves legacy callers' explicit client settings. Providers
+        which do not implement text completion must fail explicitly.
+        """
+        raise NotImplementedError("Text completion is unavailable for this provider")
+
     @property
     @abstractmethod
     def provider_name(self) -> str:

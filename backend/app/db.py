@@ -178,10 +178,12 @@ class DatabaseManager:
                 "Please install 'psycopg[binary]' to connect to Supabase PostgreSQL."
             )
         except Exception as e:
-            logger.error(f"[Database] Failed to connect to cloud database: {e}")
+            from app.security import safe_diagnostic
+            diagnostic = safe_diagnostic(e)
+            logger.error("[Database] Failed to connect to cloud database: %s", diagnostic)
             # Strict guarantee: never silently fall back to local mode
             raise DatabaseConnectionError(
-                f"Failed to connect to Supabase PostgreSQL ({cfg.mode.value}): {e}"
+                f"Failed to connect to Supabase PostgreSQL ({cfg.mode.value}): {diagnostic}"
             ) from e
 
     @contextmanager

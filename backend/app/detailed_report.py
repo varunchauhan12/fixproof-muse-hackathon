@@ -1,13 +1,12 @@
 """
 Detailed Evidence-Backed Forensic Report Generator for FixProof (Phase 3.5 Step 3).
-Synthesizes comprehensive multi-page forensic reports utilizing Nebius Token Factory
-text reasoning (nvidia/nemotron-3-super-120b-a12b with fallback to nvidia/Nemotron-3_5-Lightning),
-integrates factual Nemotron Vision verification findings, renders downloadable ReportLab PDFs,
+Synthesizes comprehensive multi-page forensic reports utilizing selected-provider
+text reasoning, integrates recorded pairwise vision findings, renders downloadable ReportLab PDFs,
 and delivers reports via Resend with PDF attachments and persistent audit logging.
 
 Operational Invariants:
 - Grounded strictly in verified stored evidence and frame telemetry.
-- Cites actual Nemotron Vision results (nvidia/Nemotron-3.5-Super-VL); never invents visual correspondence.
+- Cites recorded vision results and model IDs; never invents visual correspondence.
 - Frame evidence incorporates actual stored suspect and reference images where available.
 - Visual similarity scores are clearly disclaimed as uncalibrated heuristic metrics, not infringement probabilities.
 - State machine support: IDLE -> GENERATING -> PDF_READY -> EMAIL_SENDING -> COMPLETE.
@@ -27,7 +26,6 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
-from openai import OpenAI
 from PIL import Image as PILImage
 
 from reportlab.lib import colors
@@ -56,9 +54,7 @@ from app.nemotron_action import (
     save_email_audit_entry,
     EMAIL_REGEX,
 )
-from app.nemotron_engine import (
-    get_openai_client,
-)
+from app.providers import factory as provider_factory
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +63,7 @@ DETAILED_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_DETAILED_MODEL = os.getenv("DETAILED_REPORT_MODEL", "nvidia/nemotron-3-super-120b-a12b")
 FALLBACK_DETAILED_MODEL = "nvidia/Nemotron-3_5-Lightning"
+# Legacy export retained for callers; report provenance comes from recorded evidence.
 VISION_MODEL_ID = "nvidia/Nemotron-3.5-Super-VL"
 
 
@@ -183,7 +180,7 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
             "phash_distance": phash_dist,
             "visual_similarity_score": round(vis_score, 1),
             "vision_verification": {
-                "model_id": VISION_MODEL_ID,
+                "model_id": vision_ver.get("model_id") or "not-recorded",
                 "visual_correspondence": vis_correspondence,
                 "matching_features": vis_features,
                 "contradictions": vis_contradictions,
@@ -224,8 +221,10 @@ def synthesize_detailed_report(
     Nebius Token Factory text reasoning (default: nvidia/nemotron-3-super-120b-a12b).
     Enforces strict non-adjudication, factual consistency, and structured output.
     """
-    model_to_use = model_override or os.getenv("DETAILED_REPORT_MODEL", DEFAULT_DETAILED_MODEL)
-    api_key = os.getenv("NEBIUS_API_KEY", "").strip()
+    provider = provider_factory.get_reasoning_provider()
+    is_muse = provider.provider_name == "muse"
+    model_to_use = model_override or (provider.model_id if is_muse else os.getenv("DETAILED_REPORT_MODEL", DEFAULT_DETAILED_MODEL))
+    api_key = provider_factory.reasoning_is_configured(provider)
 
     is_clean = bundle["candidate_matches_found"] == 0 or bundle["overall_status"] == "CLEAN"
 
@@ -236,7 +235,7 @@ def synthesize_detailed_report(
         "CRITICAL INVARIANTS:\n"
         "1. You are an evidence analyst, NOT a legal judge or jury. Do NOT declare guilt or confirmed legal infringement.\n"
         "2. Ground all statements strictly in the provided evidence bundle. Do NOT invent timestamps, URLs, asset titles, or names.\n"
-        "3. Accurately reflect Nemotron Vision results: if visual correspondence is UNVERIFIED or contradictory, clearly disclose it.\n"
+        "3. Accurately reflect recorded vision results and model IDs: if visual correspondence is UNVERIFIED or contradictory, clearly disclose it.\n"
         "4. Similarity metrics are uncalibrated algorithmic heuristic scores, NOT calibrated probabilities of copyright infringement.\n"
         "5. Return valid JSON strictly adhering to the requested schema."
     )
@@ -270,7 +269,7 @@ def synthesize_detailed_report(
         "Respond with a JSON object containing:\n"
         "{\n"
         '  "executive_summary": "Concise factual synthesis of case and recommended triage",\n'
-        '  "methodology_scope": "Description of MobileNetV3 embedding extraction, FAISS retrieval, and Nemotron Vision verification",\n'
+        '  "methodology_scope": "Description of MobileNetV3 embedding extraction, FAISS retrieval, and recorded pairwise vision verification",\n'
         '  "temporal_continuity_analysis": "Assessment of match timestamps continuity, clustering, or sparsity",\n'
         '  "model_assessment_and_alternatives": "Analysis of visual verifier observations vs plausible alternative explanations (fair use, generic graphic)",\n'
         '  "risk_limitations": "Explicit disclosure of uncalibrated heuristics, sampling density limits, and mandatory human review",\n'
@@ -287,13 +286,12 @@ def synthesize_detailed_report(
     if api_key:
         # Try primary model first, fallback to Lightning if primary encounters issues
         models_to_try = [model_to_use]
-        if model_to_use != FALLBACK_DETAILED_MODEL:
+        if not is_muse and model_to_use != FALLBACK_DETAILED_MODEL:
             models_to_try.append(FALLBACK_DETAILED_MODEL)
 
         for candidate_model in models_to_try:
             try:
-                client = get_openai_client()
-                resp = client.chat.completions.create(
+                resp = provider.create_text_completion(dict(
                     model=candidate_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -302,10 +300,16 @@ def synthesize_detailed_report(
                     max_tokens=4000,
                     temperature=0.15,
                     response_format={"type": "json_object"},
-                )
+                ))
                 raw_json = resp.choices[0].message.content
                 if raw_json:
-                    report_content = json.loads(raw_json)
+                    parsed_content = json.loads(raw_json)
+                    required_text = ("executive_summary", "methodology_scope", "temporal_continuity_analysis", "model_assessment_and_alternatives", "risk_limitations")
+                    if not isinstance(parsed_content, dict) or any(not isinstance(parsed_content.get(k), str) or not parsed_content[k].strip() for k in required_text):
+                        raise ValueError("Incomplete detailed report sections")
+                    if not isinstance(parsed_content.get("recommended_actions"), list) or not all(isinstance(item, str) for item in parsed_content["recommended_actions"]):
+                        raise ValueError("Invalid detailed report actions")
+                    report_content = parsed_content
                     actual_model = candidate_model
                     ai_synthesized = True
                     break
@@ -341,9 +345,8 @@ def synthesize_detailed_report(
                 f"Evaluation demonstrates perceptual correlation with reference asset '{bundle['matched_assets'][0]['title'] if bundle['matched_assets'] else 'Vault Asset'}'."
             )
             model_eval = (
-                "Nemotron Multimodal Vision Verifier evaluated candidate frame pairs. "
-                "Observations indicate substantial correspondence in layout, color distribution, and broadcast geometry, "
-                "though secondary review should rule out standard broadcast graphics or permissible fair use."
+                "Consult the recorded pairwise vision results below. Unavailable or UNVERIFIED "
+                "results do not establish visual correspondence. Human review is required."
             )
             risk_lim = (
                 "Visual similarity scores are heuristic distance representations and are NOT calibrated probabilities of copyright infringement. "
@@ -360,7 +363,7 @@ def synthesize_detailed_report(
             "methodology_scope": (
                 "576-dimensional MobileNetV3 visual embeddings extracted at keyframe intervals. "
                 "Nearest-neighbor search executed against FAISS reference vault index with perceptual hashing (pHash) "
-                "and pairwise Nemotron Vision verification (nvidia/Nemotron-3.5-Super-VL)."
+                "and recorded pairwise vision verification where available."
             ),
             "temporal_continuity_analysis": temporal,
             "model_assessment_and_alternatives": model_eval,
@@ -395,7 +398,10 @@ def synthesize_detailed_report(
                 "incident_id": bundle["incident_id"],
                 "report_id": report_id,
                 "synthesizer_model": actual_model,
-                "vision_verifier_model": VISION_MODEL_ID,
+                "vision_verifier_model": ", ".join(sorted({
+                    c.get("vision_verification", {}).get("model_id") or "not-recorded"
+                    for c in bundle["frame_correlations"]
+                })) or "not-recorded",
                 "embedding_model": "MobileNetV3-Small (576-dim L2-normalized)",
                 "vector_store": "FAISS IndexFlatL2",
                 "timestamp": now_iso,
@@ -595,7 +601,7 @@ def generate_detailed_report_pdf(
     elements.append(
         Paragraph(
             "Evaluation of candidate frame correspondences combining L2 vector distance, pHash perceptual hashing, "
-            "and Nemotron Multimodal Vision-Assisted verification (nvidia/Nemotron-3.5-Super-VL):",
+            "and recorded pairwise vision verification where available:",
             body_style,
         )
     )
@@ -668,7 +674,7 @@ def generate_detailed_report_pdf(
                     Paragraph(f"<b>Observed Features:</b> {features_text}", body_style),
                 ],
                 [
-                    Paragraph(f"<b>Nemotron Vision Reasoning:</b> {ver_text}", body_style),
+                    Paragraph(f"<b>Vision Reasoning:</b> {ver_text}", body_style),
                 ],
             ]
             m_table = Table(metrics_data, colWidths=[7.2 * inch])
@@ -972,7 +978,7 @@ def send_detailed_report_email(
         f"Report Reference:   {report_id}\n"
         f"Exported (UTC):     {now_iso}\n\n"
         f"Attached is the official forensic investigation PDF detailing visual match telemetry, "
-        f"frame-by-frame analysis, and Nemotron Multimodal Vision verification findings.\n\n"
+        f"frame-by-frame analysis, and recorded pairwise vision verification findings.\n\n"
         f"Executive Summary:\n{summary_text or 'Detailed analysis enclosed.'}\n\n"
         f"Notice: This report is a forensic analysis aid requiring authorized human review."
     )

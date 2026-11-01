@@ -83,8 +83,8 @@ const CAPABILITIES: CapabilityItem[] = [
     label: "Automated Synthesis",
     title: "Detailed Investigation Reports",
     description:
-      "Automated multi-page PDF reports synthesizing Nemotron Vision frame verifications, temporal match intervals, and editable legal notices.",
-    badge: "Nebius Token Factory",
+      "Automated multi-page PDF reports synthesizing recorded vision frame verifications, temporal match intervals, and editable legal notices.",
+    badge: "Meta Model API",
     badgeType: "live",
     icon: FileCheck2,
     verifiedIn: "backend/app/report_generator.py",

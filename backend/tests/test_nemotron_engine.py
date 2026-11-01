@@ -590,8 +590,9 @@ class TestReportPersistenceAndCompatibility(unittest.TestCase):
 
     def test_11_diagnose_backward_compatibility(self):
         """11. Verify existing POST /diagnose endpoint remains completely backward-compatible."""
-        with patch("app.main.OpenAI") as mock_openai_cls:
+        with patch("openai.OpenAI") as mock_openai_cls:
             mock_client = MagicMock()
+            mock_client.__enter__.return_value = mock_client
             mock_openai_cls.return_value = mock_client
             mock_client.chat.completions.create.return_value = _create_mock_completion(
                 content="Off-by-one error: Loop boundary condition uses <= instead of <."

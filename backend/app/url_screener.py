@@ -10,7 +10,7 @@ Features:
 - Discovers primary public thumbnail plus permitted preview/storyboard candidates.
 - Evaluates candidate frames against reference vault using MobileNetV3 (576-dim) + pHash.
 - Enforces Shannon image entropy filter to reject blank/solid test patterns.
-- Submits top candidate pairs to Nemotron Vision Verification (nvidia/Nemotron-3.5-Super-VL).
+- Submits top candidate pairs to the selected vision provider.
 - Isolated storage: Suspect thumbnails are kept strictly under storage/suspects/thumbnails/
   and NEVER indexed into the trusted FAISS reference vault.
 - Returns structured preliminary screening results with mandatory disclaimer,
@@ -48,7 +48,7 @@ from app.matcher import (
 )
 from app.registry import save_incident
 from app.vault import ReferenceVault, default_vault
-from app.vision_verifier import verify_candidate_pair
+from app.providers import factory as provider_factory
 
 logger = logging.getLogger(__name__)
 
@@ -543,7 +543,7 @@ def screen_video_url(
     """
     Orchestrates URL-based preliminary video screening.
     Evaluates discovered candidate preview images and storyboard sprite sheet keyframes
-    against the reference FAISS vault and executes bounded Nemotron vision verification.
+    against the reference FAISS vault and executes bounded selected-provider vision verification.
     """
     if vault is None:
         vault = default_vault
@@ -738,7 +738,7 @@ def screen_video_url(
                     elif dist is not None and dist < SUSPECT_THRESHOLD:
                         matched_asset_ids.add(best_match.get("source_asset_id"))
 
-                # Shortlist for Nemotron vision verification if passing CV gates
+                # Shortlist for vision verification if passing CV gates.
                 if (
                     dist is not None
                     and dist < SUSPECT_THRESHOLD
@@ -772,9 +772,10 @@ def screen_video_url(
     if not frame_matches:
         raise MetadataExtractionError("Could not retrieve or process any candidate preview images.")
 
-    # Execute Bounded Nemotron Vision Verification on Top Candidates (Max 3)
+    # Execute bounded selected-provider vision verification on top candidates (max 3).
     if run_vision_verification and candidate_pairs_to_verify:
         try:
+            vision_provider = provider_factory.get_vision_provider()
             candidate_pairs_to_verify.sort(key=lambda x: x["composite_rank"], reverse=True)
             top_pairs = candidate_pairs_to_verify[:3]
 
@@ -782,13 +783,14 @@ def screen_video_url(
                 best = cand["best_match"]
                 ref_pil = load_reference_frame_image(best)
                 if ref_pil and cand.get("suspect_pil"):
-                    v_res = verify_candidate_pair(
-                        suspect_img=cand["suspect_pil"],
-                        ref_img=ref_pil,
-                        suspect_timestamp_sec=float(cand.get("suspect_timestamp_sec", 0.0)),
-                        reference_timestamp_sec=float(best.get("source_timestamp_sec", 0.0)),
-                        source_asset_id=str(best.get("source_asset_id", "")),
-                        candidate_pair_index=pair_idx,
+                    suspect_buffer, reference_buffer = io.BytesIO(), io.BytesIO()
+                    cand["suspect_pil"].save(suspect_buffer, format="PNG")
+                    ref_pil.save(reference_buffer, format="PNG")
+                    v_res = vision_provider.verify_candidate_pair(
+                        suspect_image_bytes=suspect_buffer.getvalue(),
+                        reference_image_bytes=reference_buffer.getvalue(),
+                        suspect_metadata={"timestamp_sec": float(cand.get("suspect_timestamp_sec", 0.0)), "candidate_pair_index": pair_idx},
+                        reference_metadata={"timestamp_sec": float(best.get("source_timestamp_sec", 0.0)), "asset_id": str(best.get("source_asset_id", ""))},
                     )
                     fm_idx = cand["frame_match_idx"]
                     frame_matches[fm_idx]["best_match"]["vision_verification"] = v_res
@@ -806,7 +808,7 @@ def screen_video_url(
                         "reasoning": f"Vision verification unavailable: {reason}.",
                         "uncertainty_factors": [reason],
                         "validation_status": "VERIFICATION_UNAVAILABLE",
-                        "model_id": "nvidia/Nemotron-3.5-Super-VL",
+                        "model_id": vision_provider.model_id,
                         "verified_at": datetime.now(timezone.utc).isoformat(),
                     }
                     fm_idx = cand["frame_match_idx"]

@@ -45,8 +45,9 @@ class TestPhase31ProviderAbstraction(unittest.TestCase):
         self.assertEqual(rp.model_id, "nvidia/Nemotron-3_5-Lightning")
 
     def test_muse_scaffold_raises_not_implemented(self):
-        vp = get_vision_provider("muse")
-        rp = get_reasoning_provider("muse")
+        # Legacy scaffold remains import-compatible; factory now selects Stage A adapters.
+        vp = MuseVisionProvider()
+        rp = MuseReasoningProvider()
 
         self.assertIsInstance(vp, MuseVisionProvider)
         self.assertIsInstance(rp, MuseReasoningProvider)

@@ -127,7 +127,7 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
           timestamp: inc.scanned_at || new Date().toISOString(),
           category: "AI_REASONING",
           severity: isMatch ? "FLAGGED" : "INFO",
-          summary: `Nemotron Legal Triage: Incident ${incIdStr.slice(0, 8)} → Recommendation: ${inc.recommended_action || "REVIEW"}`,
+          summary: `AI Legal Triage: Incident ${incIdStr.slice(0, 8)} → Recommendation: ${inc.recommended_action || "REVIEW"}`,
           details: inc.status_message || "Automated synthesis of visual frame correlations into bounded copyright assessment.",
           targetId: inc.incident_id,
           targetType: "incident",
@@ -135,7 +135,7 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
           payload: {
             event_type: "NEMOTRON_SYNTHESIS_EVALUATION",
             incident_id: inc.incident_id,
-            model_id: "nvidia/Nemotron-3_5-Lightning",
+            model_id: "See recorded investigation report provenance",
             recommended_action: inc.recommended_action,
             disclaimer: inc.disclaimer,
             limitations: inc.limitations,
@@ -326,7 +326,7 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
           {
             label: "AI Reasoning Reports",
             value: reasoningCount.toString(),
-            sub: "Nemotron legal evaluations",
+            sub: "Muse legal evaluations",
             icon: Cpu,
             onClick: () => setActiveCategory("AI_REASONING"),
             active: activeCategory === "AI_REASONING",

@@ -321,7 +321,7 @@ class TestEvidencePackage(unittest.TestCase):
 
     @patch("app.main.get_incident_by_id")
     @patch("app.main.get_nemotron_reports_for_incident")
-    @patch("app.main.generate_nemotron_report")
+    @patch("app.main.provider_factory.get_reasoning_provider")
     def test_15_zero_model_invocation_on_export_and_verify(self, mock_generate, mock_reports, mock_incident):
         """11. Exporting and verifying a package never calls the AI reasoning model."""
         mock_incident.return_value = self.incident_data

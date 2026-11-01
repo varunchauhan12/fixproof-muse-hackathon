@@ -6,6 +6,10 @@ Targets:
 """
 
 from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+import io
+
+from PIL import Image
 
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
 
@@ -30,16 +34,46 @@ class NemotronVisionProvider(BaseVisionProvider):
         reference_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         from app.vision_verifier import verify_candidate_pair
-        return verify_candidate_pair(
-            suspect_image_bytes=suspect_image_bytes,
-            reference_image_bytes=reference_image_bytes,
-            suspect_metadata=suspect_metadata,
-            reference_metadata=reference_metadata,
+        suspect = suspect_metadata or {}
+        reference = reference_metadata or {}
+        context = dict(
+            suspect_timestamp_sec=float(suspect.get("timestamp_sec", 0.0)),
+            reference_timestamp_sec=float(reference.get("timestamp_sec", 0.0)),
+            source_asset_id=str(reference.get("asset_id", "")),
+            candidate_pair_index=int(suspect.get("candidate_pair_index", 0)),
         )
+        try:
+            with Image.open(io.BytesIO(suspect_image_bytes)) as suspect_img, Image.open(io.BytesIO(reference_image_bytes)) as ref_img:
+                return verify_candidate_pair(suspect_img=suspect_img, ref_img=ref_img, **context)
+        except Exception as exc:
+            return {
+                **context,
+                "visual_correspondence": "UNVERIFIED",
+                "confidence_assessment": "INCONCLUSIVE",
+                "matching_features": [], "contradictions": [],
+                "reasoning": f"Vision verification unavailable: {exc}",
+                "uncertainty_factors": ["Provider failure"],
+                "validation_status": "VERIFICATION_UNAVAILABLE",
+                "model_id": self.model_id,
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+            }
 
 
 class NemotronReasoningProvider(BaseReasoningProvider):
     """Forensic investigation reasoning provider using Nemotron models."""
+
+    def create_text_completion(
+        self,
+        request: Dict[str, Any],
+        client_options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        from app.nemotron_engine import get_openai_client
+        from openai import OpenAI
+        if client_options is not None:
+            # /diagnose historically used an explicitly configured, unpooled client.
+            with OpenAI(**client_options) as client:
+                return client.chat.completions.create(**request)
+        return get_openai_client().chat.completions.create(**request)
 
     @property
     def provider_name(self) -> str:
@@ -57,6 +91,6 @@ class NemotronReasoningProvider(BaseReasoningProvider):
     ) -> Any:
         from app.nemotron_engine import generate_nemotron_report
         return generate_nemotron_report(
-            investigation_input=investigation_input,
+            input_data=investigation_input,
             model_override=model_override,
         )

@@ -100,8 +100,8 @@ const overviewContent = fs.readFileSync(OVERVIEW_PATH, "utf-8");
 assert(overviewContent.includes("#48C7B5"), "Overview must use #48C7B5 teal accent");
 assert(overviewContent.includes("#D9A441"), "Overview must use #D9A441 amber accent");
 assert(overviewContent.includes("#A99AE8"), "Overview must use #A99AE8 lavender for AI/intelligence components");
-assert(overviewContent.includes("Nemotron-3.5-Super-VL"), "Overview must preserve multimodal Nemotron vision subsystem");
-assert(overviewContent.includes("Nemotron-3_5-Lightning"), "Overview must preserve Nemotron lightning reasoning subsystem");
+assert(overviewContent.includes("Selected vision provider"), "Overview must describe the configured vision subsystem without hardcoding a provider");
+assert(overviewContent.includes("muse-spark-1.3"), "Overview must display the Muse reasoning model");
 assert(overviewContent.includes("Skiper61MouseFollow"), "Overview must preserve Skiper61 mouse follow");
 console.log("  ✓ Semantic palette (Teal, Amber, Lavender, Cream), AI subsystems, and physics verified");
 

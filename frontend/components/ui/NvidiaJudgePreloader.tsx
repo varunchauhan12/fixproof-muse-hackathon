@@ -13,7 +13,7 @@ interface NvidiaJudgePreloaderProps {
 const TELEMETRY_STAGES = [
   { threshold: 0, text: "Calibrating MobileNetV3 visual embeddings...", icon: Cpu },
   { threshold: 28, text: "Hydrating FAISS IndexFlatL2 vector vault...", icon: Database },
-  { threshold: 62, text: "Connecting Nemotron multi-agent reasoning mesh...", icon: Layers },
+  { threshold: 62, text: "Preparing Muse reasoning workspace...", icon: Layers },
   { threshold: 88, text: "Forensic verifier ready · Unlocking workspace", icon: ShieldCheck },
 ];
 
@@ -139,7 +139,7 @@ export function NvidiaJudgePreloader({
         <motion.div
           role="dialog"
           aria-modal="true"
-          aria-label="Welcome NVIDIA Judges Preloader"
+          aria-label="Welcome Meta Judges Preloader"
           className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none bg-[#090908]"
           initial={{ y: 0, opacity: 1 }}
           exit={{
@@ -227,7 +227,7 @@ export function NvidiaJudgePreloader({
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#76B900]" />
               </span>
               <span className="text-[11px] sm:text-xs font-mono uppercase tracking-widest text-[#76B900] font-semibold">
-                NVIDIA AI HACKATHON 2026
+                META HACKATHON 2026
               </span>
               <span className="hidden sm:inline-block text-[11px] font-mono text-[#8E887D]">
                 · EVALUATION PORTAL
@@ -270,7 +270,7 @@ export function NvidiaJudgePreloader({
             >
               WELCOME,{" "}
               <span className="bg-gradient-to-r from-[#76B900] via-[#48C7B5] to-[#76B900] bg-clip-text text-transparent">
-                NVIDIA JUDGES
+                META JUDGES
               </span>
             </motion.h1>
 
