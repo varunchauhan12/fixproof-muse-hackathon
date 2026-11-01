@@ -811,7 +811,9 @@ def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
             record["operational_metadata"].setdefault("created_at", record["created_at"])
 
     if is_cloud_mode():
-        model_id = str(record.get("model_id") or "nvidia/Nemotron-3_5-Lightning")
+        from app.providers import factory as provider_factory
+        default_model = provider_factory.get_reasoning_provider().model_id
+        model_id = str(record.get("model_id") or default_model)
         prompt_ver = str(record.get("prompt_version") or "v1.0")
         summary = str(record.get("summary") or "")
         rec_action = str(record.get("recommended_action") or "NEEDS_FULL_VIDEO_REVIEW")
@@ -924,6 +926,8 @@ def get_nemotron_report_history(incident_id: str) -> List[Dict[str, Any]]:
     """
     reports = get_nemotron_reports_for_incident(incident_id)
     history = []
+    from app.providers import factory as provider_factory
+    default_model = provider_factory.get_reasoning_provider().model_id
     for rep in reports:
         # Guarantee incident isolation
         if str(rep.get("incident_id")) != str(incident_id):
@@ -937,7 +941,7 @@ def get_nemotron_report_history(incident_id: str) -> List[Dict[str, Any]]:
             "report_id": str(rep.get("report_id")),
             "incident_id": str(incident_id),
             "created_at": ts,
-            "model_id": str(rep.get("model_id") or "nvidia/Nemotron-3_5-Lightning"),
+            "model_id": str(rep.get("model_id") or default_model),
             "recommended_action": str(rep.get("recommended_action") or "NEEDS_FULL_VIDEO_REVIEW"),
             "confidence_assessment": str(rep.get("confidence_assessment") or "INCONCLUSIVE_DATA"),
             "validation_status": str(val_status),

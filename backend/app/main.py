@@ -138,7 +138,7 @@ class InvestigateIncidentRequest(BaseModel):
     )
     model_override: Optional[str] = Field(
         default=None,
-        description="Optional model ID override. Leave empty or null to use 'nvidia/Nemotron-3_5-Lightning'. Allowed: nvidia/Nemotron-3_5-Lightning, nvidia/Nemotron-3.5-Super-VL.",
+        description="Optional model ID override. Defaults to configured provider model.",
         json_schema_extra={"example": None},
     )
 
@@ -1235,7 +1235,7 @@ def diagnose(request: DiagnoseRequest):
     api_key = None if is_muse else os.getenv("NEBIUS_API_KEY")
     model = provider.model_id if is_muse else os.getenv(
         "NEBIUS_MODEL",
-        "nvidia/Nemotron-3_5-Lightning",
+        provider.model_id,
     )
 
     if not provider_factory.reasoning_is_configured(provider):

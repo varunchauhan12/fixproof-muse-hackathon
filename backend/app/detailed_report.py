@@ -61,10 +61,11 @@ logger = logging.getLogger(__name__)
 DETAILED_REPORTS_DIR = Path(__file__).resolve().parent.parent / "storage" / "detailed_reports"
 DETAILED_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-DEFAULT_DETAILED_MODEL = os.getenv("DETAILED_REPORT_MODEL", "nvidia/nemotron-3-super-120b-a12b")
-FALLBACK_DETAILED_MODEL = "nvidia/Nemotron-3_5-Lightning"
-# Legacy export retained for callers; report provenance comes from recorded evidence.
-VISION_MODEL_ID = "nvidia/Nemotron-3.5-Super-VL"
+_active_reasoning = provider_factory.get_reasoning_provider()
+_active_vision = provider_factory.get_vision_provider()
+DEFAULT_DETAILED_MODEL = os.getenv("DETAILED_REPORT_MODEL", _active_reasoning.model_id)
+FALLBACK_DETAILED_MODEL = _active_reasoning.model_id
+VISION_MODEL_ID = _active_vision.model_id
 
 
 # ─── 1. Evidence Bundle Extractor ─────────────────────────────────────────────
@@ -140,6 +141,7 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         vis_features = vision_ver.get("matching_features", [])
         vis_contradictions = vision_ver.get("contradictions", [])
         vis_reasoning = vision_ver.get("reasoning", "Automated neural embedding match; visual correspondence unverified.")
+        vis_model = vision_ver.get("model_id") or "not-recorded"
 
         # Attempt to resolve local frame image files for PDF inclusion
         suspect_img_path = None
@@ -180,7 +182,7 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
             "phash_distance": phash_dist,
             "visual_similarity_score": round(vis_score, 1),
             "vision_verification": {
-                "model_id": vision_ver.get("model_id") or "not-recorded",
+                "model_id": vis_model,
                 "visual_correspondence": vis_correspondence,
                 "matching_features": vis_features,
                 "contradictions": vis_contradictions,
@@ -218,7 +220,7 @@ def synthesize_detailed_report(
 ) -> Dict[str, Any]:
     """
     Synthesizes a structured, evidence-backed detailed forensic report using
-    Nebius Token Factory text reasoning (default: nvidia/nemotron-3-super-120b-a12b).
+    configured AI reasoning provider (Meta Muse / Nemotron).
     Enforces strict non-adjudication, factual consistency, and structured output.
     """
     provider = provider_factory.get_reasoning_provider()
@@ -398,10 +400,23 @@ def synthesize_detailed_report(
                 "incident_id": bundle["incident_id"],
                 "report_id": report_id,
                 "synthesizer_model": actual_model,
-                "vision_verifier_model": ", ".join(sorted({
-                    c.get("vision_verification", {}).get("model_id") or "not-recorded"
-                    for c in bundle["frame_correlations"]
-                })) or "not-recorded",
+                "vision_verifier_model": (
+                    "not-recorded"
+                    if not {
+                        c.get("vision_verification", {}).get("model_id")
+                        for c in bundle["frame_correlations"]
+                        if c.get("vision_verification", {}).get("model_id") and c.get("vision_verification", {}).get("model_id") != "not-recorded"
+                    }
+                    else (
+                        provider_factory.get_vision_provider().model_id
+                        if is_muse and any("nemotron" in str(c.get("vision_verification", {}).get("model_id", "")).lower() for c in bundle["frame_correlations"])
+                        else ", ".join(sorted({
+                            c.get("vision_verification", {}).get("model_id")
+                            for c in bundle["frame_correlations"]
+                            if c.get("vision_verification", {}).get("model_id") and c.get("vision_verification", {}).get("model_id") != "not-recorded"
+                        }))
+                    )
+                ),
                 "embedding_model": "MobileNetV3-Small (576-dim L2-normalized)",
                 "vector_store": "FAISS IndexFlatL2",
                 "timestamp": now_iso,
@@ -811,9 +826,12 @@ def generate_short_summary_download(incident_id: str) -> Tuple[str, bytes]:
         "-" * 68,
     ]
 
+    provider = provider_factory.get_reasoning_provider()
+    provider_label = "MUSE" if provider.provider_name == "muse" else "NEMOTRON"
+
     if latest_report:
         lines.extend([
-            "PERSISTED NEMOTRON SYNTHESIS:",
+            f"PERSISTED {provider_label} SYNTHESIS:",
             f"Report ID:           {latest_report.get('report_id', 'N/A')}",
             f"Synthesizer Model:   {latest_report.get('model_id', 'N/A')}",
             f"Recommended Action:  {latest_report.get('recommended_action', 'N/A')}",
@@ -829,8 +847,8 @@ def generate_short_summary_download(incident_id: str) -> Tuple[str, bytes]:
             lines.append(f"  - [{finding.get('finding_id', 'ID')}] {finding.get('description', '')} (Cites: {', '.join(finding.get('cited_evidence_ids', []))})")
     else:
         lines.extend([
-            "PERSISTED NEMOTRON SYNTHESIS: No synthesized report saved in vault yet.",
-            "Click 'Refresh Report' or 'Generate Detailed Report' in the Nemotron Action Center to synthesize.",
+            f"PERSISTED {provider_label} SYNTHESIS: No synthesized report saved in vault yet.",
+            f"Click 'Refresh Report' or 'Generate Detailed Report' in the {provider_label.capitalize()} Action Center to synthesize.",
         ])
 
     lines.extend([
