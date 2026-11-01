@@ -26,6 +26,7 @@ import {
   FileCheck,
   Eye,
   EyeOff,
+  Layers,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -59,6 +60,7 @@ import {
 } from "@/lib/api";
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
+import { ForensicEvidenceExperience } from "@/components/dashboard/ForensicEvidenceExperience";
 
 const nemotronInvestigationStepsConfig = [
   {
@@ -284,6 +286,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [retryEmailAddress, setRetryEmailAddress] = useState("");
   const [retryEmailResult, setRetryEmailResult] = useState<SendEmailResult | null>(null);
   const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
+  const [centerView, setCenterView] = useState<"EVIDENCE_EXPERIENCE" | "DOCUMENT_DRAFT">("EVIDENCE_EXPERIENCE");
 
   // Animated KokonutUI AI Loading Steps (Phase 3.5)
   const isInvestigationActive = refreshingInvestigation || reportLoading;
@@ -1117,6 +1120,71 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
         <div className="lg:col-span-8 space-y-6">
           {selectedIncident ? (
             <>
+              {/* Primary View Mode Switcher */}
+              <div
+                style={{
+                  background: "#171615",
+                  borderRadius: 12,
+                  border: "1px solid rgba(238, 231, 219, 0.08)",
+                }}
+                className="p-1.5 flex items-center justify-between gap-2 flex-wrap"
+              >
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCenterView("EVIDENCE_EXPERIENCE")}
+                    style={{
+                      background: centerView === "EVIDENCE_EXPERIENCE" ? "#242220" : "transparent",
+                      color: centerView === "EVIDENCE_EXPERIENCE" ? "#f4efe6" : "#aba497",
+                      border: centerView === "EVIDENCE_EXPERIENCE" ? "1px solid #48C7B5" : "1px solid transparent",
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Layers size={14} className={centerView === "EVIDENCE_EXPERIENCE" ? "text-teal-400" : ""} />
+                    <span>Forensic Evidence & Provenance</span>
+                  </button>
+                  <button
+                    onClick={() => setCenterView("DOCUMENT_DRAFT")}
+                    style={{
+                      background: centerView === "DOCUMENT_DRAFT" ? "#242220" : "transparent",
+                      color: centerView === "DOCUMENT_DRAFT" ? "#f4efe6" : "#aba497",
+                      border: centerView === "DOCUMENT_DRAFT" ? "1px solid #48C7B5" : "1px solid transparent",
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Scale size={14} className={centerView === "DOCUMENT_DRAFT" ? "text-teal-400" : ""} />
+                    <span>Notice & Settlement Drafter</span>
+                  </button>
+                </div>
+
+                {onNavigateToIncidents && (
+                  <button
+                    onClick={() => onNavigateToIncidents(selectedIncident)}
+                    style={{
+                      background: "#1c1b1a",
+                      border: "1px solid rgba(238, 231, 219, 0.1)",
+                      color: "#ded7cb",
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                  >
+                    <span>Full Incident Inspection</span>
+                    <ExternalLink size={12} />
+                  </button>
+                )}
+              </div>
+
+              {centerView === "EVIDENCE_EXPERIENCE" ? (
+                <ForensicEvidenceExperience
+                  incident={selectedIncident}
+                  latestReport={latestReport}
+                  detailedReport={activeDetailedReport}
+                  onRefreshReport={handleRefreshReport}
+                  refreshingReport={refreshingInvestigation}
+                  onGenerateDetailedReport={handleGenerateDetailedReport}
+                  generatingDetailedReport={detailedReportState === "GENERATING"}
+                  detailedReportError={detailedReportError}
+                />
+              ) : (
+                <>
               {/* Incident Header & Evidence Telemetry */}
               <div
                 style={{
@@ -2309,6 +2377,8 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     />
                   </div>
                 </div>
+              )}
+                </>
               )}
             </>
           ) : (

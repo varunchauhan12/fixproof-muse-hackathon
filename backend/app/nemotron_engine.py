@@ -130,6 +130,10 @@ CRITICAL OPERATIONAL RULES:
    - If visual_correspondence is "UNVERIFIED", note that visual verification was unavailable or inconclusive; do NOT claim verified visual correspondence.
    - Clearly separate measured computer-vision metrics (L2 distance, pHash) from model-generated visual correspondence findings.
 8. Return ONLY a single valid JSON object strictly matching the required schema. No markdown fences.
+9. When visual keyframes (suspect and reference pairs) are provided in the multimodal request:
+   - Analyze visual correspondence, scene continuity, and feature persistence across sampled timestamps.
+   - Note observed transformations (cropping, scaling, overlay graphics, compression).
+   - Explicitly disclose ambiguities, alternative explanations, and limitations of still-frame sampling.
 """
 
 # Reusable client singleton with connection pooling
@@ -196,6 +200,20 @@ def build_user_prompt(input_data: InvestigationInput) -> str:
                     "contradictions": f.vision_verification.get("contradictions", []),
                     "reasoning": f.vision_verification.get("reasoning", ""),
                     "validation_status": f.vision_verification.get("validation_status"),
+                }
+            if getattr(f, "sam_segmentation", None):
+                sam_data = f.sam_segmentation
+                f_item["sam_localization"] = {
+                    "model_id": sam_data.get("model_id", "sam-3.1"),
+                    "objects_detected": len(sam_data.get("objects", [])),
+                    "objects": [
+                        {
+                            "label": obj.get("label"),
+                            "box": obj.get("box", {}).get("normalized_coords") if isinstance(obj.get("box"), dict) else None,
+                            "tracking_id": obj.get("tracking_id"),
+                        }
+                        for obj in sam_data.get("objects", [])
+                    ],
                 }
             matching_frames.append(f_item)
 

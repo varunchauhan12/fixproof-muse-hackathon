@@ -452,6 +452,15 @@ export function getDetailedReportPdfUrl(reportId: string): string {
   return `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}/pdf`;
 }
 
+export async function downloadDetailedReportPdf(reportId: string): Promise<Blob> {
+  const url = getDetailedReportPdfUrl(reportId);
+  const res = await fetchNoCache(url);
+  if (!res.ok) {
+    throw new Error(`PDF download failed (${res.status})`);
+  }
+  return res.blob();
+}
+
 export async function getDetailedReportsForIncident(
   incidentId: string
 ): Promise<DetailedReportListItem[]> {

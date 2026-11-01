@@ -34,6 +34,7 @@ class BoundingBox(BaseModel):
 class SegmentationMask(BaseModel):
     """
     Pixel-precise raster segmentation mask representation.
+    Preserves raw encoded payload for cryptographic reproducibility and provenance.
     """
     x: int = 0
     y: int = 0
@@ -41,6 +42,13 @@ class SegmentationMask(BaseModel):
     width: int = 0
     encoding: str = "lossless_base85"
     raw_payload: str = ""
+    is_decoded: bool = False
+    decoded_mask: Optional[List[List[int]]] = None
+    decoding_status: str = "RAW_PRESERVED"
+    decoding_notice: Optional[str] = (
+        "Raw SAM 3.1 run-length base85 payload preserved immutably. "
+        "Native byte decompression requires @meta-sam/parser."
+    )
 
 
 class SegmentedObject(BaseModel):

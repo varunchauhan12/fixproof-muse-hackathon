@@ -273,6 +273,10 @@ class MetaReasoningProvider(BaseReasoningProvider):
             for interval in investigation_input.timeline_intervals:
                 valid_ids.add(interval.interval_id)
                 valid_ids.update(interval.evidence_ids)
+            if frame_images:
+                for f_item in frame_images:
+                    if f_item.get("evidence_id"):
+                        valid_ids.add(str(f_item["evidence_id"]))
             valid, _ = validate_report_evidence_references(report, valid_ids)
             if not valid:
                 return failure("INVALID_EVIDENCE_REFERENCES")
@@ -281,9 +285,13 @@ class MetaReasoningProvider(BaseReasoningProvider):
                 report.recommended_action = "NEEDS_FULL_VIDEO_REVIEW"
                 report.limitations_disclosed.insert(0, "Evaluated only public thumbnail artwork; underlying video frames were not acquired or verified.")
             usage = response.usage
+            sam_count = sum(1 for item in (frame_images or []) if "SAM localized" in str(item.get("frame_type", "")))
             report.operational_metadata = {
                 "model_id": model,
                 "is_fallback": (model != self.model_id),
+                "is_multimodal": bool(frame_images),
+                "multimodal_frames_count": len(frame_images) if frame_images else 0,
+                "sam_grounded_frames_count": sam_count,
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "validation_status": "PARTIALLY_VALIDATED" if not report.findings and investigation_input.timeline_intervals else "VALIDATED",
                 "prompt_tokens": getattr(usage, "prompt_tokens", None),

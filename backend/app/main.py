@@ -1015,8 +1015,35 @@ def investigate_threat_incident(
     intervals = cluster_frame_matches(frames_ev)
     investigation_input = build_investigation_input_from_incident(incident, intervals)
 
+    frame_images = None
+    if is_muse:
+        try:
+            from app.temporal_selector import (
+                select_investigation_keyframes,
+                ground_candidate_frames_with_sam,
+                build_multimodal_frame_items,
+            )
+            selected_pairs = select_investigation_keyframes(incident, max_pairs=3)
+            grounded_pairs = ground_candidate_frames_with_sam(selected_pairs, prompt="broadcast subject")
+            frame_images = build_multimodal_frame_items(grounded_pairs, incident_id=incident_id, max_items=6)
+            for p in grounded_pairs:
+                sam_data = p.get("sam_segmentation")
+                if sam_data:
+                    ev_id = p.get("evidence_id")
+                    for fe in frames_ev:
+                        if fe.evidence_id == ev_id:
+                            fe.sam_segmentation = sam_data
+                            break
+        except Exception as sel_err:
+            logger.warning(f"[Investigation] Temporal keyframe selection encountered non-fatal error: {sel_err}")
+
+    inv_kwargs = {"model_override": normalized_model}
+    if frame_images:
+        inv_kwargs["frame_images"] = frame_images
+
     report = provider.generate_investigation_report(
-        investigation_input, model_override=normalized_model
+        investigation_input,
+        **inv_kwargs,
     )
     try:
         saved_record = save_nemotron_report(report)

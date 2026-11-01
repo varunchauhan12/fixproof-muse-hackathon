@@ -74,9 +74,13 @@ export interface MatchCandidate {
     phash_match: boolean;
   } | null;
   vision_verification?: VisionVerificationResult | null;
+  sam_segmentation?: SAMSegmentationResult | null;
+  evidence_id?: string;
 }
 
 export interface FrameMatchDetail {
+  evidence_id?: string;
+  sam_segmentation?: SAMSegmentationResult | null;
   submitted_frame: {
     frame_index: number;
     timestamp_sec: number;
@@ -106,7 +110,14 @@ export interface MatchAnalysisResult {
   candidate_matches_found: number;
   highest_confidence: number;
   lowest_l2_distance: number | null;
-  overall_status: "CANDIDATE_MATCH" | "SUSPECT" | "CLEAN" | "NO_REFERENCE_DATA" | "NEEDS_FULL_VIDEO_REVIEW";
+  overall_status:
+    | "CANDIDATE_MATCH"
+    | "HIGH_CONFIDENCE_MATCH"
+    | "SUSPECT"
+    | "CLEAN"
+    | "NO_REFERENCE_DATA"
+    | "NEEDS_FULL_VIDEO_REVIEW"
+    | string;
   score_version?: string;
   score_calibration_notice?: string;
   screening_mode?: "SINGLE_FRAME_PRELIMINARY" | "MULTI_FRAME_PREVIEW_SCREENING";
@@ -345,8 +356,66 @@ export interface EmailAuditEntry {
   error?: string | null;
 }
 
+export interface SAMBoundingBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  w: number;
+  h: number;
+  normalized_coords?: [number, number, number, number];
+}
+
+export interface SAMSegmentationMask {
+  x?: number;
+  y?: number;
+  height?: number;
+  width?: number;
+  encoding?: string;
+  raw_payload?: string;
+  is_decoded?: boolean;
+  decoding_status?: string;
+  decoding_notice?: string;
+}
+
+export interface SAMDetectedObject {
+  label: string;
+  box: number[] | SAMBoundingBox;
+  confidence?: number;
+  confidence_score?: number;
+}
+
+export interface SAMSegmentedObject {
+  object_id: number;
+  label: string;
+  box: SAMBoundingBox;
+  mask?: SAMSegmentationMask;
+  confidence_score?: number;
+  tracking_id?: number;
+}
+
+export interface SAMSegmentationResult {
+  incident_id?: string;
+  asset_id?: string;
+  evidence_id?: string;
+  frame_index?: number;
+  timestamp_sec?: number;
+  prompt?: string;
+  model_id?: string;
+  provider?: string;
+  target?: string;
+  objects?: SAMSegmentedObject[];
+  detected_objects?: SAMDetectedObject[];
+  validation_status?: string;
+  decoding_status?: string;
+  mask_payload_validated?: boolean;
+  frame_reference?: string;
+  operational_metadata?: Record<string, unknown>;
+}
+
 export interface FrameCorrelationEvidence {
   correlation_id: string;
+  evidence_id?: string;
   suspect_timestamp_sec: number;
   source_timestamp_sec: number;
   source_asset_id: string;
@@ -357,11 +426,12 @@ export interface FrameCorrelationEvidence {
   visual_similarity_score: number;
   vision_verification: {
     model_id: string;
-    visual_correspondence: "CONFIRMED" | "CONTRADICTION" | "UNVERIFIED" | "INCONCLUSIVE";
+    visual_correspondence: "CONFIRMED" | "CONTRADICTION" | "UNVERIFIED" | "INCONCLUSIVE" | string;
     matching_features: string[];
     contradictions: string[];
     reasoning: string;
   };
+  sam_segmentation?: SAMSegmentationResult | null;
   suspect_image_path?: string | null;
   ref_image_path?: string | null;
 }
@@ -385,14 +455,21 @@ export interface DetailedReportSections {
   model_assessment: string;
   risk_and_limitations: string;
   recommended_actions: string[];
+  timeline_intervals?: TimelineInterval[];
+  sam_segmentations?: SAMSegmentationResult[];
   provenance: {
     incident_id: string;
     report_id: string;
     synthesizer_model: string;
     vision_verifier_model: string;
+    sam_model?: string;
     embedding_model: string;
     vector_store: string;
     timestamp: string;
+    validation_status?: string;
+    reasoning_provider?: string;
+    vision_provider?: string;
+    sam_provider?: string;
   };
 }
 

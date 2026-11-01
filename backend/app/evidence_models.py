@@ -66,6 +66,7 @@ class FrameEvidence(BaseModel):
     phash_match: Optional[bool] = None
     similarity_status: Literal["CONFIRMED_MATCH", "SUSPECT_MATCH", "NO_MATCH", "UNVERIFIED"] = "UNVERIFIED"
     vision_verification: Optional[Dict[str, Any]] = None
+    sam_segmentation: Optional[Dict[str, Any]] = None
     raw_details: Optional[Dict[str, Any]] = None
 
 
@@ -241,6 +242,7 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
             if vis_score is None and best.get("confidence_score") is not None:
                 vis_score = float(best["confidence_score"])
             vision_ver = best.get("vision_verification")
+            sam_seg = best.get("sam_segmentation") or item.get("sam_segmentation")
                 
             evidences.append(
                 FrameEvidence(
@@ -258,6 +260,7 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
                     phash_match=phash_match,
                     similarity_status=status,
                     vision_verification=vision_ver,
+                    sam_segmentation=sam_seg,
                     raw_details={"vector_id": best.get("vector_id")},
                 )
             )

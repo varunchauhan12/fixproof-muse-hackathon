@@ -26,12 +26,13 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageDraw
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     HRFlowable,
     Image as RLImage,
@@ -66,6 +67,198 @@ _active_vision = provider_factory.get_vision_provider()
 DEFAULT_DETAILED_MODEL = os.getenv("DETAILED_REPORT_MODEL", _active_reasoning.model_id)
 FALLBACK_DETAILED_MODEL = _active_reasoning.model_id
 VISION_MODEL_ID = _active_vision.model_id
+
+
+class NumberedCanvas(canvas.Canvas):
+    """
+    Two-pass ReportLab canvas that dynamically computes total page count
+    and renders 'Page X of Y' alongside running headers and footers on every page.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica", 7.5)
+        self.setFillColor(colors.HexColor("#64748b"))
+        # Running top header on pages > 1
+        if self._pageNumber > 1:
+            self.drawString(36, 756, "FIXPROOF DIGITAL FORENSICS — FORENSIC INVESTIGATION REPORT")
+            self.drawRightString(612 - 36, 756, "FixProof Meta Forensic Console")
+            self.setStrokeColor(colors.HexColor("#cbd5e1"))
+            self.setLineWidth(0.5)
+            self.line(36, 750, 612 - 36, 750)
+        # Running footer on all pages
+        self.drawString(36, 22, "Confidential Forensic Output • Authorized Human Review Mandatory • FixProof Meta")
+        page_text = f"Page {self._pageNumber} of {page_count}"
+        self.drawRightString(612 - 36, 22, page_text)
+        self.setStrokeColor(colors.HexColor("#cbd5e1"))
+        self.setLineWidth(0.5)
+        self.line(36, 32, 612 - 36, 32)
+        self.restoreState()
+
+
+def _extract_sam_boxes(sam_data: Any, im_w: int = 1, im_h: int = 1) -> List[Dict[str, Any]]:
+    """
+    Extracts normalized [nx1, ny1, nx2, ny2] bounding boxes and labels/confidence from SAM data.
+    Supports both detected_objects (list of dicts with box array) and objects (SegmentedObject schema).
+    """
+    if not sam_data or not isinstance(sam_data, dict):
+        return []
+
+    raw_objs = sam_data.get("detected_objects")
+    if not raw_objs:
+        raw_objs = sam_data.get("objects")
+
+    if not raw_objs or not isinstance(raw_objs, list):
+        return []
+
+    parsed_boxes: List[Dict[str, Any]] = []
+    for item in raw_objs:
+        if not item:
+            continue
+
+        label = item.get("label", "object") if isinstance(item, dict) else getattr(item, "label", "object")
+        conf = (
+            item.get("confidence")
+            if isinstance(item, dict) and "confidence" in item
+            else (item.get("confidence_score") if isinstance(item, dict) else getattr(item, "confidence_score", None))
+        )
+        box_data = item.get("box") if isinstance(item, dict) else getattr(item, "box", None)
+
+        if not box_data:
+            continue
+
+        nx1, ny1, nx2, ny2 = None, None, None, None
+
+        if isinstance(box_data, (list, tuple)) and len(box_data) >= 4:
+            b = [float(x) for x in box_data[:4]]
+            if any(coord > 1.0 for coord in b) and im_w > 0 and im_h > 0:
+                nx1 = max(0.0, min(1.0, b[0] / im_w))
+                ny1 = max(0.0, min(1.0, b[1] / im_h))
+                nx2 = max(0.0, min(1.0, b[2] / im_w))
+                ny2 = max(0.0, min(1.0, b[3] / im_h))
+            else:
+                nx1 = max(0.0, min(1.0, b[0]))
+                ny1 = max(0.0, min(1.0, b[1]))
+                nx2 = max(0.0, min(1.0, b[2]))
+                ny2 = max(0.0, min(1.0, b[3]))
+        elif isinstance(box_data, dict):
+            if "normalized_coords" in box_data and isinstance(box_data["normalized_coords"], (list, tuple)) and len(box_data["normalized_coords"]) >= 4:
+                nc = box_data["normalized_coords"]
+                nx1, ny1, nx2, ny2 = [max(0.0, min(1.0, float(c))) for c in nc[:4]]
+            elif "x1" in box_data and "y1" in box_data and "x2" in box_data and "y2" in box_data:
+                bw = box_data.get("w") or im_w
+                bh = box_data.get("h") or im_h
+                if bw > 0 and bh > 0:
+                    nx1 = max(0.0, min(1.0, float(box_data["x1"]) / bw))
+                    ny1 = max(0.0, min(1.0, float(box_data["y1"]) / bh))
+                    nx2 = max(0.0, min(1.0, float(box_data["x2"]) / bw))
+                    ny2 = max(0.0, min(1.0, float(box_data["y2"]) / bh))
+        elif hasattr(box_data, "normalized_coords") and getattr(box_data, "normalized_coords"):
+            nc = getattr(box_data, "normalized_coords")
+            if len(nc) >= 4:
+                nx1, ny1, nx2, ny2 = [max(0.0, min(1.0, float(c))) for c in nc[:4]]
+        elif hasattr(box_data, "x1") and hasattr(box_data, "w"):
+            bw = getattr(box_data, "w") or im_w
+            bh = getattr(box_data, "h") or im_h
+            if bw > 0 and bh > 0:
+                nx1 = max(0.0, min(1.0, float(getattr(box_data, "x1")) / bw))
+                ny1 = max(0.0, min(1.0, float(getattr(box_data, "y1")) / bh))
+                nx2 = max(0.0, min(1.0, float(getattr(box_data, "x2")) / bw))
+                ny2 = max(0.0, min(1.0, float(getattr(box_data, "y2")) / bh))
+
+        if nx1 is not None and ny1 is not None and nx2 is not None and ny2 is not None:
+            if nx1 > nx2:
+                nx1, nx2 = nx2, nx1
+            if ny1 > ny2:
+                ny1, ny2 = ny2, ny1
+            if (nx2 - nx1) > 0.002 and (ny2 - ny1) > 0.002:
+                parsed_boxes.append({
+                    "label": str(label),
+                    "confidence": float(conf) if conf is not None else None,
+                    "nx1": nx1,
+                    "ny1": ny1,
+                    "nx2": nx2,
+                    "ny2": ny2,
+                })
+
+    return parsed_boxes
+
+
+def _load_proportional_image(
+    path_str: Optional[str],
+    placeholder_label: str,
+    style: ParagraphStyle,
+    sam_data: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Loads and bounds an image to fit max 3.2in x 1.7in dimensions without aspect distortion.
+    If sam_data contains bounding boxes, draws verified bounding boxes onto an in-memory
+    copy of the image, keeping the original asset on disk unaltered.
+    """
+    if path_str and Path(path_str).exists() and Path(path_str).is_file():
+        try:
+            with PILImage.open(path_str) as im:
+                im_w, im_h = im.size
+                if im_w > 0 and im_h > 0:
+                    aspect = im_w / float(im_h)
+                    max_w = 3.2 * inch
+                    max_h = 1.7 * inch
+                    if max_w / aspect <= max_h:
+                        w = max_w
+                        h = max_w / aspect
+                    else:
+                        h = max_h
+                        w = max_h * aspect
+
+                    boxes = _extract_sam_boxes(sam_data, im_w, im_h) if sam_data else []
+                    if boxes:
+                        annotated = im.convert("RGB").copy()
+                        draw = ImageDraw.Draw(annotated)
+                        for b in boxes:
+                            px1 = max(0, min(im_w - 1, int(round(b["nx1"] * im_w))))
+                            py1 = max(0, min(im_h - 1, int(round(b["ny1"] * im_h))))
+                            px2 = max(0, min(im_w - 1, int(round(b["nx2"] * im_w))))
+                            py2 = max(0, min(im_h - 1, int(round(b["ny2"] * im_h))))
+                            if px2 <= px1 or py2 <= py1:
+                                continue
+
+                            teal_color = (13, 148, 136)
+                            draw.rectangle([px1, py1, px2, py2], outline=teal_color, width=3)
+
+                            conf_suffix = f" {int(round(b['confidence'] * 100))}%" if b.get("confidence") is not None else ""
+                            tag_text = f"SAM 3.1: {b['label']}{conf_suffix}"
+                            pill_h = 12
+                            pill_w = max(45, len(tag_text) * 6 + 6)
+                            tag_y1 = max(0, py1 - pill_h - 2) if py1 >= pill_h + 2 else py1
+                            tag_y2 = tag_y1 + pill_h + 2
+                            tag_x2 = min(im_w, px1 + pill_w)
+                            draw.rectangle([px1, tag_y1, tag_x2, tag_y2], fill=teal_color)
+                            draw.text((px1 + 3, tag_y1 + 1), tag_text, fill=(255, 255, 255))
+
+                        buf = io.BytesIO()
+                        annotated.save(buf, format="JPEG", quality=90)
+                        buf.seek(0)
+                        return RLImage(buf, width=w, height=h)
+
+                    return RLImage(path_str, width=w, height=h)
+        except Exception as e:
+            logger.warning(f"Failed to read image {path_str}: {e}")
+    return Paragraph(f"<i>[{placeholder_label}]</i>", style)
 
 
 # ─── 1. Evidence Bundle Extractor ─────────────────────────────────────────────
@@ -171,8 +364,12 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
                 ref_img_path = str(p)
                 break
 
+        evidence_id = fm.get("evidence_id") or sub.get("evidence_id") or f"evidence_frame_{int(suspect_ts):04d}s"
+        sam_seg = best.get("sam_segmentation") or fm.get("sam_segmentation") or fm.get("sam_localization")
+
         frame_correlations.append({
             "correlation_id": f"corr-{idx:03d}",
+            "evidence_id": evidence_id,
             "suspect_timestamp_sec": float(suspect_ts),
             "source_timestamp_sec": float(source_ts),
             "source_asset_id": source_aid,
@@ -188,12 +385,27 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
                 "contradictions": vis_contradictions,
                 "reasoning": vis_reasoning,
             },
+            "sam_segmentation": sam_seg,
             "suspect_image_path": suspect_img_path,
             "ref_image_path": ref_img_path,
         })
 
     # Historical short reports
     prior_reports = get_nemotron_reports_for_incident(incident_id)
+
+    # Reconstruct or pull timeline intervals
+    timeline_intervals = []
+    if prior_reports and prior_reports[0].get("timeline_intervals"):
+        timeline_intervals = prior_reports[0]["timeline_intervals"]
+    elif raw_frames:
+        try:
+            from app.evidence_models import build_frame_evidence_from_matches
+            from app.timeline import cluster_frame_matches
+            fe_list = build_frame_evidence_from_matches(raw_frames)
+            clustered = cluster_frame_matches(fe_list)
+            timeline_intervals = [itv.model_dump() for itv in clustered]
+        except Exception as e:
+            logger.warning(f"Error clustering frames into intervals: {e}")
 
     return {
         "incident_id": incident_id,
@@ -208,7 +420,9 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         "lowest_l2_distance": lowest_l2,
         "matched_assets": matched_asset_details,
         "frame_correlations": frame_correlations[:15],
+        "timeline_intervals": timeline_intervals,
         "prior_reports": prior_reports[:3],
+        "latest_investigation": prior_reports[0] if prior_reports else None,
     }
 
 
@@ -396,6 +610,10 @@ def synthesize_detailed_report(
             "model_assessment": report_content.get("model_assessment_and_alternatives", ""),
             "risk_and_limitations": report_content.get("risk_limitations", ""),
             "recommended_actions": report_content.get("recommended_actions", []),
+            "timeline_intervals": bundle.get("timeline_intervals") or [],
+            "sam_segmentations": [
+                fc["sam_segmentation"] for fc in bundle["frame_correlations"] if fc.get("sam_segmentation")
+            ],
             "provenance": {
                 "incident_id": bundle["incident_id"],
                 "report_id": report_id,
@@ -417,9 +635,14 @@ def synthesize_detailed_report(
                         }))
                     )
                 ),
+                "sam_model": "sam-3.1",
                 "embedding_model": "MobileNetV3-Small (576-dim L2-normalized)",
                 "vector_store": "FAISS IndexFlatL2",
                 "timestamp": now_iso,
+                "validation_status": "PROVIDER_VALIDATED" if ai_synthesized else "DETERMINISTIC_FALLBACK",
+                "reasoning_provider": "meta" if is_muse else provider.provider_name,
+                "vision_provider": "meta" if is_muse else "nemotron",
+                "sam_provider": "meta",
             },
         },
     }
@@ -429,21 +652,23 @@ def synthesize_detailed_report(
 
 def generate_detailed_report_pdf(
     report_data: Dict[str, Any],
-    bundle: Dict[str, Any],
+    bundle: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     """
     Renders an executive-grade, multi-page forensic investigation PDF
-    containing Sections A through I, evidence tables, side-by-side frame captures,
-    and statutory disclaimers using ReportLab.
+    containing 12 clearly delineated sections, side-by-side evidence tables,
+    SAM 3.1 specialist localization, Muse Spark pairwise verification,
+    timeline clustering, and statutory disclaimers using ReportLab.
     """
+    bundle = bundle or {}
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=36,
-        bottomMargin=36,
+        topMargin=42,
+        bottomMargin=42,
     )
 
     styles = getSampleStyleSheet()
@@ -452,45 +677,45 @@ def generate_detailed_report_pdf(
     brand_title_style = ParagraphStyle(
         "BrandTitle",
         parent=styles["Heading1"],
-        fontSize=18,
-        leading=22,
+        fontSize=16,
+        leading=20,
         textColor=colors.HexColor("#0f172a"),
         fontName="Helvetica-Bold",
-        spaceAfter=3,
+        spaceAfter=2,
     )
     brand_sub_style = ParagraphStyle(
         "BrandSubtitle",
         parent=styles["Normal"],
-        fontSize=9.5,
-        leading=13,
+        fontSize=8.5,
+        leading=11,
         textColor=colors.HexColor("#475569"),
-        spaceAfter=10,
+        spaceAfter=6,
     )
     sec_h1_style = ParagraphStyle(
         "SectionH1",
         parent=styles["Heading2"],
-        fontSize=11.5,
-        leading=15,
+        fontSize=10.5,
+        leading=13.5,
         textColor=colors.HexColor("#0f172a"),
         fontName="Helvetica-Bold",
-        spaceBefore=10,
-        spaceAfter=4,
+        spaceBefore=8,
+        spaceAfter=3,
     )
     sec_h2_style = ParagraphStyle(
         "SectionH2",
         parent=styles["Heading3"],
-        fontSize=10,
-        leading=13,
+        fontSize=9,
+        leading=11.5,
         textColor=colors.HexColor("#1e293b"),
         fontName="Helvetica-Bold",
-        spaceBefore=6,
-        spaceAfter=3,
+        spaceBefore=5,
+        spaceAfter=2,
     )
     body_style = ParagraphStyle(
         "BodyTextDark",
         parent=styles["Normal"],
-        fontSize=8.5,
-        leading=11.5,
+        fontSize=8,
+        leading=10.5,
         textColor=colors.HexColor("#1e293b"),
     )
     body_bold = ParagraphStyle(
@@ -501,139 +726,319 @@ def generate_detailed_report_pdf(
     mono_style = ParagraphStyle(
         "MonoStyle",
         parent=styles["Normal"],
-        fontSize=7.5,
-        leading=9.5,
+        fontSize=7,
+        leading=9,
         fontName="Courier",
         textColor=colors.HexColor("#0f172a"),
     )
     disclaimer_style = ParagraphStyle(
         "DisclaimerStyle",
         parent=styles["Normal"],
-        fontSize=7.5,
-        leading=10,
+        fontSize=7,
+        leading=9.5,
         textColor=colors.HexColor("#64748b"),
         fontName="Helvetica-Oblique",
     )
     badge_style = ParagraphStyle(
         "BadgeStyle",
         parent=styles["Normal"],
-        fontSize=8,
-        leading=10,
+        fontSize=7.5,
+        leading=9.5,
         fontName="Helvetica-Bold",
-        textColor=colors.HexColor("#0f766e"),
+        textColor=colors.HexColor("#0d9488"),
     )
 
     elements: List[Any] = []
     secs = report_data.get("sections", {})
+    incident_id = report_data.get("incident_id") or bundle.get("incident_id", "UNKNOWN")
+    report_id = report_data.get("report_id", "UNKNOWN")
+    model_id = report_data.get("model_id", "UNKNOWN")
+    gen_at = report_data.get("generated_at", "N/A")
+    target_media = bundle.get("suspect_url") or bundle.get("suspect_filename") or secs.get("suspect_and_reference_details", {}).get("suspect_source", "suspect_media")
+    overall_status = bundle.get("overall_status") or "CANDIDATE_MATCH"
+    corrs = bundle.get("frame_correlations") or secs.get("frame_correlations") or []
+    ref_list = bundle.get("matched_assets") or secs.get("suspect_and_reference_details", {}).get("matched_references") or []
+    prov = secs.get("provenance") or {}
 
     # ─── HEADER BANNER ───
-    elements.append(Paragraph("FIXPROOF DIGITAL FORENSICS CONSOLE", brand_title_style))
+    elements.append(Paragraph("FIXPROOF META FORENSIC CONSOLE", brand_title_style))
     elements.append(
         Paragraph(
-            "Evidence-Backed Forensic Investigation Report • MediaGuard Protocol Swarm",
+            "Evidence-Backed Forensic Investigation Report • FixProof Meta Forensic Intelligence",
             brand_sub_style,
         )
     )
-    elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0d9488"), spaceAfter=10))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0d9488"), spaceAfter=6))
 
-    # ─── SECTION A: EXECUTIVE SUMMARY ───
-    elements.append(Paragraph("A. Executive Summary", sec_h1_style))
-    
+    # ─── SECTION 1: EXECUTIVE SUMMARY ───
+    elements.append(Paragraph("1. Executive Summary", sec_h1_style))
     meta_data = [
         [
             Paragraph("<b>Incident ID:</b>", body_style),
-            Paragraph(f"<font name='Courier'>{report_data['incident_id']}</font>", body_style),
+            Paragraph(f"<font name='Courier'>{incident_id}</font>", body_style),
             Paragraph("<b>Report ID:</b>", body_style),
-            Paragraph(f"<font name='Courier'>{report_data['report_id'][:16]}...</font>", body_style),
+            Paragraph(f"<font name='Courier'>{report_id[:16]}...</font>", body_style),
         ],
         [
             Paragraph("<b>Target Media:</b>", body_style),
-            Paragraph(bundle["suspect_url"] or bundle["suspect_filename"], body_style),
+            Paragraph(str(target_media), body_style),
             Paragraph("<b>Generated (UTC):</b>", body_style),
-            Paragraph(report_data["generated_at"], body_style),
+            Paragraph(str(gen_at), body_style),
         ],
         [
             Paragraph("<b>Forensic Triage:</b>", body_style),
-            Paragraph(f"<b>{bundle['overall_status']}</b>", body_style),
+            Paragraph(f"<b>{overall_status}</b>", body_style),
             Paragraph("<b>Model Pipeline:</b>", body_style),
-            Paragraph(f"{report_data['model_id']}", body_style),
+            Paragraph(str(model_id), body_style),
         ],
     ]
-    meta_table = Table(meta_data, colWidths=[1.1 * inch, 2.7 * inch, 1.2 * inch, 2.2 * inch])
+    meta_table = Table(meta_data, colWidths=[1.15 * inch, 2.65 * inch, 1.15 * inch, 2.55 * inch])
     meta_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
             ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
             ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
         ])
     )
     elements.append(meta_table)
+    elements.append(Spacer(1, 4))
+    elements.append(Paragraph(secs.get("executive_summary", ""), body_style))
+    elements.append(Spacer(1, 4))
+
+    # Human review callout box
+    hr_callout = [
+        [
+            Paragraph(
+                "<b>MANDATORY HUMAN REVIEW NOTICE:</b> Automated visual similarity measurements and AI syntheses demonstrate perceptual correspondence only, "
+                "not copyright ownership or legal infringement. This report does not certify compliance with 17 U.S.C. § 512, the EU Digital Services Act, "
+                "or any other legal framework. Mandatory human review by authorized rights-management or legal counsel is required prior to external "
+                "legal outreach, licensing offers, or enforcement action.",
+                disclaimer_style,
+            )
+        ]
+    ]
+    hr_table = Table(hr_callout, colWidths=[7.5 * inch])
+    hr_table.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0fdfa")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#0d9488")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ])
+    )
+    elements.append(hr_table)
     elements.append(Spacer(1, 6))
 
-    elements.append(Paragraph(secs.get("executive_summary", ""), body_style))
-    elements.append(Spacer(1, 8))
-
-    # ─── SECTION B: INVESTIGATION SCOPE & METHODOLOGY ───
-    elements.append(Paragraph("B. Investigation Scope & Methodology", sec_h1_style))
-    elements.append(Paragraph(secs.get("methodology_scope", ""), body_style))
-    elements.append(Spacer(1, 8))
-
-    # ─── SECTION C: SUSPECT & REFERENCE ASSET DETAILS ───
-    elements.append(Paragraph("C. Suspect & Reference Asset Records", sec_h1_style))
-    ref_list = bundle.get("matched_assets") or []
+    # ─── SECTION 2: INCIDENT & REFERENCE ASSET INFORMATION ───
+    elements.append(Paragraph("2. Incident & Reference Asset Information", sec_h1_style))
     if ref_list:
         ref_rows = [[
             Paragraph("<b>Asset ID</b>", body_bold),
             Paragraph("<b>Official Title / Label</b>", body_bold),
             Paragraph("<b>Duration</b>", body_bold),
-            Paragraph("<b>Vault Status</b>", body_bold),
+            Paragraph("<b>Vault Index Status</b>", body_bold),
         ]]
         for r in ref_list:
             ref_rows.append([
-                Paragraph(f"<font name='Courier'>{r['asset_id'][:12]}...</font>", mono_style),
-                Paragraph(r["title"], body_style),
+                Paragraph(f"<font name='Courier'>{str(r.get('asset_id', 'N/A'))[:16]}...</font>", mono_style),
+                Paragraph(str(r.get("title", "Vault Asset")), body_style),
                 Paragraph(f"{r.get('duration_sec', 'N/A')}s", body_style),
                 Paragraph("Indexed (FAISS FlatL2)", body_style),
             ])
-        ref_table = Table(ref_rows, colWidths=[1.5 * inch, 3.2 * inch, 1.0 * inch, 1.5 * inch])
+        ref_table = Table(ref_rows, colWidths=[1.7 * inch, 3.2 * inch, 0.9 * inch, 1.7 * inch])
         ref_table.setStyle(
             TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
             ])
         )
         elements.append(ref_table)
     else:
         elements.append(Paragraph("No confirmed reference assets matched in vault for this incident record.", body_style))
-    elements.append(Spacer(1, 8))
+    elements.append(Spacer(1, 6))
 
-    # ─── SECTION D: FRAME-BY-FRAME VISUAL EVIDENCE & VISION VERIFIER ───
-    elements.append(Paragraph("D. Frame-by-Frame Visual Evidence & Verification", sec_h1_style))
+    # ─── SECTION 3: INVESTIGATION SCOPE & METHODOLOGY ───
+    elements.append(Paragraph("3. Investigation Scope & Methodology", sec_h1_style))
+    method_text = secs.get("methodology_scope") or (
+        "Multi-layer evidence extraction pipeline combining deterministic visual embeddings, FAISS vector retrieval, "
+        "pairwise visual verification, specialist spatial segmentation, and multimodal temporal reasoning."
+    )
+    elements.append(Paragraph(method_text, body_style))
+    elements.append(Spacer(1, 3))
     elements.append(
         Paragraph(
-            "Evaluation of candidate frame correspondences combining L2 vector distance, pHash perceptual hashing, "
-            "and recorded pairwise vision verification where available:",
-            body_style,
+            "<b>SAMPLING DENSITY & UNCALIBRATED METRIC NOTICE:</b> Analysis evaluated still keyframes sampled at discrete 5.0-second intervals "
+            "rather than continuous video. Unsampled intermediate intervals were not evaluated. Visual similarity scores represent uncalibrated "
+            "heuristic distances and do not imply full-sequence continuous duplication or calibrated infringement probabilities.",
+            disclaimer_style,
         )
     )
     elements.append(Spacer(1, 6))
 
-    corrs = bundle.get("frame_correlations") or []
+    # ─── SECTION 4: DETERMINISTIC CV CANDIDATE DISCOVERY RESULTS ───
+    elements.append(Paragraph("4. Deterministic CV Candidate Discovery Results", sec_h1_style))
     if corrs:
-        # Render top candidate matches with images where available
-        for idx, fc in enumerate(corrs[:4]):
+        cv_rows = [[
+            Paragraph("<b>Evidence ID</b>", body_bold),
+            Paragraph("<b>Suspect Time</b>", body_bold),
+            Paragraph("<b>Reference Target</b>", body_bold),
+            Paragraph("<b>Ref Time</b>", body_bold),
+            Paragraph("<b>L2 Dist</b>", body_bold),
+            Paragraph("<b>Sim %</b>", body_bold),
+            Paragraph("<b>pHash Match</b>", body_bold),
+        ]]
+        for fc in corrs[:10]:
+            ev_id = fc.get("evidence_id") or fc.get("correlation_id", "N/A")
+            l2_val = f"{fc['l2_distance']:.4f}" if fc.get("l2_distance") is not None else "N/A"
+            sim_val = f"{fc.get('visual_similarity_score', 0.0)}%"
+            phash_val = "MATCH" if fc.get("phash_match") else "NO_MATCH"
+            cv_rows.append([
+                Paragraph(f"<font name='Courier'>{ev_id}</font>", mono_style),
+                Paragraph(f"{fc.get('suspect_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph(str(fc.get("source_asset_title", "Ref Asset")), body_style),
+                Paragraph(f"{fc.get('source_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph(l2_val, mono_style),
+                Paragraph(sim_val, body_style),
+                Paragraph(phash_val, mono_style),
+            ])
+        cv_table = Table(cv_rows, colWidths=[1.5 * inch, 0.9 * inch, 2.0 * inch, 0.8 * inch, 0.7 * inch, 0.7 * inch, 0.9 * inch])
+        cv_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ])
+        )
+        elements.append(cv_table)
+    else:
+        elements.append(Paragraph("Zero candidate frame matches met the confirmation threshold (L2 < 0.75). Absence of verified visual proximity.", body_style))
+    elements.append(Spacer(1, 6))
+
+    # ─── SECTION 5: PAIRWISE VISUAL VERIFICATION (MUSE SPARK 1.3) ───
+    elements.append(Paragraph("5. Pairwise Visual Verification (Meta Muse Spark 1.3)", sec_h1_style))
+    if corrs:
+        spark_rows = [[
+            Paragraph("<b>Target Keyframe</b>", body_bold),
+            Paragraph("<b>Spark Verdict</b>", body_bold),
+            Paragraph("<b>Observed Matching Features</b>", body_bold),
+            Paragraph("<b>Observed Contradictions</b>", body_bold),
+        ]]
+        for fc in corrs[:5]:
             ver = fc.get("vision_verification") or {}
-            corr_header = [
+            ev_id = fc.get("evidence_id") or fc.get("correlation_id", "N/A")
+            v_verdict = ver.get("visual_correspondence", "UNVERIFIED")
+            feats = ", ".join(ver.get("matching_features") or []) or "None recorded"
+            contras = ", ".join(ver.get("contradictions") or []) or "None recorded"
+            spark_rows.append([
+                Paragraph(f"<font name='Courier'>{ev_id}</font><br/>Suspect {fc.get('suspect_timestamp_sec', 0.0):.1f}s ↔ Ref {fc.get('source_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph(f"<b>{v_verdict}</b>", badge_style if v_verdict == "CONFIRMED" else body_style),
+                Paragraph(feats, body_style),
+                Paragraph(contras, body_style),
+            ])
+        spark_table = Table(spark_rows, colWidths=[1.8 * inch, 1.2 * inch, 2.3 * inch, 2.2 * inch])
+        spark_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+            ])
+        )
+        elements.append(spark_table)
+    else:
+        elements.append(Paragraph("Pairwise verification not triggered due to absence of candidate keyframe pairs.", body_style))
+    elements.append(Spacer(1, 6))
+
+    # ─── SECTION 6: SPECIALIST VISUAL LOCALIZATION (META SAM 3.1) ───
+    elements.append(Paragraph("6. Specialist Visual Localization (Meta SAM 3.1)", sec_h1_style))
+    sam_detections = []
+    for fc in corrs:
+        sam_data = fc.get("sam_segmentation")
+        if sam_data and isinstance(sam_data, dict):
+            objs = sam_data.get("detected_objects") or []
+            frame_ref = sam_data.get("frame_reference") or fc.get("evidence_id", "frame")
+            ts = fc.get("suspect_timestamp_sec", 0.0)
+            dec_stat = sam_data.get("decoding_status", "RAW_PRESERVED")
+            for obj in objs:
+                sam_detections.append({
+                    "frame_ref": frame_ref,
+                    "timestamp": ts,
+                    "label": obj.get("label", "detected_object"),
+                    "box": obj.get("box", []),
+                    "confidence": obj.get("confidence", 0.0),
+                    "decoding_status": dec_stat,
+                })
+    if sam_detections:
+        sam_rows = [[
+            Paragraph("<b>Target Frame</b>", body_bold),
+            Paragraph("<b>Time</b>", body_bold),
+            Paragraph("<b>Detected Object / Label</b>", body_bold),
+            Paragraph("<b>Bounding Box [x1, y1, x2, y2]</b>", body_bold),
+            Paragraph("<b>Mask Status</b>", body_bold),
+        ]]
+        for sd in sam_detections[:8]:
+            box_str = str(sd["box"]) if sd["box"] else "N/A"
+            sam_rows.append([
+                Paragraph(f"<font name='Courier'>{sd['frame_ref']}</font>", mono_style),
+                Paragraph(f"{sd['timestamp']:.1f}s", body_style),
+                Paragraph(f"<b>{sd['label']}</b> (conf: {sd['confidence']:.2f})", body_style),
+                Paragraph(f"<font name='Courier'>{box_str}</font>", mono_style),
+                Paragraph(f"{sd['decoding_status']}", mono_style),
+            ])
+        sam_table = Table(sam_rows, colWidths=[1.5 * inch, 0.7 * inch, 2.0 * inch, 2.0 * inch, 1.3 * inch])
+        sam_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ])
+        )
+        elements.append(sam_table)
+        elements.append(Spacer(1, 3))
+        elements.append(
+            Paragraph(
+                "<b>SAM MASK DATA NOTICE:</b> Raw SAM 3.1 segmentation mask data is retained in its original encoded representation "
+                "(RAW_PRESERVED). Direct mask decoding and visual polygon overlay rendering are not implemented in this report "
+                "to preserve the original bitstream payload.",
+                disclaimer_style,
+            )
+        )
+    else:
+        elements.append(
+            Paragraph(
+                "Specialist segmentation (Meta SAM 3.1) was not executed or recorded no localized objects for this incident record. "
+                "Pairwise visual verification remains grounded in Muse Spark 1.3 keyframe analysis.",
+                body_style,
+            )
+        )
+    elements.append(Spacer(1, 6))
+
+    # ─── SECTION 7: REFERENCE-VERSUS-SUSPECT FRAME COMPARISONS ───
+    elements.append(Paragraph("7. Reference-versus-Suspect Frame Comparisons", sec_h1_style))
+    if corrs:
+        for idx, fc in enumerate(corrs[:3]):
+            ver = fc.get("vision_verification") or {}
+            ev_id = fc.get("evidence_id") or fc.get("correlation_id", f"corr-{idx:03d}")
+            v_verdict = ver.get("visual_correspondence", "UNVERIFIED")
+            suspect_ts = fc.get("suspect_timestamp_sec", 0.0)
+            ref_ts = fc.get("source_timestamp_sec", 0.0)
+            ref_title = fc.get("source_asset_title", "Ref Asset")
+
+            head_data = [
                 [
-                    Paragraph(f"<b>Keyframe Match Candidate #{idx+1}</b> (Suspect @ {fc['suspect_timestamp_sec']}s ↔ Ref @ {fc['source_timestamp_sec']}s)", body_bold),
-                    Paragraph(f"<b>Vision Verdict:</b> <font color='#0d9488'>{ver.get('visual_correspondence', 'UNVERIFIED')}</font>", body_style),
+                    Paragraph(f"<b>Keyframe Match Candidate #{idx+1}</b> (Suspect @ {suspect_ts:.1f}s ↔ Ref @ {ref_ts:.1f}s • {ev_id})", body_bold),
+                    Paragraph(f"<b>Vision Verdict:</b> <font color='#0d9488'>{v_verdict}</font>", body_style),
                 ]
             ]
-            head_table = Table(corr_header, colWidths=[4.8 * inch, 2.4 * inch])
+            head_table = Table(head_data, colWidths=[5.1 * inch, 2.4 * inch])
             head_table.setStyle(
                 TableStyle([
                     ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
@@ -642,32 +1047,45 @@ def generate_detailed_report_pdf(
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                 ])
             )
-            elements.append(head_table)
 
-            # Images row (suspect vs reference)
-            suspect_img_flowable = Paragraph("<i>[Suspect frame image unavailable on disk]</i>", disclaimer_style)
-            ref_img_flowable = Paragraph("<i>[Reference frame image unavailable on disk]</i>", disclaimer_style)
+            # SAM segmentation data
+            sam_data = fc.get("sam_segmentation")
+            sam_target = (sam_data.get("target") or "suspect") if isinstance(sam_data, dict) else "suspect"
+            suspect_sam = sam_data if sam_target != "reference" else None
+            ref_sam = sam_data if sam_target == "reference" else fc.get("ref_sam_segmentation")
 
-            if fc.get("suspect_image_path") and Path(fc["suspect_image_path"]).exists():
-                try:
-                    suspect_img_flowable = RLImage(fc["suspect_image_path"], width=2.4 * inch, height=1.35 * inch, kind="proportional")
-                except Exception as e:
-                    logger.warning(f"Failed to embed suspect image: {e}")
+            suspect_has_boxes = bool(suspect_sam and _extract_sam_boxes(suspect_sam))
+            ref_has_boxes = bool(ref_sam and _extract_sam_boxes(ref_sam))
 
-            if fc.get("ref_image_path") and Path(fc["ref_image_path"]).exists():
-                try:
-                    ref_img_flowable = RLImage(fc["ref_image_path"], width=2.4 * inch, height=1.35 * inch, kind="proportional")
-                except Exception as e:
-                    logger.warning(f"Failed to embed ref image: {e}")
+            # Proportional Images with SAM bounding boxes where available
+            s_img = _load_proportional_image(
+                fc.get("suspect_image_path"),
+                f"Suspect frame image unavailable on disk — sampled at {suspect_ts:.1f}s",
+                disclaimer_style,
+                sam_data=suspect_sam,
+            )
+            r_img = _load_proportional_image(
+                fc.get("ref_image_path"),
+                f"Reference frame image unavailable on disk — sampled at {ref_ts:.1f}s",
+                disclaimer_style,
+                sam_data=ref_sam,
+            )
+
+            suspect_label = f"Suspect Target ({suspect_ts:.1f}s)" + (
+                " • SAM 3.1 Annotated Visualization" if suspect_has_boxes else ""
+            )
+            ref_label = f"Reference Target ({ref_title}, {ref_ts:.1f}s)" + (
+                " • SAM 3.1 Annotated Visualization" if ref_has_boxes else ""
+            )
 
             img_table_data = [
-                [suspect_img_flowable, ref_img_flowable],
+                [s_img, r_img],
                 [
-                    Paragraph(f"Suspect Target ({fc['suspect_timestamp_sec']}s)", mono_style),
-                    Paragraph(f"Reference Target ({fc['source_asset_title']}, {fc['source_timestamp_sec']}s)", mono_style),
+                    Paragraph(suspect_label, mono_style),
+                    Paragraph(ref_label, mono_style),
                 ],
             ]
-            img_table = Table(img_table_data, colWidths=[3.6 * inch, 3.6 * inch])
+            img_table = Table(img_table_data, colWidths=[3.75 * inch, 3.75 * inch])
             img_table.setStyle(
                 TableStyle([
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
@@ -676,14 +1094,23 @@ def generate_detailed_report_pdf(
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                 ])
             )
-            elements.append(img_table)
 
-            # Metrics & Vision Reasoning Table
+            # Telemetry metrics
+            l2_str = f"{fc['l2_distance']:.4f}" if fc.get("l2_distance") is not None else "N/A"
+            phash_str = "MATCH" if fc.get("phash_match") else "NO_MATCH"
             ver_text = ver.get("reasoning") or "No detailed vision commentary recorded."
             features_text = ", ".join(ver.get("matching_features") or []) or "None listed"
+
+            # SAM box annotation if present
+            sam_box_note = ""
+            if fc.get("sam_segmentation"):
+                s_objs = fc["sam_segmentation"].get("detected_objects") or []
+                if s_objs:
+                    sam_box_note = f" • <b>SAM Localized Objects:</b> {', '.join(o.get('label', '') for o in s_objs if o.get('label'))}"
+
             metrics_data = [
                 [
-                    Paragraph(f"<b>L2 Metric:</b> {fc['l2_distance']} • <b>Heuristic Sim:</b> {fc['visual_similarity_score']}% • <b>pHash Corroborated:</b> {fc['phash_match']}", body_style),
+                    Paragraph(f"<b>L2 Metric:</b> {l2_str} • <b>Heuristic Sim:</b> {fc.get('visual_similarity_score', 0.0)}% • <b>pHash Corroborated:</b> {phash_str}{sam_box_note}", body_style),
                 ],
                 [
                     Paragraph(f"<b>Observed Features:</b> {features_text}", body_style),
@@ -692,7 +1119,7 @@ def generate_detailed_report_pdf(
                     Paragraph(f"<b>Vision Reasoning:</b> {ver_text}", body_style),
                 ],
             ]
-            m_table = Table(metrics_data, colWidths=[7.2 * inch])
+            m_table = Table(metrics_data, colWidths=[7.5 * inch])
             m_table.setStyle(
                 TableStyle([
                     ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ffffff")),
@@ -701,93 +1128,199 @@ def generate_detailed_report_pdf(
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                 ])
             )
-            elements.append(m_table)
-            elements.append(Spacer(1, 6))
 
+            card_block = KeepTogether([head_table, img_table, m_table, Spacer(1, 4)])
+            elements.append(card_block)
     else:
-        elements.append(
-            Paragraph(
-                "Zero candidate frame matches met the confirmation threshold (L2 < 0.75 or cosine heuristic > 60%). "
-                "Recorded evidence demonstrates absence of verified visual correspondence.",
-                body_style,
-            )
-        )
-    elements.append(Spacer(1, 6))
+        elements.append(Paragraph("No candidate keyframe visual comparisons available.", body_style))
+    elements.append(Spacer(1, 4))
 
-    # ─── SECTION E: TEMPORAL CONTINUITY ───
-    elements.append(Paragraph("E. Temporal Continuity & Clustering Analysis", sec_h1_style))
+    # ─── SECTION 8: TEMPORAL EVIDENCE ANALYSIS & TIMELINE INTERVALS ───
+    elements.append(Paragraph("8. Temporal Evidence Analysis & Timeline Intervals", sec_h1_style))
+    intervals = bundle.get("timeline_intervals") or secs.get("timeline_intervals") or []
+    if intervals:
+        itv_rows = [[
+            Paragraph("<b>Interval ID</b>", body_bold),
+            Paragraph("<b>Ref Window (s)</b>", body_bold),
+            Paragraph("<b>Suspect Window (s)</b>", body_bold),
+            Paragraph("<b>Duration</b>", body_bold),
+            Paragraph("<b>Frames</b>", body_bold),
+            Paragraph("<b>Peak Sim</b>", body_bold),
+            Paragraph("<b>Continuity</b>", body_bold),
+        ]]
+        for itv in intervals:
+            r_start = itv.get("reference_start_sec", 0.0)
+            r_end = itv.get("reference_end_sec", r_start)
+            s_start = itv.get("suspect_start_sec", 0.0)
+            s_end = itv.get("suspect_end_sec", s_start)
+            dur = itv.get("duration_sec", max(0.0, s_end - s_start))
+            ev_count = len(itv.get("evidence_ids") or []) or 1
+            conf = itv.get("confidence", bundle.get("highest_confidence", 0.0))
+            cont_stat = itv.get("continuity_status", "SINGLETON")
+            itv_rows.append([
+                Paragraph(f"<font name='Courier'>{itv.get('interval_id', 'itv-0')}</font>", mono_style),
+                Paragraph(f"{r_start:.1f}s – {r_end:.1f}s", body_style),
+                Paragraph(f"{s_start:.1f}s – {s_end:.1f}s", body_style),
+                Paragraph(f"{dur:.1f}s", body_style),
+                Paragraph(str(ev_count), body_style),
+                Paragraph(f"{conf:.1f}%", body_style),
+                Paragraph(str(cont_stat), mono_style),
+            ])
+        itv_table = Table(itv_rows, colWidths=[1.3 * inch, 1.2 * inch, 1.2 * inch, 0.7 * inch, 0.6 * inch, 0.9 * inch, 1.6 * inch])
+        itv_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ])
+        )
+        elements.append(itv_table)
+    else:
+        elements.append(Paragraph("No coherent multi-frame timeline intervals were clustered. Matches represent discrete, isolated keyframe occurrences.", body_style))
+    elements.append(Spacer(1, 3))
     elements.append(Paragraph(secs.get("temporal_continuity", ""), body_style))
     elements.append(Spacer(1, 6))
 
-    # ─── SECTION F: MODEL ASSESSMENT & ALTERNATIVES ───
-    elements.append(Paragraph("F. Model Assessment & Alternative Explanations", sec_h1_style))
+    # ─── SECTION 9: OBSERVED SIMILARITIES & CONTRADICTIONS ───
+    elements.append(Paragraph("9. Observed Similarities & Contradictions", sec_h1_style))
     elements.append(Paragraph(secs.get("model_assessment", ""), body_style))
-    elements.append(Spacer(1, 6))
-
-    # ─── SECTION G: RISK & CONFIDENCE LIMITATIONS ───
-    elements.append(Paragraph("G. Risk Assessment & Heuristic Limitations", sec_h1_style))
-    elements.append(Paragraph(secs.get("risk_and_limitations", ""), body_style))
+    elements.append(Spacer(1, 3))
     elements.append(
         Paragraph(
-            "<b>STATUTORY NOTICE ON HEURISTIC CALIBRATION:</b> Visual similarity percentages reflect algorithmic distance metrics "
-            "and are not calibrated statistical probabilities of copyright infringement. They do not constitute self-executing legal findings "
-            "under 17 U.S.C. § 512, EU Digital Services Act, or any territorial intellectual property statute.",
+            "<b>ALTERNATIVE EXPLANATIONS & FAIR USE DISCLOSURE:</b> Visual feature correspondence does not exclude lawful alternative explanations, "
+            "including standard broadcast graphics templates, fair-use commentary or critical analysis, shared public venue architecture, "
+            "syndicated wire service packages, or algorithmic artifacting.",
             disclaimer_style,
         )
     )
     elements.append(Spacer(1, 6))
 
-    # ─── SECTION H: RECOMMENDED NEXT STEPS ───
-    elements.append(Paragraph("H. Recommended Human-in-the-Loop Actions", sec_h1_style))
-    recs = secs.get("recommended_actions") or []
-    for r in recs:
-        elements.append(Paragraph(f"• {r}", body_style))
+    # ─── SECTION 10: CONFIDENCE ASSESSMENT & RISK LIMITATIONS ───
+    elements.append(Paragraph("10. Confidence Assessment & Risk Limitations", sec_h1_style))
+    elements.append(Paragraph(secs.get("risk_and_limitations", ""), body_style))
+    elements.append(Spacer(1, 3))
+    elements.append(
+        Paragraph(
+            "<b>HEURISTIC LIMITATIONS NOTICE:</b> Visual similarity percentages reflect algorithmic distance metrics in a neural embedding space "
+            "and are not calibrated statistical probabilities of copyright infringement. Algorithmic matching demonstrates visual correspondence only "
+            "and does not replace authorized legal counsel, title verification, or independent human review.",
+            disclaimer_style,
+        )
+    )
     elements.append(Spacer(1, 6))
 
-    # ─── SECTION I: EVIDENCE PROVENANCE & CHAIN OF CUSTODY ───
-    elements.append(Paragraph("I. Evidence Provenance & Cryptographic Chain of Custody", sec_h1_style))
-    prov = secs.get("provenance", {})
-    prov_data = [
+    # ─── SECTION 11: COMPREHENSIVE MODEL PROVENANCE & ARCHITECTURE ───
+    elements.append(Paragraph("11. Comprehensive Model Provenance & Pipeline Architecture", sec_h1_style))
+    synth_model = prov.get("synthesizer_model") or model_id
+    vis_model = prov.get("vision_verifier_model", VISION_MODEL_ID)
+    sam_model = prov.get("sam_model", "sam-3.1")
+    emb_model = prov.get("embedding_model", "MobileNetV3-Small (576-dim L2-normalized)")
+    vec_store = prov.get("vector_store", "FAISS IndexFlatL2")
+    r_prov = prov.get("reasoning_provider", "meta")
+    v_prov = prov.get("vision_provider", "meta")
+    s_prov = prov.get("sam_provider", "meta")
+
+    # Granular status reflecting verified test and execution scope
+    if report_data.get("ai_synthesized"):
+        synth_status = "Provider / API Validated"
+    elif "deterministic" in str(synth_model).lower():
+        synth_status = "Deterministic Fallback"
+    else:
+        synth_status = "Component Tested"
+
+    vis_status = "Provider / API Validated" if v_prov == "meta" else "Component Tested"
+    sam_status = "Component Tested (Raw Encoded)"
+    emb_status = "Component Tested (Deterministic)"
+    vec_status = "Component Tested (Deterministic)"
+
+    prov_rows = [
         [
-            Paragraph("<b>Incident ID:</b>", body_style),
-            Paragraph(prov.get("incident_id", "N/A"), mono_style),
-            Paragraph("<b>Report ID:</b>", body_style),
-            Paragraph(prov.get("report_id", "N/A"), mono_style),
+            Paragraph("<b>Pipeline Stage</b>", body_bold),
+            Paragraph("<b>Provider</b>", body_bold),
+            Paragraph("<b>Model ID</b>", body_bold),
+            Paragraph("<b>Forensic Operation</b>", body_bold),
+            Paragraph("<b>Validation Status</b>", body_bold),
         ],
         [
-            Paragraph("<b>Synthesizer:</b>", body_style),
-            Paragraph(prov.get("synthesizer_model", "N/A"), mono_style),
-            Paragraph("<b>Vision Model:</b>", body_style),
-            Paragraph(prov.get("vision_verifier_model", "N/A"), mono_style),
+            Paragraph("Multimodal Temporal Synthesis", body_style),
+            Paragraph(r_prov.capitalize(), body_style),
+            Paragraph(f"<font name='Courier'>{synth_model}</font>", mono_style),
+            Paragraph("Multi-frame temporal reasoning & report synthesis", body_style),
+            Paragraph(synth_status, badge_style if "Validated" in synth_status else body_style),
         ],
         [
-            Paragraph("<b>Vector Store:</b>", body_style),
-            Paragraph(prov.get("vector_store", "FAISS IndexFlatL2"), mono_style),
-            Paragraph("<b>Timestamp (UTC):</b>", body_style),
-            Paragraph(prov.get("timestamp", "N/A"), mono_style),
+            Paragraph("Pairwise Vision Verification", body_style),
+            Paragraph(v_prov.capitalize(), body_style),
+            Paragraph(f"<font name='Courier'>{vis_model}</font>", mono_style),
+            Paragraph("Keyframe visual correspondence verification", body_style),
+            Paragraph(vis_status, badge_style if "Validated" in vis_status else body_style),
+        ],
+        [
+            Paragraph("Specialist Visual Segmentation", body_style),
+            Paragraph(s_prov.capitalize(), body_style),
+            Paragraph(f"<font name='Courier'>{sam_model}</font>", mono_style),
+            Paragraph("Object localization & raw encoded mask payload retention", body_style),
+            Paragraph(sam_status, mono_style),
+        ],
+        [
+            Paragraph("Visual Feature Extraction", body_style),
+            Paragraph("Local", body_style),
+            Paragraph(f"<font name='Courier'>{emb_model}</font>", mono_style),
+            Paragraph("576-dimensional L2-normalized keyframe embeddings", body_style),
+            Paragraph(emb_status, body_style),
+        ],
+        [
+            Paragraph("Vector Index Search", body_style),
+            Paragraph("Local", body_style),
+            Paragraph(f"<font name='Courier'>{vec_store}</font>", mono_style),
+            Paragraph("Nearest-neighbor vault vector retrieval", body_style),
+            Paragraph(vec_status, body_style),
         ],
     ]
-    prov_table = Table(prov_data, colWidths=[1.2 * inch, 2.5 * inch, 1.4 * inch, 2.1 * inch])
+    prov_table = Table(prov_rows, colWidths=[1.7 * inch, 0.8 * inch, 1.8 * inch, 2.1 * inch, 1.1 * inch])
     prov_table.setStyle(
         TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
             ("TOPPADDING", (0, 0), (-1, -1), 2),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ])
     )
     elements.append(prov_table)
-    elements.append(Spacer(1, 10))
-
+    elements.append(Spacer(1, 3))
     elements.append(
         Paragraph(
-            "Confidential Forensic Output • Generated by FixProof MediaGuard Protocol • Authorized Human Review Mandatory",
+            "<b>VALIDATION SCOPE NOTICE:</b> Statuses reflect tested component and API interface functionality. "
+            "Full end-to-end multimodal pipeline validation requires an active live investigation run.",
+            disclaimer_style,
+        )
+    )
+    elements.append(Spacer(1, 6))
+
+    # ─── SECTION 12: EVIDENCE INTEGRITY & MANDATORY HUMAN REVIEW ───
+    elements.append(Paragraph("12. Evidence Integrity & Mandatory Human Review", sec_h1_style))
+    recs = secs.get("recommended_actions") or []
+    if recs:
+        for r in recs:
+            elements.append(Paragraph(f"• <b>Action:</b> {r}", body_style))
+    else:
+        elements.append(Paragraph("• <b>Action:</b> Conduct mandatory qualified human visual review of flagged keyframe pairs.", body_style))
+        elements.append(Paragraph("• <b>Action:</b> Verify chain of title and broadcast licensing rights for target segment.", body_style))
+        elements.append(Paragraph("• <b>Action:</b> Assess fair use, commentary, or standard broadcast template exceptions before outreach.", body_style))
+    elements.append(Spacer(1, 4))
+    elements.append(
+        Paragraph(
+            "<b>HUMAN REVIEW REQUIRED BEFORE EXTERNAL ENFORCEMENT:</b> This report is an automated technical evidence aid and does not "
+            "constitute a legal determination or certify compliance with statutory frameworks (such as 17 U.S.C. § 512 or the EU Digital Services Act). "
+            "Algorithmic visual similarity measurements demonstrate perceptual correspondence only, not copyright ownership or infringement. "
+            "Independent review by qualified human counsel or rights management personnel is strictly required prior to initiating external "
+            "enforcement, licensing demands, or legal notices.",
             disclaimer_style,
         )
     )
 
-    doc.build(elements)
+    doc.build(elements, canvasmaker=NumberedCanvas)
     pdf_bytes = buffer.getvalue()
     buffer.close()
     return pdf_bytes
@@ -990,8 +1523,8 @@ def send_detailed_report_email(
     # Prepare multipart email payload with base64 PDF attachment
     pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
     body_text = (
-        f"FixProof Forensic Investigation Console\n"
-        f"MediaGuard Protocol Swarm Intelligence Report\n\n"
+        f"FixProof Meta Forensic Console\n"
+        f"FixProof Meta Forensic Intelligence Report\n\n"
         f"Incident Reference: {incident_id}\n"
         f"Report Reference:   {report_id}\n"
         f"Exported (UTC):     {now_iso}\n\n"

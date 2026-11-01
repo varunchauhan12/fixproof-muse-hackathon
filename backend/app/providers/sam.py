@@ -152,6 +152,33 @@ def parse_sam_grammar(
     return results
 
 
+def validate_mask_payload(mask: SegmentationMask) -> Dict[str, Any]:
+    """
+    Validates SAM 3.1 mask attributes without guessing proprietary decompression algorithms.
+    Verifies dimensions, payload existence, and encoding prefix.
+    """
+    errors: List[str] = []
+    if mask.height <= 0 or mask.width <= 0:
+        errors.append(f"Invalid mask dimensions: {mask.height}x{mask.width}")
+
+    if not mask.raw_payload or not mask.raw_payload.strip():
+        errors.append("Empty raw mask payload")
+
+    if mask.encoding not in ("lossless_base85", "1bit_base85", "base85"):
+        errors.append(f"Unsupported mask encoding prefix: {mask.encoding}")
+
+    is_valid = len(errors) == 0
+    return {
+        "is_valid": is_valid,
+        "height": mask.height,
+        "width": mask.width,
+        "encoding": mask.encoding,
+        "payload_length": len(mask.raw_payload),
+        "errors": errors,
+        "decoding_status": "RAW_PRESERVED_VERIFIED" if is_valid else "INVALID_MASK_STRUCTURE",
+    }
+
+
 class MetaSAMProvider(BaseSegmentationProvider):
     """
     SAM 3.1 specialist perception provider on the Meta Model Responses API.

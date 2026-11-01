@@ -53,6 +53,7 @@ import {
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import { TableRowSkeleton, FrameViewerSkeleton } from "@/components/ui/Skeleton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
+import { ForensicEvidenceExperience } from "@/components/dashboard/ForensicEvidenceExperience";
 
 const packageVerificationStepsConfig = [
   {
@@ -103,6 +104,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [sessionInput, setSessionInput] = useState<string>("");
   const [sessionCopied, setSessionCopied] = useState<boolean>(false);
+  const [dossierMode, setDossierMode] = useState<"FORENSIC_EXPERIENCE" | "FRAME_SYNC">("FORENSIC_EXPERIENCE");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -750,7 +752,26 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                           : "N/A"}
                       </span>
                     </div>
-                    <div className="pl-2">
+                    <div className="flex items-center gap-2 pl-2">
+                      {onNavigateToNemotron && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToNemotron(inc);
+                          }}
+                          style={{
+                            background: "#1c1b1a",
+                            border: "1px solid rgba(72, 199, 181, 0.35)",
+                            color: "#48C7B5",
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-teal-500/10 text-xs font-semibold transition-all cursor-pointer"
+                          title="Open directly in Muse Action Center"
+                        >
+                          <Cpu size={12} className="text-teal-400" />
+                          <span>Muse Center</span>
+                        </button>
+                      )}
                       <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#22211E] group-hover:bg-[#48C7B5]/15 group-hover:text-[#F1EBDD] group-hover:border-[#48C7B5]/30 text-[#A29B8F] border border-[#302E29] text-xs font-semibold transition-all">
                         <span>Inspect</span>
                         <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
@@ -951,6 +972,59 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
 
           {/* Full Forensic Dossier below CardFlip */}
           <div className="space-y-5">
+            {/* View Mode Switcher: Stage 1E Forensic Evidence Experience vs Legacy Player & Ledger */}
+            <div className="flex items-center justify-between p-1.5 bg-[#171615] rounded-xl border border-[rgba(238,231,219,0.08)]">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setDossierMode("FORENSIC_EXPERIENCE")}
+                  style={{
+                    background: dossierMode === "FORENSIC_EXPERIENCE" ? "#242220" : "transparent",
+                    color: dossierMode === "FORENSIC_EXPERIENCE" ? "#f4efe6" : "#aba497",
+                    border: dossierMode === "FORENSIC_EXPERIENCE" ? "1px solid #48C7B5" : "1px solid transparent",
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Layers size={14} className={dossierMode === "FORENSIC_EXPERIENCE" ? "text-teal-400" : ""} />
+                  <span>Forensic Evidence & Provenance</span>
+                </button>
+                <button
+                  onClick={() => setDossierMode("FRAME_SYNC")}
+                  style={{
+                    background: dossierMode === "FRAME_SYNC" ? "#242220" : "transparent",
+                    color: dossierMode === "FRAME_SYNC" ? "#f4efe6" : "#aba497",
+                    border: dossierMode === "FRAME_SYNC" ? "1px solid #48C7B5" : "1px solid transparent",
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <SplitSquareVertical size={14} className={dossierMode === "FRAME_SYNC" ? "text-teal-400" : ""} />
+                  <span>Dual Player & Keyframe Ledger</span>
+                </button>
+              </div>
+
+              {onNavigateToNemotron && (
+                <button
+                  onClick={() => onNavigateToNemotron(selectedIncident)}
+                  style={{
+                    background: "#1c1b1a",
+                    border: "1px solid rgba(238, 231, 219, 0.1)",
+                    color: "#ded7cb",
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                >
+                  <Cpu size={12} className="text-teal-400" />
+                  <span>Open in Muse Action Center</span>
+                </button>
+              )}
+            </div>
+
+            {dossierMode === "FORENSIC_EXPERIENCE" ? (
+              <ForensicEvidenceExperience
+                incident={selectedIncident}
+                onRefreshReport={onRefresh}
+                onNavigateToNemotron={onNavigateToNemotron}
+              />
+            ) : (
+              <>
             {/* ─── A. Incident Dossier Header & Action Toolbar ─── */}
             <div
               style={{
@@ -1939,6 +2013,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                     </div>
                   </div>
                 </div>
+              </>
+            )}
           </div>
         </div>
       )}
