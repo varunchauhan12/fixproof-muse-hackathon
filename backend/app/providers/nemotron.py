@@ -5,7 +5,7 @@ Targets:
 - Reasoning: nvidia/Nemotron-3_5-Lightning (or Nemotron-3.5-Super-VL) via Nebius Token Factory.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import io
 
@@ -88,6 +88,7 @@ class NemotronReasoningProvider(BaseReasoningProvider):
         self,
         investigation_input: Any,
         model_override: Optional[str] = None,
+        frame_images: Optional[List[Dict[str, Any]]] = None,
     ) -> Any:
         from app.nemotron_engine import generate_nemotron_report
         return generate_nemotron_report(

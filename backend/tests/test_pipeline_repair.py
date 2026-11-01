@@ -79,4 +79,4 @@ class TestPipelineRepair(unittest.TestCase):
                 pdf = client.get(report.json()["pdf_url"], headers=headers)
                 self.assertEqual(pdf.status_code, 200)
                 self.assertTrue(pdf.content.startswith(b"%PDF"))
-                self.assertEqual(report.json()["report"]["model_id"], "muse-spark-1.3")
+                self.assertEqual(report.json()["report"]["model_id"], "muse-wonder-1.0")

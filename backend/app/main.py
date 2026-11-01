@@ -1,3 +1,4 @@
+import base64
 import json
 import mimetypes
 import os
@@ -1306,9 +1307,11 @@ def get_nemotron_status_endpoint():
         "db_mode": get_db_config().mode.value,
         "configured_model": provider.model_id if is_muse else DEFAULT_MODEL,
         "vision_model": vision_provider.model_id,
+        "sam_model": provider_factory.get_segmentation_provider().model_id,
         "detailed_report_model": provider.model_id if is_muse else DEFAULT_DETAILED_MODEL,
         "text_reasoning_available": available,
         "vision_verification_available": vision_available,
+        "segmentation_available": vision_available,
         "email_delivery_available": configured,
         "email_provider": "Resend",
         "email_from": from_email if configured else None,
@@ -1643,3 +1646,82 @@ def download_summary_endpoint(
     except Exception as e:
         logger.error(f"[DetailedReport] Summary download error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate summary download: {e}")
+
+
+class SAMSegmentRequest(BaseModel):
+    prompt: str
+    image_base64: Optional[str] = None
+    incident_id: Optional[str] = None
+    asset_id: Optional[str] = None
+    evidence_id: Optional[str] = None
+    frame_index: Optional[int] = None
+    timestamp_sec: Optional[float] = None
+    model_override: Optional[str] = None
+
+
+@app.post("/api/sam/segment")
+def sam_segment_endpoint(
+    req: SAMSegmentRequest,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Executes isolated specialist concept segmentation and visual localization using SAM 3.1.
+    Accepts an explicit frame image (base64 or incident reference) and a target concept prompt.
+    Returns normalized bounding box coordinates and segmentation mask representations.
+    """
+    clean_prompt = req.prompt.strip() if req.prompt else ""
+    if not clean_prompt:
+        raise HTTPException(status_code=400, detail="Prompt must be a non-empty string.")
+
+    raw_bytes = None
+    if req.image_base64:
+        try:
+            b64_str = req.image_base64
+            if "," in b64_str:
+                b64_str = b64_str.split(",", 1)[1]
+            raw_bytes = base64.b64decode(b64_str)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid base64 image data: {e}")
+
+    if not raw_bytes and req.incident_id:
+        incident = get_incident_by_id(req.incident_id)
+        if incident:
+            inc_sess = incident.get("session_id")
+            if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+                raise HTTPException(status_code=403, detail="Access denied.")
+            matches = incident.get("frame_matches") or []
+            target_match = None
+            if req.evidence_id:
+                for m in matches:
+                    if m.get("evidence_id") == req.evidence_id:
+                        target_match = m
+                        break
+            if not target_match and matches:
+                target_match = matches[0]
+
+            if target_match and target_match.get("submitted_frame"):
+                frame_p = target_match["submitted_frame"].get("frame_path")
+                if frame_p and Path(frame_p).is_file():
+                    raw_bytes = Path(frame_p).read_bytes()
+
+    if not raw_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid image provided. Supply 'image_base64' or a valid 'incident_id' with frames."
+        )
+
+    provider = provider_factory.get_segmentation_provider()
+    meta = {
+        "incident_id": req.incident_id,
+        "asset_id": req.asset_id,
+        "evidence_id": req.evidence_id,
+        "frame_index": req.frame_index,
+        "timestamp_sec": req.timestamp_sec,
+    }
+    result = provider.segment_frame(
+        image_bytes=raw_bytes,
+        prompt=clean_prompt,
+        metadata=meta,
+        model_override=req.model_override,
+    )
+    return result.model_dump(mode="json")

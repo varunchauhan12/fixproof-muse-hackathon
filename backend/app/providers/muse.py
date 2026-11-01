@@ -3,7 +3,7 @@ Muse provider scaffold for FixProof (Meta Hackathon).
 Scaffolded interface prepared for Phase 4. Both repositories remain on Nemotron for Phase 3.1.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
 
@@ -46,6 +46,7 @@ class MuseReasoningProvider(BaseReasoningProvider):
         self,
         investigation_input: Any,
         model_override: Optional[str] = None,
+        frame_images: Optional[List[Dict[str, Any]]] = None,
     ) -> Any:
         raise NotImplementedError(
             "Muse reasoning provider is scaffolded for Phase 4. FixProof currently operates on Nemotron Lightning."

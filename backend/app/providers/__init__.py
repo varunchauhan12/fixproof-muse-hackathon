@@ -5,12 +5,14 @@ Default and primary implementation: Nemotron (NVIDIA Super-VL / Lightning via Ne
 Scaffolded implementation: Muse (Meta Hackathon).
 """
 
-from app.providers.factory import get_vision_provider, get_reasoning_provider
-from app.providers.base import BaseVisionProvider, BaseReasoningProvider
+from app.providers.factory import get_vision_provider, get_reasoning_provider, get_segmentation_provider
+from app.providers.base import BaseVisionProvider, BaseReasoningProvider, BaseSegmentationProvider
 
 __all__ = [
     "get_vision_provider",
     "get_reasoning_provider",
+    "get_segmentation_provider",
     "BaseVisionProvider",
     "BaseReasoningProvider",
+    "BaseSegmentationProvider",
 ]

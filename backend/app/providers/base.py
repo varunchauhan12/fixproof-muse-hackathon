@@ -69,8 +69,38 @@ class BaseReasoningProvider(ABC):
         self,
         investigation_input: Any,
         model_override: Optional[str] = None,
+        frame_images: Optional[List[Dict[str, Any]]] = None,
     ) -> Any:
         """
         Generates a structured, evidence-grounded investigation report from timeline clusters.
+        """
+        pass
+
+
+class BaseSegmentationProvider(ABC):
+    """Abstract interface for specialist visual segmentation/localization models (SAM 3.1)."""
+
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        """Returns the identifier name of this provider (e.g. 'muse')."""
+        pass
+
+    @property
+    @abstractmethod
+    def model_id(self) -> str:
+        """Returns the specific model identifier (e.g. 'sam-3.1')."""
+        pass
+
+    @abstractmethod
+    def segment_frame(
+        self,
+        image_bytes: bytes,
+        prompt: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """
+        Performs visual concept segmentation/localization on a single frame.
+        Returns a normalized, typed SegmentationResult.
         """
         pass

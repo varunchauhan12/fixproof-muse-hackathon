@@ -3,16 +3,25 @@ import base64
 from datetime import datetime, timezone
 import io
 import json
+import logging
 import os
 import time
 import uuid
 
 from PIL import Image
 from pydantic import BaseModel, ConfigDict
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Set
+
+logger = logging.getLogger(__name__)
 
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
-from app.providers.meta_client import MuseClient, MetaAPIError, DEFAULT_MODEL
+from app.providers.meta_client import (
+    MuseClient,
+    MetaAPIError,
+    DEFAULT_MODEL,
+    DEFAULT_REASONING_MODEL,
+    DEFAULT_VISION_MODEL,
+)
 
 VISION_PROMPT_VERSION = "meta-vision-v1"
 REASONING_PROMPT_VERSION = "meta-reasoning-v1"
@@ -34,7 +43,7 @@ def schema_format(name, schema):
 
 class MetaVisionProvider(BaseVisionProvider):
     provider_name = property(lambda self: "muse")
-    model_id = property(lambda self: os.getenv("MUSE_VISION_MODEL", DEFAULT_MODEL))
+    model_id = property(lambda self: os.getenv("MUSE_VISION_MODEL", DEFAULT_VISION_MODEL).strip())
 
     def verify_candidate_pair(
         self,
@@ -92,7 +101,103 @@ class MetaVisionProvider(BaseVisionProvider):
 
 class MetaReasoningProvider(BaseReasoningProvider):
     provider_name = property(lambda self: "muse")
-    model_id = property(lambda self: os.getenv("MUSE_REASONING_MODEL", DEFAULT_MODEL))
+    model_id = property(lambda self: os.getenv("MUSE_REASONING_MODEL", DEFAULT_REASONING_MODEL).strip())
+
+    @property
+    def allowed_models(self) -> Set[str]:
+        return {
+            self.model_id,
+            "muse-wonder-1.0",
+            "muse-spark-1.3",
+            "muse-spark-1.2",
+            "muse-spark-1.1",
+        }
+
+    def build_multimodal_message(
+        self,
+        text_prompt: str,
+        frame_items: Optional[List[Dict[str, Any]]] = None,
+        max_images: int = 6,
+    ) -> Dict[str, Any]:
+        """
+        Builds a compliant message combining structured text prompt with
+        bounded, preprocessed keyframe image artifacts for multimodal reasoning.
+
+        Each item in frame_items can specify:
+          - 'image_bytes': bytes or PIL.Image.Image
+          - 'image_path': str or Path
+          - 'evidence_id': str (e.g. 'ev-001')
+          - 'timestamp_sec': float (e.g. 5.0)
+          - 'frame_type': 'suspect' | 'reference'
+          - 'asset_id': Optional[str]
+
+        Guarantees:
+          - Bounded to max_images (default: 6, max ceiling: 10).
+          - Images validated and resized to max 512px maintaining aspect ratio.
+          - Never sends uncompressed or unbounded frames.
+          - Timestamps and evidence IDs preserved in message context.
+          - If frame_items is empty/None, returns standard text-only message:
+            {"role": "user", "content": text_prompt}
+        """
+        if not frame_items:
+            return {"role": "user", "content": text_prompt}
+
+        ceiling = min(max_images, 10)
+        bounded_items = frame_items[:ceiling]
+        if len(frame_items) > ceiling:
+            logger.warning(
+                f"[MetaReasoningProvider] Frame count {len(frame_items)} exceeds "
+                f"ceiling {ceiling}; bounded to first {ceiling} items."
+            )
+
+        from app import vision_verifier as verifier
+        from PIL import Image
+        import base64
+        import io
+        from pathlib import Path
+
+        content_parts: List[Dict[str, Any]] = [
+            {"type": "text", "text": text_prompt}
+        ]
+
+        for idx, item in enumerate(bounded_items):
+            evidence_id = str(item.get("evidence_id") or f"ev-{idx+1}")
+            ts = float(item.get("timestamp_sec", 0.0))
+            frame_type = str(item.get("frame_type", "frame"))
+            asset_id = str(item.get("asset_id", ""))
+
+            raw_bytes = item.get("image_bytes")
+            if not raw_bytes and "image_path" in item and item["image_path"]:
+                img_p = Path(item["image_path"])
+                if img_p.is_file():
+                    raw_bytes = img_p.read_bytes()
+
+            if not raw_bytes:
+                continue
+
+            try:
+                if isinstance(raw_bytes, Image.Image):
+                    pil_img = raw_bytes
+                else:
+                    pil_img = Image.open(io.BytesIO(raw_bytes))
+
+                _, resized_bytes = verifier.resize_image_for_verification(pil_img, max_dim=512)
+                b64 = base64.b64encode(resized_bytes).decode("ascii")
+
+                label = f"[Visual Frame: evidence_id={evidence_id} | {frame_type} @ {ts:.1f}s"
+                if asset_id:
+                    label += f" | asset={asset_id}"
+                label += "]"
+                content_parts.append({"type": "text", "text": label})
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
+                })
+            except Exception as e:
+                logger.warning(f"[MetaReasoningProvider] Could not process frame {idx}: {e}")
+                continue
+
+        return {"role": "user", "content": content_parts}
 
     def create_text_completion(
         self,
@@ -104,10 +209,16 @@ class MetaReasoningProvider(BaseReasoningProvider):
             raise MetaAPIError("UNSUPPORTED_CLIENT_OPTIONS")
         payload = dict(request)
         model = payload.setdefault("model", self.model_id)
-        if model != self.model_id:
+        if model != self.model_id and model not in self.allowed_models:
             raise MetaAPIError("INVALID_MODEL_OVERRIDE")
         if payload.get("stream") or "extra_headers" in payload or "extra_body" in payload:
             raise MetaAPIError("UNSUPPORTED_REQUEST_OPTIONS")
+
+        if model == "muse-wonder-1.0" and "reasoning_effort" not in payload:
+            effort = os.getenv("MUSE_REASONING_EFFORT", "").strip().lower()
+            if effort in ("minimal", "low", "medium", "high", "max"):
+                payload["reasoning_effort"] = effort
+
         response = MuseClient().complete(payload)
         if payload.get("response_format", {}).get("type") == "json_object":
             try:
@@ -122,6 +233,7 @@ class MetaReasoningProvider(BaseReasoningProvider):
         self,
         investigation_input: Any,
         model_override: Optional[str] = None,
+        frame_images: Optional[List[Dict[str, Any]]] = None,
     ) -> Any:
         from app.evidence_models import InvestigationReport, validate_report_evidence_references
         from app.nemotron_engine import build_user_prompt, build_failed_report, SYSTEM_PROMPT
@@ -130,15 +242,23 @@ class MetaReasoningProvider(BaseReasoningProvider):
             report = build_failed_report(investigation_input, model, category, f"Meta investigation unavailable ({category}).")
             report.prompt_version = REASONING_PROMPT_VERSION
             report.limitations_disclosed[0] = "Meta model investigation did not complete successfully."
+            report.operational_metadata["is_fallback"] = (model != self.model_id)
             return report
-        if model != self.model_id:
+        if model != self.model_id and model not in self.allowed_models:
             return failure("INVALID_MODEL_OVERRIDE")
         started = time.perf_counter()
         try:
-            response = self.create_text_completion({"model": model,
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": build_user_prompt(investigation_input)}],
+            user_msg = self.build_multimodal_message(build_user_prompt(investigation_input), frame_images)
+            response = self.create_text_completion({
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    user_msg,
+                ],
                 "response_format": schema_format("investigation_report", InvestigationReport.model_json_schema()),
-                "max_tokens": int(os.getenv("MUSE_MAX_TOKENS", "16384")), "temperature": 0.1})
+                "max_tokens": int(os.getenv("MUSE_MAX_TOKENS", "16384")),
+                "temperature": 0.1,
+            })
             data = json.loads(response.choices[0].message.content)
             # Evidence and provenance are supplied by the application, never the model.
             for field in ("summary", "recommended_action", "confidence_assessment", "findings"):
@@ -161,11 +281,18 @@ class MetaReasoningProvider(BaseReasoningProvider):
                 report.recommended_action = "NEEDS_FULL_VIDEO_REVIEW"
                 report.limitations_disclosed.insert(0, "Evaluated only public thumbnail artwork; underlying video frames were not acquired or verified.")
             usage = response.usage
-            report.operational_metadata = {"model_id": model, "latency_ms": int((time.perf_counter() - started) * 1000),
+            report.operational_metadata = {
+                "model_id": model,
+                "is_fallback": (model != self.model_id),
+                "latency_ms": int((time.perf_counter() - started) * 1000),
                 "validation_status": "PARTIALLY_VALIDATED" if not report.findings and investigation_input.timeline_intervals else "VALIDATED",
-                "prompt_tokens": getattr(usage, "prompt_tokens", None), "completion_tokens": getattr(usage, "completion_tokens", None),
-                "total_tokens": getattr(usage, "total_tokens", None), "finish_reason": response.choices[0].finish_reason,
-                "errors": [], "created_at": datetime.now(timezone.utc).isoformat()}
+                "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                "completion_tokens": getattr(usage, "completion_tokens", None),
+                "total_tokens": getattr(usage, "total_tokens", None),
+                "finish_reason": response.choices[0].finish_reason,
+                "errors": [],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
             return report
         except Exception as exc:
             return failure(exc.category if isinstance(exc, MetaAPIError) else "INVALID_REPORT_RESPONSE")

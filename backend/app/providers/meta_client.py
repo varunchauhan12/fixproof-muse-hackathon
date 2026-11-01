@@ -7,7 +7,10 @@ from urllib.parse import urlsplit
 from openai import OpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIError
 
 DEFAULT_BASE_URL = "https://api.meta.ai/v1"
-DEFAULT_MODEL = "muse-spark-1.3"
+DEFAULT_REASONING_MODEL = "muse-wonder-1.0"
+DEFAULT_VISION_MODEL = "muse-spark-1.3"
+DEFAULT_SAM_MODEL = "sam-3.1"
+DEFAULT_MODEL = "muse-wonder-1.0"
 
 
 class MetaAPIError(RuntimeError):
@@ -67,4 +70,44 @@ class MuseClient:
         except APIError:
             raise MetaAPIError("PROVIDER_API_ERROR") from None
         except Exception:
+            raise MetaAPIError("PROVIDER_API_ERROR") from None
+
+    def post_responses(self, payload, timeout_sec=90, timeout_ceiling_sec=None):
+        try:
+            client = get_meta_sdk_client()
+            timeout = configured_timeout(timeout_sec)
+            if timeout_ceiling_sec is not None:
+                timeout = min(timeout, timeout_ceiling_sec)
+
+            url = f"{str(client.base_url).rstrip('/')}/responses"
+            headers = {
+                "Authorization": f"Bearer {client.api_key}",
+                "Content-Type": "application/json",
+            }
+            resp = client._client.post(url, json=payload, headers=headers, timeout=timeout)
+            if resp.status_code == 429:
+                raise MetaAPIError("RATE_LIMIT_EXCEEDED")
+            if resp.status_code in (401, 403):
+                raise MetaAPIError("AUTHENTICATION_ERROR")
+            if resp.status_code >= 500:
+                raise MetaAPIError("PROVIDER_API_ERROR")
+            if resp.status_code != 200:
+                raise MetaAPIError(f"HTTP_{resp.status_code}")
+            return resp.json()
+        except MetaAPIError:
+            raise
+        except APITimeoutError:
+            raise MetaAPIError("API_TIMEOUT") from None
+        except RateLimitError:
+            raise MetaAPIError("RATE_LIMIT_EXCEEDED") from None
+        except APIConnectionError:
+            raise MetaAPIError("CONNECTION_ERROR") from None
+        except APIError:
+            raise MetaAPIError("PROVIDER_API_ERROR") from None
+        except Exception as e:
+            err_name = type(e).__name__
+            if "Timeout" in err_name:
+                raise MetaAPIError("API_TIMEOUT") from None
+            if "Connect" in err_name or "Network" in err_name:
+                raise MetaAPIError("CONNECTION_ERROR") from None
             raise MetaAPIError("PROVIDER_API_ERROR") from None
