@@ -15,11 +15,13 @@ import {
   DetailedReportListItem,
   DetailedReportPayload,
   DetailedReportResponse,
+  DetailedReportRecord,
   EmailDetailedReportPayload,
+  SessionSummary,
 } from "./types";
 
 export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
 
 const noCacheHeaders = {
@@ -49,9 +51,32 @@ export function getClientSessionId(): string {
 }
 
 export function setClientSessionId(sessionId: string): void {
-  if (typeof window !== "undefined" && /^[a-zA-Z0-9_-]{3,64}$/.test(sessionId)) {
-    localStorage.setItem("fixproof_session_id", sessionId);
+  const clean = sessionId.trim();
+  if (typeof window !== "undefined" && /^[a-zA-Z0-9_-]{3,64}$/.test(clean)) {
+    localStorage.setItem("fixproof_session_id", clean);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("session_id", clean);
+      window.history.replaceState({}, "", url.toString());
+      window.dispatchEvent(new CustomEvent("fixproof_session_changed", { detail: clean }));
+    } catch {
+      // ignore
+    }
   }
+}
+
+export function generateNewSessionId(): string {
+  const rand = Math.random().toString(36).substring(2, 10);
+  const time = Date.now().toString(36);
+  return `sess_${rand}_${time}`;
+}
+
+export async function getActiveSessions(): Promise<SessionSummary[]> {
+  const res = await fetchNoCache(`${API_BASE}/api/sessions`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sessions (${res.status})`);
+  }
+  return res.json();
 }
 
 export async function fetchNoCache(url: string, init?: RequestInit): Promise<Response> {
@@ -461,6 +486,18 @@ export async function downloadDetailedReportPdf(reportId: string): Promise<Blob>
   return res.blob();
 }
 
+export async function getDetailedReport(
+  reportId: string
+): Promise<DetailedReportRecord> {
+  const res = await fetchNoCache(
+    `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}`
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch detailed report (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function getDetailedReportsForIncident(
   incidentId: string
 ): Promise<DetailedReportListItem[]> {
@@ -493,5 +530,40 @@ export async function emailDetailedReport(
 
 export function getSummaryDownloadUrl(incidentId: string): string {
   return `${API_BASE}/api/nemotron/summary-download/${encodeURIComponent(incidentId)}`;
+}
+
+export function getAnnotatedFrameUrl(
+  incidentId: string,
+  pairIndex: number,
+  target: "suspect" | "reference" = "suspect",
+  version?: number
+): string {
+  const v = version ? `&v=${version}` : "";
+  return `${API_BASE}/api/incidents/${encodeURIComponent(incidentId)}/frames/${pairIndex}/annotated?target=${target}${v}`;
+}
+
+export async function runSAMInvestigation(
+  incidentId: string,
+  prompt: string = "football",
+  forceRefresh: boolean = false
+): Promise<{
+  success: boolean;
+  incident_id: string;
+  pairs_processed: number;
+  frames_grounded: number;
+  objects_detected: number;
+  incident?: MatchAnalysisResult;
+}> {
+  const url = `${API_BASE}/api/incidents/${encodeURIComponent(incidentId)}/sam-investigation`;
+  const res = await fetchNoCache(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, force_refresh: forceRefresh }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `SAM investigation failed (${res.status})`);
+  }
+  return res.json();
 }
 

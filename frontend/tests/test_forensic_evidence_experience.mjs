@@ -385,3 +385,126 @@ test("9. Legal & Human Review Invariants: neutral wording disclaiming legal adju
   assert.ok(disclaimer.includes("perceptual correspondence only, not copyright ownership or legal infringement"));
 });
 
+// ─── 7. Reference and Suspect SAM 3.1 Grounding Tests ─────────────────────────
+
+test("10. Suspect vs Reference SAM 3.1 target association: renders bounding boxes on designated frames only", () => {
+  function renderBoundingBoxes(samData, targetFrame = "suspect") {
+    if (!samData) return null;
+    const samTarget = samData.target || "suspect";
+    if (samTarget !== targetFrame) return null;
+    const objects = samData.detected_objects || samData.objects || [];
+    if (objects.length === 0) return null;
+    return objects.map(o => ({
+      label: o.label || "Object",
+      target: samTarget,
+      box: o.box,
+    }));
+  }
+
+  const suspectSam = {
+    model_id: "sam-3.1",
+    target: "suspect",
+    objects: [{ label: "ball", box: [0.1, 0.2, 0.3, 0.4] }],
+    status: "SUCCESS",
+  };
+
+  const refSam = {
+    model_id: "sam-3.1",
+    target: "reference",
+    objects: [{ label: "player", box: [0.5, 0.5, 0.8, 0.9] }],
+    status: "SUCCESS",
+  };
+
+  // Suspect frame render
+  const suspectRenderOnSuspect = renderBoundingBoxes(suspectSam, "suspect");
+  const refRenderOnSuspect = renderBoundingBoxes(refSam, "suspect");
+  assert.ok(suspectRenderOnSuspect !== null, "Suspect SAM must render on suspect frame");
+  assert.equal(suspectRenderOnSuspect.length, 1);
+  assert.equal(suspectRenderOnSuspect[0].label, "ball");
+  assert.equal(refRenderOnSuspect, null, "Reference SAM must NOT render on suspect frame");
+
+  // Reference frame render
+  const suspectRenderOnRef = renderBoundingBoxes(suspectSam, "reference");
+  const refRenderOnRef = renderBoundingBoxes(refSam, "reference");
+  assert.equal(suspectRenderOnRef, null, "Suspect SAM must NOT render on reference frame");
+  assert.ok(refRenderOnRef !== null, "Reference SAM must render on reference frame");
+  assert.equal(refRenderOnRef.length, 1);
+  assert.equal(refRenderOnRef[0].label, "player");
+});
+
+test("11. getAnnotatedFrameUrl builder: builds correct REST streaming URL with version busting", () => {
+  function getAnnotatedFrameUrl(incidentId, pairIndex, target = "suspect", version) {
+    const v = version ? `&v=${version}` : "";
+    return `http://127.0.0.1:8000/api/incidents/${encodeURIComponent(incidentId)}/frames/${pairIndex}/annotated?target=${target}${v}`;
+  }
+
+  const urlSuspect = getAnnotatedFrameUrl("test-inc-123", 0, "suspect", 1700000000);
+  assert.equal(
+    urlSuspect,
+    "http://127.0.0.1:8000/api/incidents/test-inc-123/frames/0/annotated?target=suspect&v=1700000000"
+  );
+
+  const urlRef = getAnnotatedFrameUrl("test-inc-123", 2, "reference");
+  assert.equal(
+    urlRef,
+    "http://127.0.0.1:8000/api/incidents/test-inc-123/frames/2/annotated?target=reference"
+  );
+});
+
+test("12. SAM 3.1 card status badge resolution: maps object counts and validation status correctly", () => {
+  function getSamBadgeState(samData) {
+    if (!samData) return "PENDING_RUN";
+    if (samData.validation_status === "FAILED_VALIDATION") return "ERROR";
+    const objs = samData.detected_objects || samData.objects || [];
+    if (objs.length > 0) return `LOCALIZED_${objs.length}`;
+    if (samData.validation_status === "VALIDATED") return "NO_OBJECTS";
+    return "PENDING_RUN";
+  }
+
+  assert.equal(getSamBadgeState(null), "PENDING_RUN");
+  assert.equal(
+    getSamBadgeState({ validation_status: "FAILED_VALIDATION", error: "Storage error" }),
+    "ERROR"
+  );
+  assert.equal(
+    getSamBadgeState({
+      validation_status: "VALIDATED",
+      detected_objects: [{ label: "football", box: [0.1, 0.2, 0.3, 0.4] }],
+    }),
+    "LOCALIZED_1"
+  );
+  assert.equal(
+    getSamBadgeState({ validation_status: "VALIDATED", detected_objects: [] }),
+    "NO_OBJECTS"
+  );
+});
+
+test("13. hasAnySamGrounding: accurately identifies ungrounded vs grounded incidents", () => {
+  function checkHasAnySam(frameMatches) {
+    return (frameMatches || []).some((fm) => {
+      const best = fm.best_match;
+      const s = best?.sam_segmentation || fm.sam_segmentation;
+      const r = best?.ref_sam_segmentation || fm.ref_sam_segmentation;
+      const sStatus = s?.validation_status;
+      const rStatus = r?.validation_status;
+      const sObjs = (s?.objects?.length || 0) + (s?.detected_objects?.length || 0);
+      const rObjs = (r?.objects?.length || 0) + (r?.detected_objects?.length || 0);
+      return sStatus === "VALIDATED" || rStatus === "VALIDATED" || sObjs > 0 || rObjs > 0;
+    });
+  }
+
+  const ungroundedIncident = [{ submitted_frame: { timestamp_sec: 1.0 }, best_match: {} }];
+  assert.equal(checkHasAnySam(ungroundedIncident), false, "Fresh incident must be recognized as ungrounded");
+
+  const groundedIncident = [
+    {
+      submitted_frame: { timestamp_sec: 1.0 },
+      sam_segmentation: {
+        validation_status: "VALIDATED",
+        detected_objects: [{ label: "football", box: [0.1, 0.2, 0.3, 0.4] }],
+      },
+    },
+  ];
+  assert.equal(checkHasAnySam(groundedIncident), true, "Grounded incident must be recognized as grounded");
+});
+

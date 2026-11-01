@@ -12,8 +12,6 @@ import {
   ExternalLink,
   Download,
   RefreshCw,
-  Eye,
-  EyeOff,
   Copy,
   Check,
   Info,
@@ -33,8 +31,6 @@ import {
   DetailedReportRecord,
   TimelineInterval,
   FrameCorrelationEvidence,
-  SAMSegmentationResult,
-  SAMSegmentedObject,
 } from "@/lib/types";
 import {
   getAssetFrameUrl,
@@ -53,6 +49,7 @@ interface ForensicEvidenceExperienceProps {
   generatingDetailedReport?: boolean;
   detailedReportError?: string | null;
   onNavigateToNemotron?: (incident: MatchAnalysisResult) => void;
+  onIncidentUpdated?: (updatedIncident: MatchAnalysisResult) => void;
 }
 
 export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProps> = ({
@@ -65,9 +62,10 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
   generatingDetailedReport = false,
   detailedReportError,
   onNavigateToNemotron,
+  onIncidentUpdated,
 }) => {
+  const [currentIncident, setCurrentIncident] = useState<MatchAnalysisResult>(incident);
   const [selectedPairIndex, setSelectedPairIndex] = useState<number>(0);
-  const [showBoundingBoxes, setShowBoundingBoxes] = useState<boolean>(true);
   const [activeIntervalId, setActiveIntervalId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<boolean>(false);
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
@@ -75,13 +73,19 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
   const [pdfDownloadSuccess, setPdfDownloadSuccess] = useState<boolean>(false);
   const [activeReportTab, setActiveReportTab] = useState<"summary" | "methodology" | "continuity" | "assessment" | "actions">("summary");
 
+  // Sync currentIncident when parent incident prop changes
+  React.useEffect(() => {
+    setCurrentIncident(incident);
+  }, [incident]);
+
   // Handle missing image states gracefully
   const [suspectImageError, setSuspectImageError] = useState<Record<number, boolean>>({});
   const [refImageError, setRefImageError] = useState<Record<number, boolean>>({});
 
   const handleCopyIncidentId = () => {
-    if (incident.incident_id && typeof navigator !== "undefined") {
-      navigator.clipboard.writeText(incident.incident_id);
+    const incId = currentIncident.incident_id || incident.incident_id;
+    if (incId && typeof navigator !== "undefined") {
+      navigator.clipboard.writeText(incId);
       setCopiedId(true);
       setTimeout(() => setCopiedId(false), 2000);
     }
@@ -106,7 +110,6 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
       contradictions: string[];
       reasoning: string;
     } | null;
-    samSegmentation?: SAMSegmentationResult | null;
     suspectFrameFilename?: string;
     refFrameFilename?: string;
     suspectUrl?: string;
@@ -134,8 +137,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
           refFilename = `frame_${String(idx).padStart(4, "0")}s.jpg`;
         }
 
-        const suspectUrl = incident.submitted_asset_id
-          ? getAssetFrameUrl(incident.submitted_asset_id, suspectFilename)
+        const suspectUrl = currentIncident.submitted_asset_id
+          ? getAssetFrameUrl(currentIncident.submitted_asset_id, suspectFilename)
           : "";
         const refUrl = c.source_asset_id
           ? getAssetFrameUrl(c.source_asset_id, refFilename)
@@ -161,7 +164,6 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 reasoning: c.vision_verification.reasoning || "",
               }
             : null,
-          samSegmentation: c.sam_segmentation || null,
           suspectFrameFilename: suspectFilename,
           refFrameFilename: refFilename,
           suspectUrl,
@@ -171,14 +173,14 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
     }
 
     // 2. Fallback to incident frame matches
-    const matches = incident.frame_matches || [];
+    const matches = currentIncident.frame_matches || [];
     return matches.map((fm, idx) => {
       const best = fm.best_match;
       const suspectFilename = fm.submitted_frame.filename || `frame_${String(idx).padStart(4, "0")}s.jpg`;
       const refFilename = best?.source_filename || "";
 
-      const suspectUrl = incident.submitted_asset_id
-        ? getAssetFrameUrl(incident.submitted_asset_id, suspectFilename)
+      const suspectUrl = currentIncident.submitted_asset_id
+        ? getAssetFrameUrl(currentIncident.submitted_asset_id, suspectFilename)
         : "";
       const refUrl = best?.source_asset_id && refFilename
         ? getAssetFrameUrl(best.source_asset_id, refFilename)
@@ -204,14 +206,15 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               reasoning: best.vision_verification.reasoning_summary || "",
             }
           : null,
-        samSegmentation: best?.sam_segmentation || fm.sam_segmentation || null,
         suspectFrameFilename: suspectFilename,
         refFrameFilename: refFilename,
         suspectUrl,
         refUrl,
       };
     });
-  }, [detailedReport, incident]);
+  }, [detailedReport, currentIncident]);
+
+
 
   // Timeline intervals from detailed report or latest report
   const timelineIntervals: TimelineInterval[] = useMemo(() => {
@@ -226,9 +229,9 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
 
   // Handle PDF download directly using existing backend endpoint
   const handlePdfDownload = async () => {
-    const reportId = detailedReport?.report_id || latestReport?.report_id;
+    const reportId = detailedReport?.report_id || latestReport?.report_id || incident.incident_id;
     if (!reportId) {
-      setPdfDownloadError("No report ID available for PDF download.");
+      setPdfDownloadError("No report or incident ID available for PDF download.");
       return;
     }
 
@@ -255,120 +258,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
     }
   };
 
-  // Helper to safely render bounding box percentage coordinates on matching target frame
-  const renderBoundingBoxes = (
-    samData?: SAMSegmentationResult | null,
-    targetFrame: "suspect" | "reference" = "suspect"
-  ) => {
-    if (!showBoundingBoxes || !samData) {
-      return null;
-    }
 
-    const samTarget = samData.target || "suspect";
-    if (samTarget !== targetFrame) {
-      return null;
-    }
-
-    const rawList: any[] = Array.isArray(samData.detected_objects)
-      ? samData.detected_objects
-      : (Array.isArray(samData.objects) ? samData.objects : []);
-
-    if (!rawList || rawList.length === 0) {
-      return null;
-    }
-
-    return (
-      <div className="absolute inset-0 pointer-events-none">
-        {rawList.map((item: any, i: number) => {
-          if (!item) return null;
-          const label = item.label || "Object";
-          const conf =
-            typeof item.confidence === "number"
-              ? item.confidence
-              : (typeof item.confidence_score === "number" ? item.confidence_score : undefined);
-
-          const b = item.box;
-          if (!b) return null;
-
-          let leftPct = 0;
-          let topPct = 0;
-          let widthPct = 0;
-          let heightPct = 0;
-
-          if (Array.isArray(b) && b.length >= 4) {
-            const [x1, y1, x2, y2] = b.map(Number);
-            const minX = Math.min(x1, x2);
-            const minY = Math.min(y1, y2);
-            const maxX = Math.max(x1, x2);
-            const maxY = Math.max(y1, y2);
-            leftPct = minX * 100;
-            topPct = minY * 100;
-            widthPct = (maxX - minX) * 100;
-            heightPct = (maxY - minY) * 100;
-          } else if (typeof b === "object") {
-            if (Array.isArray(b.normalized_coords) && b.normalized_coords.length === 4) {
-              const [nx1, ny1, nx2, ny2] = b.normalized_coords.map(Number);
-              const minX = Math.min(nx1, nx2);
-              const minY = Math.min(ny1, ny2);
-              const maxX = Math.max(nx1, nx2);
-              const maxY = Math.max(ny1, ny2);
-              leftPct = minX * 100;
-              topPct = minY * 100;
-              widthPct = (maxX - minX) * 100;
-              heightPct = (maxY - minY) * 100;
-            } else if (b.w > 0 && b.h > 0 && typeof b.x1 === "number" && typeof b.x2 === "number") {
-              const minX = Math.min(b.x1, b.x2);
-              const minY = Math.min(b.y1 || 0, b.y2 || 0);
-              const maxX = Math.max(b.x1, b.x2);
-              const maxY = Math.max(b.y1 || 0, b.y2 || 0);
-              leftPct = (minX / b.w) * 100;
-              topPct = (minY / b.h) * 100;
-              widthPct = ((maxX - minX) / b.w) * 100;
-              heightPct = ((maxY - minY) / b.h) * 100;
-            } else {
-              return null;
-            }
-          } else {
-            return null;
-          }
-
-          // Bound within 0-100%
-          leftPct = Math.max(0, Math.min(100, leftPct));
-          topPct = Math.max(0, Math.min(100, topPct));
-          widthPct = Math.max(0, Math.min(100 - leftPct, widthPct));
-          heightPct = Math.max(0, Math.min(100 - topPct, heightPct));
-
-          if (widthPct < 0.5 || heightPct < 0.5) return null;
-
-          return (
-            <div
-              key={`sam-box-${i}`}
-              style={{
-                position: "absolute",
-                left: `${leftPct}%`,
-                top: `${topPct}%`,
-                width: `${widthPct}%`,
-                height: `${heightPct}%`,
-                pointerEvents: "none",
-              }}
-              className="border-2 border-teal-400 bg-teal-400/10 rounded-sm z-10 transition-all duration-150"
-            >
-              <span
-                style={{
-                  background: "rgba(13, 148, 136, 0.95)",
-                  color: "#f8fafc",
-                }}
-                className="absolute -top-5 left-0 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold whitespace-nowrap shadow-md uppercase tracking-wider"
-              >
-                SAM 3.1: {label}
-                {conf !== undefined ? ` (${Math.round(conf * 100)}%)` : ""}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6 text-[#ded7cb]">
@@ -448,6 +338,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               <Activity size={12} />
               <span>{incident.overall_status || "ANALYZED"}</span>
             </span>
+
+
 
             {onRefreshReport && (
               <button
@@ -572,25 +464,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               </span>
             </div>
             <p className="text-xs text-[#aba497] m-0 mt-0.5">
-              Exact reference frame versus suspect frame alignment with verified visual features, perceptual hash, and SAM 3.1 localization.
+              Exact reference frame versus suspect frame alignment with verified visual features, perceptual hash, and Muse multimodal verification.
             </p>
-          </div>
-
-          {/* SAM Bounding Box toggle */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowBoundingBoxes((prev) => !prev)}
-              style={{
-                background: showBoundingBoxes ? "rgba(20, 184, 166, 0.15)" : "#1c1b1a",
-                border: showBoundingBoxes ? "1px solid rgba(20, 184, 166, 0.4)" : "1px solid rgba(238, 231, 219, 0.1)",
-                color: showBoundingBoxes ? "#5eead4" : "#aba497",
-              }}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Toggle SAM 3.1 visual bounding boxes on frames"
-            >
-              {showBoundingBoxes ? <Eye size={13} /> : <EyeOff size={13} />}
-              <span>SAM 3.1 Bounding Boxes</span>
-            </button>
           </div>
         </div>
 
@@ -608,11 +483,6 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
 
             {evidencePairs.map((pair, idx) => {
               const isSelected = selectedPairIndex === idx;
-              const hasSam = Boolean(
-                pair.samSegmentation &&
-                ((pair.samSegmentation.objects && pair.samSegmentation.objects.length > 0) ||
-                 (pair.samSegmentation.detected_objects && pair.samSegmentation.detected_objects.length > 0))
-              );
 
               return (
                 <button
@@ -639,9 +509,6 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                   >
                     {pair.visualSimilarity.toFixed(0)}%
                   </span>
-                  {hasSam && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" title="SAM 3.1 localization active" />
-                  )}
                 </button>
               );
             })}
@@ -670,7 +537,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 }}
                 className="overflow-hidden flex flex-col"
               >
-                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs">
+                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
                       SUSPECT MEDIA
@@ -679,26 +546,19 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                       {currentPair.suspectTimestamp.toFixed(2)}s
                     </span>
                   </div>
-                  <span className="text-[10px] text-[#8e887d] font-mono truncate max-w-[180px]">
-                    {currentPair.evidenceId}
-                  </span>
                 </div>
 
                 {/* Suspect Frame Image Container */}
                 <div className="relative aspect-video w-full bg-[#0a0a09] flex items-center justify-center overflow-hidden">
                   {currentPair.suspectUrl && !suspectImageError[selectedPairIndex] ? (
-                    <div className="relative inline-flex items-center justify-center max-w-full max-h-full">
-                      <img
-                        src={currentPair.suspectUrl}
-                        alt={`Suspect Frame at ${currentPair.suspectTimestamp}s`}
-                        className="max-w-full max-h-full object-contain block"
-                        onError={() =>
-                          setSuspectImageError((prev) => ({ ...prev, [selectedPairIndex]: true }))
-                        }
-                      />
-                      {/* SAM 3.1 Bounding Box Overlay on Suspect Frame */}
-                      {renderBoundingBoxes(currentPair.samSegmentation, "suspect")}
-                    </div>
+                    <img
+                      src={currentPair.suspectUrl}
+                      alt={`Suspect Frame at ${currentPair.suspectTimestamp}s`}
+                      className="max-w-full max-h-full object-contain block"
+                      onError={() => {
+                        setSuspectImageError((prev) => ({ ...prev, [selectedPairIndex]: true }));
+                      }}
+                    />
                   ) : (
                     <div className="p-6 text-center space-y-2">
                       <div className="w-10 h-10 mx-auto rounded-full bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] flex items-center justify-center text-[#8e887d]">
@@ -713,16 +573,21 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                     </div>
                   )}
 
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10">
-                    Suspect: {currentPair.suspectTimestamp.toFixed(2)}s
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10 flex items-center gap-1.5">
+                    <span>Suspect: {currentPair.suspectTimestamp.toFixed(2)}s</span>
                   </div>
                 </div>
 
                 {/* Suspect Footer Info */}
-                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497]">
-                  <span className="text-[#8e887d]">Source File: </span>
-                  <span className="font-mono text-[#ded7cb]">
-                    {incident.suspect_filename || "Target stream / upload"}
+                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497] flex items-center justify-between">
+                  <div>
+                    <span className="text-[#8e887d]">Source File: </span>
+                    <span className="font-mono text-[#ded7cb]">
+                      {currentIncident.suspect_filename || incident.suspect_filename || "Target stream / upload"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#8e887d] font-mono">
+                    {currentPair.evidenceId}
                   </span>
                 </div>
               </div>
@@ -736,7 +601,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 }}
                 className="overflow-hidden flex flex-col"
               >
-                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs">
+                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-teal-500/15 text-teal-300 border border-teal-500/30">
                       REFERENCE ARCHIVE
@@ -745,26 +610,19 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                       {currentPair.sourceTimestamp.toFixed(2)}s
                     </span>
                   </div>
-                  <span className="text-[10px] text-[#8e887d] font-mono truncate max-w-[180px]">
-                    Vault: {currentPair.sourceAssetId ? currentPair.sourceAssetId.slice(0, 12) : "Unknown"}
-                  </span>
                 </div>
 
                 {/* Reference Frame Image Container */}
                 <div className="relative aspect-video w-full bg-[#0a0a09] flex items-center justify-center overflow-hidden">
                   {currentPair.refUrl && !refImageError[selectedPairIndex] ? (
-                    <div className="relative inline-flex items-center justify-center max-w-full max-h-full">
-                      <img
-                        src={currentPair.refUrl}
-                        alt={`Reference Frame at ${currentPair.sourceTimestamp}s`}
-                        className="max-w-full max-h-full object-contain block"
-                        onError={() =>
-                          setRefImageError((prev) => ({ ...prev, [selectedPairIndex]: true }))
-                        }
-                      />
-                      {/* SAM 3.1 Bounding Box Overlay on Reference Frame */}
-                      {renderBoundingBoxes(currentPair.samSegmentation, "reference")}
-                    </div>
+                    <img
+                      src={currentPair.refUrl}
+                      alt={`Reference Frame at ${currentPair.sourceTimestamp}s`}
+                      className="max-w-full max-h-full object-contain block"
+                      onError={() => {
+                        setRefImageError((prev) => ({ ...prev, [selectedPairIndex]: true }));
+                      }}
+                    />
                   ) : (
                     <div className="p-6 text-center space-y-2">
                       <div className="w-10 h-10 mx-auto rounded-full bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] flex items-center justify-center text-[#8e887d]">
@@ -779,16 +637,21 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                     </div>
                   )}
 
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10">
-                    Reference: {currentPair.sourceTimestamp.toFixed(2)}s
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10 flex items-center gap-1.5">
+                    <span>Reference: {currentPair.sourceTimestamp.toFixed(2)}s</span>
                   </div>
                 </div>
 
                 {/* Reference Footer Info */}
-                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497] truncate">
-                  <span className="text-[#8e887d]">Matched Asset: </span>
-                  <span className="font-mono text-[#ded7cb]">
-                    {currentPair.sourceAssetTitle || currentPair.sourceAssetId}
+                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497] flex items-center justify-between">
+                  <div className="truncate">
+                    <span className="text-[#8e887d]">Matched Asset: </span>
+                    <span className="font-mono text-[#ded7cb]">
+                      {currentPair.sourceAssetTitle || currentPair.sourceAssetId}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#8e887d] font-mono shrink-0">
+                    Vault: {currentPair.sourceAssetId ? currentPair.sourceAssetId.slice(0, 10) : "—"}
                   </span>
                 </div>
               </div>
@@ -910,34 +773,6 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                   Pairwise vision verification (Muse Spark 1.3) was not recorded for this frame correlation.
                 </div>
               )}
-
-              {/* SAM 3.1 Mask Integrity & Preservation Notice */}
-              {(() => {
-                const sam = currentPair.samSegmentation;
-                const objsCount = sam ? ((sam.objects?.length || 0) + (sam.detected_objects?.length || 0)) : 0;
-                if (objsCount > 0) {
-                  return (
-                    <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-start gap-2 text-[10.5px] text-[#8e887d]">
-                      <Boxes size={13} className="text-teal-400 shrink-0 mt-0.5" />
-                      <div className="space-y-0.5">
-                        <span className="font-semibold text-teal-400">SAM 3.1 Localization:</span>
-                        <span>
-                          {" "}Detected {objsCount} localized object(s). Raw segmentation mask data is
-                          retained in original run-length bitstream representation (RAW_PRESERVED). Direct mask decoding and polygon overlay
-                          rendering are not implemented to ensure cryptographic provenance.
-                        </span>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] flex items-center gap-2 text-[10px] text-[#736d62] font-mono">
-                      <Boxes size={12} className="text-[#5a554c] shrink-0" />
-                      <span>SAM 3.1: No localization data for this frame (unannotated evidence)</span>
-                    </div>
-                  );
-                }
-              })()}
             </div>
           </div>
         ) : (
@@ -1151,18 +986,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 </td>
               </tr>
 
-              {/* SAM 3.1 */}
-              <tr className="hover:bg-[#1a1918] transition-colors">
-                <td className="py-2.5 px-3 font-semibold text-[#f4efe6]">Specialist Localization</td>
-                <td className="py-2.5 px-3 text-[#ded7cb]">Meta Muse API</td>
-                <td className="py-2.5 px-3 text-teal-400">sam-3.1</td>
-                <td className="py-2.5 px-3 text-[#aba497]">Object bounding box localization & lossless run-length segmentation</td>
-                <td className="py-2.5 px-3 text-right">
-                  <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-bold bg-[#1c1b1a] text-teal-400 border border-teal-500/20">
-                    Component Tested (Raw Encoded)
-                  </span>
-                </td>
-              </tr>
+
 
               {/* Muse Wonder 1.0 */}
               <tr className="hover:bg-[#1a1918] transition-colors">

@@ -403,6 +403,196 @@ class TestTemporalMultimodal(unittest.TestCase):
         self.assertEqual(vision_provider.model_id, "muse-spark-1.3")
         self.assertEqual(sam_provider.model_id, "sam-3.1")
 
+    # 10. Frame Path Resolution and Traversal Protection
+    def test_frame_path_resolution_and_traversal(self):
+        from app.temporal_selector import resolve_frame_path, is_safe_storage_path
+
+        # 10a. Path traversal rejection
+        resolved_bad, reason_bad = resolve_frame_path("/app/storage/../../etc/passwd")
+        self.assertIsNone(resolved_bad)
+        self.assertIn("traversal", reason_bad.lower())
+        self.assertFalse(is_safe_storage_path(Path("/etc/passwd")))
+
+        # 10b. Resolving container-prefixed path in storage
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "cloud_cache" / "frames" / "test_res_asset"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        sample_img = base_dir / "frame_0000s.jpg"
+        sample_img.write_bytes(create_sample_jpeg_bytes(64, 64))
+
+        try:
+            # Simulate container path from DB
+            container_path = "/app/storage/suspects/frames/test_res_asset/frame_0000s.jpg"
+            resolved, err = resolve_frame_path(container_path, asset_id="test_res_asset", filename="frame_0000s.jpg")
+            self.assertIsNotNone(resolved, f"Failed resolving container path: {err}")
+            self.assertTrue(resolved.exists())
+            self.assertEqual(resolved.resolve(), sample_img.resolve())
+
+            # Bare filename resolution with asset_id
+            resolved_bare, err_bare = resolve_frame_path("frame_0000s.jpg", asset_id="test_res_asset")
+            self.assertIsNotNone(resolved_bare, f"Failed resolving bare filename: {err_bare}")
+            self.assertEqual(resolved_bare.resolve(), sample_img.resolve())
+        finally:
+            if sample_img.exists():
+                sample_img.unlink()
+            if base_dir.exists():
+                base_dir.rmdir()
+
+    # 11. Dual Grounding of Suspect and Reference Frames
+    def test_dual_grounding_suspect_and_reference(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            suspect_file = Path(tmp_dir) / "suspect.jpg"
+            ref_file = Path(tmp_dir) / "ref.jpg"
+            suspect_file.write_bytes(create_sample_jpeg_bytes(64, 64, color="red"))
+            ref_file.write_bytes(create_sample_jpeg_bytes(64, 64, color="green"))
+
+            pairs = [
+                {
+                    "evidence_id": "pair_01",
+                    "suspect_image_path": str(suspect_file),
+                    "suspect_image_bytes": suspect_file.read_bytes(),
+                    "reference_image_path": str(ref_file),
+                    "reference_image_bytes": ref_file.read_bytes(),
+                    "suspect_filename": "suspect.jpg",
+                    "reference_filename": "ref.jpg",
+                    "suspect_timestamp": 1.0,
+                    "reference_timestamp": 1.0,
+                }
+            ]
+
+            grounded = ground_candidate_frames_with_sam(pairs, prompt="player", max_sam_calls=2)
+            self.assertEqual(len(grounded), 1)
+            pair = grounded[0]
+
+            # Verify suspect localization
+            self.assertIn("sam_segmentation", pair)
+            self.assertEqual(pair["sam_segmentation"]["validation_status"], "VALIDATED")
+            self.assertEqual(pair["sam_segmentation"]["target"], "suspect")
+            self.assertEqual(pair["sam_segmentation"]["frame_filename"], "suspect.jpg")
+
+            # Verify reference localization
+            self.assertIn("ref_sam_segmentation", pair)
+            self.assertEqual(pair["ref_sam_segmentation"]["validation_status"], "VALIDATED")
+            self.assertEqual(pair["ref_sam_segmentation"]["target"], "reference")
+            self.assertEqual(pair["ref_sam_segmentation"]["frame_filename"], "ref.jpg")
+
+    # 12. Independent Grounding Failure Handling
+    def test_independent_grounding_failure_handling(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            suspect_file = Path(tmp_dir) / "suspect.jpg"
+            ref_file = Path(tmp_dir) / "ref.jpg"
+            suspect_file.write_bytes(create_sample_jpeg_bytes(64, 64))
+            ref_file.write_bytes(create_sample_jpeg_bytes(64, 64))
+
+            pairs = [
+                {
+                    "evidence_id": "pair_02",
+                    "suspect_image_path": str(suspect_file),
+                    "suspect_image_bytes": suspect_file.read_bytes(),
+                    "reference_image_path": str(ref_file),
+                    "reference_image_bytes": ref_file.read_bytes(),
+                    "suspect_filename": "suspect.jpg",
+                    "reference_filename": "ref.jpg",
+                }
+            ]
+
+            # Mock SAM provider so suspect succeeds and reference fails
+            mock_sam = MagicMock()
+            mock_sam.segment_frame.side_effect = [
+                SegmentationResult(
+                    model_id="sam-3.1",
+                    prompt="ball",
+                    status="SUCCESS",
+                    target="suspect",
+                    frame_filename="suspect.jpg",
+                    objects=[SegmentedObject(object_id=1, label="ball", box=BoundingBox(x1=0.1, y1=0.1, x2=0.5, y2=0.5, w=64, h=64))],
+                ),
+                Exception("Reference frame segmentation network timeout"),
+            ]
+
+            with patch("app.providers.factory.get_segmentation_provider", return_value=mock_sam):
+                grounded = ground_candidate_frames_with_sam(pairs, prompt="ball", max_sam_calls=2)
+
+            self.assertEqual(len(grounded), 1)
+            pair = grounded[0]
+            # Suspect must be valid
+            self.assertEqual(pair["sam_segmentation"]["validation_status"], "VALIDATED")
+            self.assertEqual(pair["sam_segmentation"]["target"], "suspect")
+
+            # Reference must degrade gracefully with FAILED_VALIDATION
+            self.assertEqual(pair["ref_sam_segmentation"]["validation_status"], "FAILED_VALIDATION")
+            self.assertEqual(pair["ref_sam_segmentation"]["target"], "reference")
+            self.assertIn("network timeout", pair["ref_sam_segmentation"]["error"])
+
+    # 13. Reuse of Existing Valid SAM Grounding
+    def test_reuse_existing_valid_sam_grounding(self):
+        pairs = [
+            {
+                "evidence_id": "pair_03",
+                "sam_segmentation": {
+                    "validation_status": "VALIDATED",
+                    "target": "suspect",
+                    "objects": [{"label": "ball", "box": [0.1, 0.1, 0.5, 0.5]}],
+                },
+                "ref_sam_segmentation": {
+                    "validation_status": "VALIDATED",
+                    "target": "reference",
+                    "objects": [{"label": "player", "box": [0.2, 0.2, 0.8, 0.8]}],
+                },
+            }
+        ]
+
+        mock_sam = MagicMock()
+        with patch("app.providers.factory.get_segmentation_provider", return_value=mock_sam):
+            grounded = ground_candidate_frames_with_sam(pairs, max_sam_calls=2)
+
+        # SAM provider must never be called because valid results exist
+        self.assertEqual(mock_sam.segment_frame.call_count, 0)
+        self.assertEqual(grounded[0]["sam_segmentation"]["target"], "suspect")
+        self.assertEqual(grounded[0]["ref_sam_segmentation"]["target"], "reference")
+
+    # 14. Report Generation Consumes Persisted SAM Without Provider Invocation
+    def test_detailed_report_consumes_persisted_sam_read_only(self):
+        from app.detailed_report import build_evidence_bundle
+
+        sample_incident = {
+            "incident_id": "inc-read-only-sam",
+            "submitted_asset_id": "asset-test",
+            "suspect_filename": "test.mp4",
+            "frame_matches": [
+                {
+                    "evidence_id": "ev-01",
+                    "submitted_frame": {"frame_index": 0, "timestamp_sec": 1.0, "filename": "f0.jpg"},
+                    "best_match": {
+                        "source_asset_id": "vault-01",
+                        "source_filename": "ref0.jpg",
+                        "source_timestamp_sec": 1.0,
+                        "sam_segmentation": {
+                            "validation_status": "VALIDATED",
+                            "target": "suspect",
+                            "objects": [{"label": "suspect_player", "box": [0.1, 0.1, 0.4, 0.4]}],
+                        },
+                        "ref_sam_segmentation": {
+                            "validation_status": "VALIDATED",
+                            "target": "reference",
+                            "objects": [{"label": "reference_player", "box": [0.2, 0.2, 0.5, 0.5]}],
+                        },
+                    },
+                }
+            ],
+        }
+
+        # Ensure that if SAM provider is accessed, an error would be raised
+        with patch("app.detailed_report.get_incident_by_id", return_value=sample_incident):
+            with patch("app.providers.factory.get_segmentation_provider", side_effect=RuntimeError("SAM invoked!")):
+                bundle = build_evidence_bundle("inc-read-only-sam")
+
+        corrs = bundle.get("frame_correlations", [])
+        self.assertEqual(len(corrs), 1)
+        self.assertIsNotNone(corrs[0].get("sam_segmentation"))
+        self.assertIsNotNone(corrs[0].get("ref_sam_segmentation"))
+        self.assertEqual(corrs[0]["sam_segmentation"]["target"], "suspect")
+        self.assertEqual(corrs[0]["ref_sam_segmentation"]["target"], "reference")
+
 
 if __name__ == "__main__":
     unittest.main()

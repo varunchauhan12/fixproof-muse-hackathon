@@ -21,6 +21,8 @@ import {
   getVaultStatus,
   getRegisteredAssets,
   getIncidentsList,
+  getClientSessionId,
+  setClientSessionId,
 } from "@/lib/api";
 import { Home } from "lucide-react";
 
@@ -98,6 +100,9 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   const [selectedIncidentForInspection, setSelectedIncidentForInspection] =
     useState<MatchAnalysisResult | null>(null);
 
+  // Active visitor session tracking
+  const [currentSessionId, setCurrentSessionId] = useState<string>("");
+
   const loadBackendState = useCallback(async () => {
     setRefreshing(true);
     setIncidentsError(null);
@@ -154,6 +159,32 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
     loadBackendState();
   }, [loadBackendState]);
 
+  // Synchronize active session ID across window lifecycle
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentSessionId(getClientSessionId());
+
+      const handleSessionChange = (e: any) => {
+        const nextId = e.detail || getClientSessionId();
+        setCurrentSessionId(nextId);
+        setSelectedIncidentForInspection(null);
+        loadBackendState();
+      };
+
+      window.addEventListener("fixproof_session_changed", handleSessionChange);
+      return () => {
+        window.removeEventListener("fixproof_session_changed", handleSessionChange);
+      };
+    }
+  }, [loadBackendState]);
+
+  const handleSwitchSession = useCallback((newSessionId: string) => {
+    setClientSessionId(newSessionId);
+    setCurrentSessionId(newSessionId);
+    setSelectedIncidentForInspection(null);
+    loadBackendState();
+  }, [loadBackendState]);
+
   const [nemotronPreselectedIncident, setNemotronPreselectedIncident] =
     useState<MatchAnalysisResult | null>(null);
   const [nemotronPreselectedDocType, setNemotronPreselectedDocType] = useState<
@@ -181,8 +212,12 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
       style={{
         background: "#141412",
         transition: "background 0.22s ease",
+        display: "flex",
+        flexDirection: "row",
+        minHeight: "100vh",
+        width: "100%",
       }}
-      className="flex min-h-screen text-[#A29B8F]"
+      className="flex flex-row min-h-screen text-[#A29B8F]"
     >
       {/* ─── Sidebar (Desktop Rail & Mobile Drawer) ─── */}
       <Sidebar
@@ -197,7 +232,16 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
       />
 
       {/* ─── Main Content Area ─── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#141412]">
+      <div
+        style={{
+          flex: "1 1 0%",
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          background: "#141412",
+        }}
+        className="flex-1 flex flex-col min-w-0 bg-[#141412]"
+      >
         {/* Active Node Sub-header */}
         <div
           style={{
@@ -252,6 +296,8 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
           vaultSize={vaultStatus?.vault_size ?? 0}
           dbMode={vaultStatus?.db_mode}
           isCloud={vaultStatus?.is_cloud}
+          currentSessionId={currentSessionId}
+          onSwitchSession={handleSwitchSession}
           onRefresh={loadBackendState}
           refreshing={refreshing}
           onToggleMobileMenu={() => setMobileMenuOpen(true)}

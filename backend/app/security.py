@@ -20,6 +20,21 @@ def cors_origins():
     return origins
 
 
+def is_demo_mode() -> bool:
+    """
+    Returns True if running in local hackathon / single-user demo mode.
+    Explicitly configured via FIXPROOF_DEMO_MODE=true.
+    In demo mode, unified incident listing returns all investigations across sessions,
+    and single-user incident inspection allows opening all local investigations.
+    In production / non-demo mode (FIXPROOF_DEMO_MODE is false/unset or FIXPROOF_ENV=production),
+    multi-tenant session isolation is strictly enforced.
+    """
+    env_name = os.getenv("FIXPROOF_ENV", "").strip().lower()
+    if env_name in ("production", "prod"):
+        return False
+    return os.getenv("FIXPROOF_DEMO_MODE", "false").strip().lower() in ("true", "1", "yes")
+
+
 def safe_diagnostic(value):
     text = str(value)
     for name, secret in os.environ.items():

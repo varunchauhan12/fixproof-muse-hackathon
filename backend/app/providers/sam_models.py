@@ -77,6 +77,8 @@ class SegmentationResult(BaseModel):
     model_id: str = "sam-3.1"
     objects: List[SegmentedObject] = Field(default_factory=list)
     validation_status: str = "VALIDATED"  # VALIDATED | NO_OBJECTS_DETECTED | FAILED_VALIDATION
+    target: Optional[str] = "suspect"  # suspect | reference
+    frame_filename: Optional[str] = None
     raw_grammar: Optional[str] = None
     operational_metadata: Dict[str, Any] = Field(default_factory=dict)
 

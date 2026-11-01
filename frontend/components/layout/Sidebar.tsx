@@ -471,9 +471,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         style={{
           width: collapsed ? 68 : 256,
+          minWidth: collapsed ? 68 : 256,
+          maxWidth: collapsed ? 68 : 256,
           transition: "width 0.22s cubic-bezier(0.2, 0, 0, 1)",
           background: "#111110",
           borderRight: "1px solid #302E29",
+          flexShrink: 0,
         }}
         className="hidden md:flex sticky top-0 h-screen flex-col shrink-0 z-30 select-none text-[#A29B8F]"
       >

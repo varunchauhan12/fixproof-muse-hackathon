@@ -67,6 +67,7 @@ class FrameEvidence(BaseModel):
     similarity_status: Literal["CONFIRMED_MATCH", "SUSPECT_MATCH", "NO_MATCH", "UNVERIFIED"] = "UNVERIFIED"
     vision_verification: Optional[Dict[str, Any]] = None
     sam_segmentation: Optional[Dict[str, Any]] = None
+    ref_sam_segmentation: Optional[Dict[str, Any]] = None
     raw_details: Optional[Dict[str, Any]] = None
 
 
@@ -243,6 +244,7 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
                 vis_score = float(best["confidence_score"])
             vision_ver = best.get("vision_verification")
             sam_seg = best.get("sam_segmentation") or item.get("sam_segmentation")
+            ref_sam_seg = best.get("ref_sam_segmentation") or item.get("ref_sam_segmentation")
                 
             evidences.append(
                 FrameEvidence(
@@ -261,6 +263,7 @@ def build_frame_evidence_from_matches(frame_matches: List[Dict[str, Any]]) -> Li
                     similarity_status=status,
                     vision_verification=vision_ver,
                     sam_segmentation=sam_seg,
+                    ref_sam_segmentation=ref_sam_seg,
                     raw_details={"vector_id": best.get("vector_id")},
                 )
             )

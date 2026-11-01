@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.db import get_db_config, default_db_manager
+from app.security import is_demo_mode
 
 logger = logging.getLogger(__name__)
 
@@ -383,8 +384,10 @@ def delete_asset_record(asset_id: str, vault: Any) -> bool:
 
 def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Loads recorded threat scan incidents from local JSON or Supabase PostgreSQL."""
+    demo = is_demo_mode()
+
     if is_cloud_mode():
-        if session_id:
+        if not demo and session_id:
             rows = default_db_manager.fetch_all(
                 """
                 SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
@@ -395,11 +398,12 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                 FROM incidents
                 WHERE (session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')
                 ORDER BY scanned_at DESC
-                LIMIT 100;
+                LIMIT 200;
                 """,
                 (session_id,),
             )
         else:
+            # Unified listing: fetch all incidents across all sessions for local hackathon demo
             rows = default_db_manager.fetch_all(
                 """
                 SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
@@ -408,9 +412,8 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
                        matched_asset_ids, cv_evidence_dossier, scanned_at,
                        score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
                 FROM incidents
-                WHERE (session_id IS NULL OR session_id = 'demo-showcase')
                 ORDER BY scanned_at DESC
-                LIMIT 100;
+                LIMIT 200;
                 """
             )
         incidents = []
@@ -477,22 +480,77 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
         return incidents
 
     # Local mode: load from incidents.json
-    if not INCIDENTS_FILE.exists():
-        return []
     try:
-        with open(INCIDENTS_FILE, "r", encoding="utf-8") as f:
-            all_local = json.load(f)
-            if session_id:
-                return [
-                    inc for inc in all_local
-                    if inc.get("session_id") == session_id or not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
-                ]
+        all_local = _load_all_local_incidents()
+        if not demo and session_id:
             return [
                 inc for inc in all_local
-                if not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
+                if inc.get("session_id") == session_id or not inc.get("session_id") or inc.get("session_id") == "demo-showcase"
             ]
+        # Unified local listing: return all local incidents sorted by scanned_at DESC
+        return sorted(
+            all_local,
+            key=lambda x: str(x.get("scanned_at", "")),
+            reverse=True,
+        )
     except Exception as e:
         logger.error(f"[Registry] Failed to read {INCIDENTS_FILE}: {e}")
+        return []
+
+
+def list_active_sessions() -> List[Dict[str, Any]]:
+    """Discovers sessions with existing incidents for authorized dashboard switching."""
+    if is_cloud_mode():
+        try:
+            rows = default_db_manager.fetch_all(
+                """
+                SELECT session_id,
+                       COUNT(*) AS incident_count,
+                       MAX(scanned_at) AS latest_activity
+                FROM incidents
+                WHERE session_id IS NOT NULL AND session_id != ''
+                GROUP BY session_id
+                ORDER BY latest_activity DESC
+                LIMIT 50;
+                """
+            )
+            sessions = []
+            for r in rows:
+                sid = r.get("session_id")
+                lat = r.get("latest_activity")
+                sessions.append({
+                    "session_id": sid,
+                    "incident_count": int(r.get("incident_count", 0)),
+                    "latest_activity": lat.isoformat() if hasattr(lat, "isoformat") else str(lat or ""),
+                })
+            return sessions
+        except Exception as e:
+            logger.error(f"[Registry] Failed to query active sessions: {e}")
+            return []
+
+    # Local JSON mode
+    try:
+        incidents = _load_all_local_incidents()
+        session_map: Dict[str, Dict[str, Any]] = {}
+        for inc in incidents:
+            sid = inc.get("session_id")
+            if not sid:
+                continue
+            scanned = inc.get("scanned_at") or ""
+            if sid not in session_map:
+                session_map[sid] = {
+                    "session_id": sid,
+                    "incident_count": 0,
+                    "latest_activity": scanned,
+                }
+            session_map[sid]["incident_count"] += 1
+            if scanned > session_map[sid]["latest_activity"]:
+                session_map[sid]["latest_activity"] = scanned
+        result = list(session_map.values())
+        result.sort(key=lambda s: s.get("latest_activity", ""), reverse=True)
+        return result
+    except Exception as e:
+        logger.error(f"[Registry] Failed to list local active sessions: {e}")
         return []
 
 
@@ -616,9 +674,14 @@ def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = Non
         logger.info(f"[Registry] Saved incident {iid} ({inv_type}) to Supabase PostgreSQL.")
         return
 
-    # Local mode: append to incidents.json
+    # Local mode: update if exists, otherwise prepend to incidents.json
     incidents = _load_all_local_incidents()
-    incidents.insert(0, incident_data)
+    target_id = incident_data.get("incident_id")
+    existing_idx = next((i for i, inc in enumerate(incidents) if inc.get("incident_id") == target_id), None)
+    if existing_idx is not None:
+        incidents[existing_idx] = incident_data
+    else:
+        incidents.insert(0, incident_data)
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=INCIDENTS_FILE.parent, delete=False) as f:
             json.dump(incidents, f, indent=2)

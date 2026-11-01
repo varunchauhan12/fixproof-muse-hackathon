@@ -38,6 +38,7 @@ import {
   FrameMatchDetail,
   AssetRecord,
   PackageVerificationResult,
+  DetailedReportRecord,
 } from "@/lib/types";
 import {
   API_BASE,
@@ -46,6 +47,8 @@ import {
   verifyEvidencePackage,
   getAssetVideoUrl,
   getAssetFrameUrl,
+  getDetailedReportsForIncident,
+  getDetailedReport,
   formatDuration,
   getClientSessionId,
   setClientSessionId,
@@ -105,10 +108,60 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [sessionInput, setSessionInput] = useState<string>("");
   const [sessionCopied, setSessionCopied] = useState<boolean>(false);
   const [dossierMode, setDossierMode] = useState<"FORENSIC_EXPERIENCE" | "FRAME_SYNC">("FORENSIC_EXPERIENCE");
+  const [activeDetailedReport, setActiveDetailedReport] = useState<DetailedReportRecord | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const incId = selectedIncident?.incident_id;
+    if (!incId) {
+      setActiveDetailedReport(null);
+      return;
+    }
+
+    getDetailedReportsForIncident(incId)
+      .then(async (list) => {
+        if (isCancelled) return;
+        if (list && list.length > 0 && list[0].report_id) {
+          try {
+            const report = await getDetailedReport(list[0].report_id);
+            if (!isCancelled) {
+              setActiveDetailedReport(report);
+            }
+          } catch {
+            if (!isCancelled) {
+              setActiveDetailedReport(null);
+            }
+          }
+        } else {
+          setActiveDetailedReport(null);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setActiveDetailedReport(null);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedIncident?.incident_id]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setActiveSessionId(getClientSessionId());
+
+      const handleSessionChange = (e: any) => {
+        const nextId = e.detail || getClientSessionId();
+        setActiveSessionId(nextId);
+        setSelectedIncident(null);
+        setSelectedFrameMatch(null);
+      };
+
+      window.addEventListener("fixproof_session_changed", handleSessionChange);
+      return () => {
+        window.removeEventListener("fixproof_session_changed", handleSessionChange);
+      };
     }
   }, []);
 
@@ -117,7 +170,22 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       setIncidents(propIncidents);
       setLoading(false);
       if ((!selectedIncident || !propIncidents.some(i => i.incident_id === selectedIncident.incident_id)) && propIncidents.length > 0) {
-        setSelectedIncident(propIncidents[0]);
+        let picked = propIncidents[0];
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const targetId = params.get("incident_id");
+          const found = targetId ? propIncidents.find(i => i.incident_id === targetId) : null;
+          if (found) {
+            picked = found;
+          } else {
+            // Prefer incident with verified SAM grounding over ungrounded ones
+            const grounded = propIncidents.find(i =>
+              (i.frame_matches || []).some(m => m.sam_segmentation || m.ref_sam_segmentation || m.best_match?.sam_segmentation || m.best_match?.ref_sam_segmentation)
+            );
+            if (grounded) picked = grounded;
+          }
+        }
+        setSelectedIncident(picked);
       }
     }
   }, [propIncidents]);
@@ -138,6 +206,8 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     if (!trimmed) return;
     setClientSessionId(trimmed);
     setActiveSessionId(trimmed);
+    setSelectedIncident(null);
+    setSelectedFrameMatch(null);
     if (onRefresh) {
       onRefresh();
     }
@@ -476,33 +546,6 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {activeSessionId && (
-            <div
-              style={{
-                background: "#1a1918",
-                border: "1px solid rgba(238, 231, 219, 0.12)",
-                color: "#aba497",
-              }}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono"
-              title={`Active Visitor Session: ${activeSessionId}`}
-            >
-              <Database size={11} className="text-teal-400" />
-              <span>Session:</span>
-              <span className="text-[#f4efe6]">{activeSessionId.length > 16 ? `${activeSessionId.slice(0, 10)}...${activeSessionId.slice(-4)}` : activeSessionId}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(activeSessionId);
-                  setSessionCopied(true);
-                  setTimeout(() => setSessionCopied(false), 2000);
-                }}
-                className="hover:text-[#f4efe6] transition-colors cursor-pointer ml-1"
-                title="Copy Session ID"
-              >
-                {sessionCopied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-              </button>
-            </div>
-          )}
           <button
             onClick={fetchIncidents}
             disabled={loading}
@@ -530,41 +573,10 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
           className="text-center py-12 px-4 max-w-xl mx-auto"
         >
           <ShieldAlert size={36} className="mx-auto text-[#736d62] mb-3" />
-          <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No Recorded Threat Incidents in Active Session</h3>
-          <p className="text-[12px] text-[#aba497] mt-2 mb-4 leading-relaxed">
-            Database records are isolated by visitor session ownership. Your active session (
-            <span className="font-mono text-[#ded7cb]">
-              {activeSessionId ? (activeSessionId.length > 20 ? `${activeSessionId.slice(0, 12)}...` : activeSessionId) : "unknown"}
-            </span>
-            ) currently has 0 recorded incidents.
+          <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">No Recorded Threat Incidents</h3>
+          <p className="text-[12px] text-[#aba497] mt-2 mb-6 leading-relaxed">
+            No copyright violations or threat investigations recorded yet. Ingest reference footage into the Asset Vault, then run a Threat Hunter scan against suspicious media.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-6 max-w-md mx-auto">
-            <input
-              type="text"
-              placeholder="Switch to session (e.g. sess_...)"
-              value={sessionInput}
-              onChange={(e) => setSessionInput(e.target.value)}
-              style={{
-                background: "#1e1d1b",
-                border: "1px solid rgba(238, 231, 219, 0.12)",
-                color: "#f4efe6",
-              }}
-              className="w-full sm:w-64 px-3 py-1.5 rounded-lg text-[11px] font-mono placeholder-[#736d62] focus:outline-none focus:border-[#48c7b5]"
-            />
-            <button
-              type="button"
-              onClick={() => handleSwitchSession(sessionInput)}
-              disabled={!sessionInput.trim() || loading}
-              style={{
-                background: "#242220",
-                border: "1px solid rgba(238, 231, 219, 0.15)",
-                color: "#ded7cb",
-              }}
-              className="w-full sm:w-auto px-3 py-1.5 rounded-lg text-[11px] font-semibold hover:bg-[#2e2b28] hover:text-[#f4efe6] transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              Switch Session
-            </button>
-          </div>
           <button
             onClick={onNavigateToHunter}
             style={{
@@ -1020,8 +1032,13 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
             {dossierMode === "FORENSIC_EXPERIENCE" ? (
               <ForensicEvidenceExperience
                 incident={selectedIncident}
+                detailedReport={activeDetailedReport}
                 onRefreshReport={onRefresh}
                 onNavigateToNemotron={onNavigateToNemotron}
+                onIncidentUpdated={(updated) => {
+                  setSelectedIncident(updated);
+                  onRefresh?.();
+                }}
               />
             ) : (
               <>

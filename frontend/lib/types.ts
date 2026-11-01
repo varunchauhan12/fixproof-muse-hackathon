@@ -75,12 +75,14 @@ export interface MatchCandidate {
   } | null;
   vision_verification?: VisionVerificationResult | null;
   sam_segmentation?: SAMSegmentationResult | null;
+  ref_sam_segmentation?: SAMSegmentationResult | null;
   evidence_id?: string;
 }
 
 export interface FrameMatchDetail {
   evidence_id?: string;
   sam_segmentation?: SAMSegmentationResult | null;
+  ref_sam_segmentation?: SAMSegmentationResult | null;
   submitted_frame: {
     frame_index: number;
     timestamp_sec: number;
@@ -432,6 +434,7 @@ export interface FrameCorrelationEvidence {
     reasoning: string;
   };
   sam_segmentation?: SAMSegmentationResult | null;
+  ref_sam_segmentation?: SAMSegmentationResult | null;
   suspect_image_path?: string | null;
   ref_image_path?: string | null;
 }
@@ -508,6 +511,12 @@ export interface EmailDetailedReportPayload {
   incident_id: string;
   report_id: string;
   recipient_email: string;
+}
+
+export interface SessionSummary {
+  session_id: string;
+  incident_count: number;
+  latest_activity: string;
 }
 
 

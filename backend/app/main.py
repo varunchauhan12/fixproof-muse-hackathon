@@ -12,11 +12,11 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, RedirectResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.security import RequestProtectionMiddleware, cors_origins
+from app.security import RequestProtectionMiddleware, cors_origins, is_demo_mode
 import logging
 from pydantic import BaseModel, Field
 
@@ -86,6 +86,7 @@ from app.registry import (
     get_nemotron_report_by_id,
     get_nemotron_reports_for_incident,
     get_nemotron_report_history,
+    list_active_sessions,
     is_cloud_mode,
 )
 from app.evidence_models import (
@@ -288,6 +289,7 @@ class DiagnoseRequest(BaseModel):
 
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "ok", "service": "FixProof API"}
 
@@ -927,6 +929,12 @@ def get_suspect_thumbnail_endpoint(incident_id: str):
     raise HTTPException(status_code=404, detail="Suspect thumbnail image not found.")
 
 
+@app.get("/api/sessions")
+def list_sessions_endpoint():
+    """Returns available visitor sessions with incident counts and latest activity for dashboard switching."""
+    return list_active_sessions()
+
+
 @app.get("/api/incidents")
 def get_incidents_list(x_client_session_id: Optional[str] = Header(None)):
     """Returns recorded threat scan incidents filtered by visitor session."""
@@ -945,12 +953,14 @@ def get_single_incident(
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found.")
     inc_sess = inc.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied to incident {incident_id}: "
-            "session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied to incident {incident_id}: "
+                "session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
     return inc
 
 
@@ -992,12 +1002,13 @@ def investigate_threat_incident(
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied to incident {incident_id}: "
-            "session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied to incident {incident_id}: "
+                "session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     # Check for existing valid report if not forcing refresh
     if not force_refresh:
@@ -1020,20 +1031,10 @@ def investigate_threat_incident(
         try:
             from app.temporal_selector import (
                 select_investigation_keyframes,
-                ground_candidate_frames_with_sam,
                 build_multimodal_frame_items,
             )
             selected_pairs = select_investigation_keyframes(incident, max_pairs=3)
-            grounded_pairs = ground_candidate_frames_with_sam(selected_pairs, prompt="broadcast subject")
-            frame_images = build_multimodal_frame_items(grounded_pairs, incident_id=incident_id, max_items=6)
-            for p in grounded_pairs:
-                sam_data = p.get("sam_segmentation")
-                if sam_data:
-                    ev_id = p.get("evidence_id")
-                    for fe in frames_ev:
-                        if fe.evidence_id == ev_id:
-                            fe.sam_segmentation = sam_data
-                            break
+            frame_images = build_multimodal_frame_items(selected_pairs, incident_id=incident_id, max_items=6)
         except Exception as sel_err:
             logger.warning(f"[Investigation] Temporal keyframe selection encountered non-fatal error: {sel_err}")
 
@@ -1067,8 +1068,9 @@ def get_incident_latest_report(
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
     reports = get_nemotron_reports_for_incident(incident_id)
     if not reports:
         raise HTTPException(status_code=404, detail="No investigation report found for this incident.")
@@ -1092,8 +1094,9 @@ def get_incident_reports_history(
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
         return get_nemotron_report_history(incident_id)
@@ -1131,12 +1134,13 @@ def export_incident_evidence_package_endpoint(
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied to incident {incident_id}: "
-            "session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied to incident {incident_id}: "
+                "session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     reports = get_nemotron_reports_for_incident(incident_id)
 
@@ -1364,11 +1368,12 @@ def draft_nemotron_document_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied drafting for incident {req.incident_id}: session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied drafting for incident {req.incident_id}: session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     doc_type = (req.document_type or "").upper()
     if doc_type not in ("COPYRIGHT_NOTICE", "REVENUE_SHARE_OFFER"):
@@ -1425,11 +1430,12 @@ def send_nemotron_email_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied sending email for incident {req.incident_id}: session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied sending email for incident {req.incident_id}: session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
         result = send_nemotron_document_email(
@@ -1496,11 +1502,12 @@ def generate_detailed_report_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        logger.warning(
-            f"[Security] Access denied generating detailed report for incident {req.incident_id}: session mismatch"
-        )
-        raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            logger.warning(
+                f"[Security] Access denied generating detailed report for incident {req.incident_id}: session mismatch"
+            )
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     recipient = req.recipient_email.strip() if req.recipient_email else None
     if recipient:
@@ -1538,12 +1545,12 @@ def generate_detailed_report_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to generate detailed report: {e}")
 
 
-@app.get("/api/nemotron/detailed-report/{report_id}/pdf")
-def get_detailed_report_pdf_endpoint(
+@app.get("/api/nemotron/detailed-report/{report_id}")
+def get_detailed_report_endpoint(
     report_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
-    """Downloads or streams the pre-generated binary PDF for a detailed forensic report."""
+    """Retrieves the full detailed forensic report JSON by report_id."""
     if not SAFE_ID_REGEX.match(report_id):
         raise HTTPException(status_code=400, detail="Invalid report ID format.")
 
@@ -1556,10 +1563,82 @@ def get_detailed_report_pdf_endpoint(
         incident = get_incident_by_id(incident_id)
         if incident:
             inc_sess = incident.get("session_id")
-            if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-                raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
+            if not is_demo_mode():
+                if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+                    raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
 
-    pdf_bytes = get_detailed_report_pdf_bytes(report_id)
+    return record
+
+
+@app.get("/api/nemotron/detailed-report/{report_id}/pdf")
+def get_detailed_report_pdf_endpoint(
+    report_id: str,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """Downloads or streams the pre-generated binary PDF for a detailed forensic report."""
+    if not SAFE_ID_REGEX.match(report_id):
+        raise HTTPException(status_code=400, detail="Invalid report ID format.")
+
+    record = get_detailed_report_record(report_id)
+    if not record:
+        # Check if report_id is directly an incident_id
+        incident = get_incident_by_id(report_id)
+        if incident:
+            inc_sess = incident.get("session_id")
+            if not is_demo_mode():
+                if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+                    raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
+
+            existing_reports = list_detailed_reports_for_incident(report_id)
+            bundle = build_evidence_bundle(report_id)
+            if existing_reports:
+                latest_id = existing_reports[0]["report_id"]
+                latest_rec = get_detailed_report_record(latest_id) or {}
+                pdf_bytes = generate_detailed_report_pdf(latest_rec, bundle)
+                save_detailed_report(report_id, latest_rec, pdf_bytes)
+                return Response(
+                    content=pdf_bytes,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
+                    },
+                )
+
+            # Generate dynamically from evidence bundle
+            report_data = synthesize_detailed_report(bundle)
+            pdf_bytes = generate_detailed_report_pdf(report_data, bundle)
+            save_detailed_report(report_id, report_data, pdf_bytes)
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
+                },
+            )
+        raise HTTPException(status_code=404, detail=f"Detailed report {report_id} not found.")
+
+    incident_id = record.get("incident_id")
+    if incident_id:
+        incident = get_incident_by_id(incident_id)
+        if incident:
+            inc_sess = incident.get("session_id")
+            if not is_demo_mode():
+                if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+                    raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
+
+    # Re-render with latest evidence bundle to guarantee high-resolution SAM overlays
+    pdf_bytes = None
+    try:
+        if incident_id:
+            bundle = build_evidence_bundle(incident_id)
+            pdf_bytes = generate_detailed_report_pdf(record, bundle)
+            save_detailed_report(incident_id, record, pdf_bytes)
+    except Exception as regen_err:
+        logger.warning(f"[PDF] Dynamic rendering failed: {regen_err}")
+
+    if not pdf_bytes:
+        pdf_bytes = get_detailed_report_pdf_bytes(report_id)
+
     if not pdf_bytes:
         raise HTTPException(status_code=404, detail="PDF binary file not found on server.")
 
@@ -1586,8 +1665,9 @@ def list_detailed_reports_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        raise HTTPException(status_code=403, detail="Access denied.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied.")
 
     return list_detailed_reports_for_incident(incident_id)
 
@@ -1609,8 +1689,9 @@ def email_detailed_report_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {req.incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        raise HTTPException(status_code=403, detail="Access denied.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied.")
 
     record = get_detailed_report_record(req.report_id)
     if not record or record.get("incident_id") != req.incident_id:
@@ -1658,8 +1739,9 @@ def download_summary_endpoint(
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
 
     inc_sess = incident.get("session_id")
-    if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-        raise HTTPException(status_code=403, detail="Access denied.")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied.")
 
     try:
         filename, content = generate_short_summary_download(incident_id)
@@ -1714,8 +1796,9 @@ def sam_segment_endpoint(
         incident = get_incident_by_id(req.incident_id)
         if incident:
             inc_sess = incident.get("session_id")
-            if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-                raise HTTPException(status_code=403, detail="Access denied.")
+            if not is_demo_mode():
+                if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+                    raise HTTPException(status_code=403, detail="Access denied.")
             matches = incident.get("frame_matches") or []
             target_match = None
             if req.evidence_id:
@@ -1752,3 +1835,163 @@ def sam_segment_endpoint(
         model_override=req.model_override,
     )
     return result.model_dump(mode="json")
+
+
+class SAMInvestigationPayload(BaseModel):
+    prompt: Optional[str] = "broadcast subject"
+    force_refresh: Optional[bool] = False
+
+
+@app.post("/api/incidents/{incident_id}/sam-investigation")
+@app.post("/api/incidents/{incident_id}/sam-grounding")
+def run_incident_sam_investigation_endpoint(
+    incident_id: str,
+    payload: Optional[SAMInvestigationPayload] = None,
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Manually triggers specialist SAM 3.1 visual grounding for an existing incident's
+    top candidate frame pairs (up to 3 pairs / 6 frames).
+    Updates and persists the incident with validated bounding boxes without corrupting existing CV/Muse evidence.
+    """
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
+    matches = incident.get("frame_matches") or []
+    if not matches:
+        raise HTTPException(status_code=400, detail="Incident has no candidate frame matches to investigate.")
+
+    # Determine effective prompt
+    raw_prompt = (payload.prompt.strip() if payload and payload.prompt else "")
+    if raw_prompt and raw_prompt != "broadcast subject":
+        prompt = raw_prompt
+    else:
+        prior_prompt = None
+        for fm in matches:
+            s_sam = fm.get("sam_segmentation") or (fm.get("best_match") or {}).get("sam_segmentation")
+            if s_sam and isinstance(s_sam, dict) and s_sam.get("prompt"):
+                prior_prompt = s_sam.get("prompt")
+                break
+        prompt = prior_prompt or "football"
+
+    force = bool(payload.force_refresh) if payload else False
+
+    from app.temporal_selector import run_incident_sam_investigation
+    result = run_incident_sam_investigation(
+        incident=incident,
+        prompt=prompt,
+        max_pairs=3,
+        force=force,
+    )
+
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error") or "SAM investigation failed.")
+
+    return result
+
+
+@app.get("/api/incidents/{incident_id}/frames/{pair_index}/annotated")
+def stream_annotated_incident_frame(
+    incident_id: str,
+    pair_index: int,
+    target: str = Query("suspect", pattern="^(suspect|reference)$"),
+    x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
+):
+    """
+    Streams a high-resolution annotated JPEG frame with SAM 3.1 bounding boxes
+    and label pills baked in via Pillow. If SAM has not run or found no objects,
+    serves the original unannotated frame image.
+    """
+    if not SAFE_ID_REGEX.match(incident_id):
+        raise HTTPException(status_code=400, detail="Invalid incident ID format.")
+
+    incident = get_incident_by_id(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found.")
+
+    inc_sess = incident.get("session_id")
+    if not is_demo_mode():
+        if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
+
+    matches = incident.get("frame_matches") or []
+    if pair_index < 0 or pair_index >= len(matches):
+        raise HTTPException(status_code=404, detail=f"Pair index {pair_index} out of range (0..{len(matches)-1}).")
+
+    match = matches[pair_index]
+    best = match.get("best_match") or {}
+
+    from app.temporal_selector import (
+        load_frame_image_bytes,
+        render_annotated_frame_bytes,
+    )
+
+    raw_bytes = None
+    sam_data = None
+
+    if target == "suspect":
+        sub = match.get("submitted_frame") or {}
+        sub_aid = sub.get("asset_id") or incident.get("submitted_asset_id")
+        sub_fn = sub.get("filename") or f"frame_{int(sub.get('timestamp_sec', 0)):04d}s.jpg"
+        raw_bytes, _ = load_frame_image_bytes(
+            sub.get("frame_path"),
+            asset_id=sub_aid,
+            filename=sub_fn,
+        )
+        if not raw_bytes:
+            thumb_path_str = incident.get("thumbnail_storage_path") or incident.get("suspect_thumbnail_preview_url")
+            if thumb_path_str:
+                raw_bytes, _ = load_frame_image_bytes(thumb_path_str, filename=Path(thumb_path_str).name)
+
+        sam_data = match.get("sam_segmentation") or best.get("sam_segmentation")
+        if sam_data and sam_data.get("target") == "reference":
+            sam_data = None
+    else:
+        # Reference frame
+        ref_aid = best.get("source_asset_id")
+        ref_fn = best.get("source_filename") or f"frame_{int(best.get('source_timestamp_sec', 0)):04d}s.jpg"
+        raw_bytes, _ = load_frame_image_bytes(
+            best.get("source_frame_path"),
+            asset_id=ref_aid,
+            filename=ref_fn,
+        )
+        if not raw_bytes:
+            from app.matcher import load_reference_frame_image
+            ref_pil = load_reference_frame_image(best)
+            if ref_pil:
+                try:
+                    buf = io.BytesIO()
+                    ref_pil.convert("RGB").save(buf, format="JPEG", quality=90)
+                    raw_bytes = buf.getvalue()
+                except Exception:
+                    pass
+
+        sam_data = match.get("ref_sam_segmentation") or best.get("ref_sam_segmentation")
+        if not sam_data:
+            s_sam = match.get("sam_segmentation") or best.get("sam_segmentation")
+            if s_sam and s_sam.get("target") == "reference":
+                sam_data = s_sam
+
+    if not raw_bytes:
+        raise HTTPException(status_code=404, detail="Underlying frame image bytes not found in storage.")
+
+    annotated_bytes = render_annotated_frame_bytes(raw_bytes, sam_data)
+
+    return Response(
+        content=annotated_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )

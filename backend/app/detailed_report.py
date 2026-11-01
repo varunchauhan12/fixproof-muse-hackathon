@@ -26,7 +26,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
-from PIL import Image as PILImage, ImageDraw
+from PIL import Image as PILImage, ImageDraw, ImageFont
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -209,6 +209,8 @@ def _load_proportional_image(
     Loads and bounds an image to fit max 3.2in x 1.7in dimensions without aspect distortion.
     If sam_data contains bounding boxes, draws verified bounding boxes onto an in-memory
     copy of the image, keeping the original asset on disk unaltered.
+    Scales strokes, outlines, and font sizes proportionally to the original image dimensions
+    so bounding boxes and detection labels remain crisply visible at standard PDF viewing zoom.
     """
     if path_str and Path(path_str).exists() and Path(path_str).is_file():
         try:
@@ -229,6 +231,35 @@ def _load_proportional_image(
                     if boxes:
                         annotated = im.convert("RGB").copy()
                         draw = ImageDraw.Draw(annotated)
+                        
+                        # Calculate proportional stroke width based on source image resolution
+                        stroke_px = max(4, int(round(im_w * 0.007)))
+                        font_size = max(14, int(round(im_w * 0.016)))
+                        
+                        # Load high-contrast TrueType font if available, fallback to Pillow default
+                        font = None
+                        font_candidates = [
+                            "/System/Library/Fonts/Helvetica.ttc",
+                            "/System/Library/Fonts/SFNS.ttf",
+                            "/System/Library/Fonts/Supplemental/Arial.ttf",
+                            "/Library/Fonts/Arial.ttf",
+                        ]
+                        for fc in font_candidates:
+                            if os.path.exists(fc):
+                                try:
+                                    font = ImageFont.truetype(fc, font_size)
+                                    break
+                                except Exception:
+                                    pass
+                        if not font:
+                            try:
+                                font = ImageFont.load_default(size=font_size)
+                            except Exception:
+                                font = ImageFont.load_default()
+
+                        teal_color = (45, 212, 191)       # Vibrant teal (#2dd4bf)
+                        dark_bg = (15, 23, 42)             # Deep slate-900 background
+
                         for b in boxes:
                             px1 = max(0, min(im_w - 1, int(round(b["nx1"] * im_w))))
                             py1 = max(0, min(im_h - 1, int(round(b["ny1"] * im_h))))
@@ -237,21 +268,59 @@ def _load_proportional_image(
                             if px2 <= px1 or py2 <= py1:
                                 continue
 
-                            teal_color = (13, 148, 136)
-                            draw.rectangle([px1, py1, px2, py2], outline=teal_color, width=3)
+                            # 1. Outer dark contour for high contrast over bright/light backgrounds
+                            draw.rectangle(
+                                [px1 - 1, py1 - 1, px2 + 1, py2 + 1],
+                                outline=(0, 0, 0),
+                                width=stroke_px + 2,
+                            )
+                            # 2. Vibrant inner teal border
+                            draw.rectangle(
+                                [px1, py1, px2, py2],
+                                outline=teal_color,
+                                width=stroke_px,
+                            )
 
-                            conf_suffix = f" {int(round(b['confidence'] * 100))}%" if b.get("confidence") is not None else ""
+                            # 3. Text label pill
+                            conf_suffix = (
+                                f" {int(round(b['confidence'] * 100))}%"
+                                if b.get("confidence") is not None
+                                else ""
+                            )
                             tag_text = f"SAM 3.1: {b['label']}{conf_suffix}"
-                            pill_h = 12
-                            pill_w = max(45, len(tag_text) * 6 + 6)
-                            tag_y1 = max(0, py1 - pill_h - 2) if py1 >= pill_h + 2 else py1
-                            tag_y2 = tag_y1 + pill_h + 2
-                            tag_x2 = min(im_w, px1 + pill_w)
-                            draw.rectangle([px1, tag_y1, tag_x2, tag_y2], fill=teal_color)
-                            draw.text((px1 + 3, tag_y1 + 1), tag_text, fill=(255, 255, 255))
+                            
+                            try:
+                                tbox = draw.textbbox((0, 0), tag_text, font=font)
+                                tw = tbox[2] - tbox[0]
+                                th = tbox[3] - tbox[1]
+                            except Exception:
+                                tw = len(tag_text) * int(font_size * 0.6)
+                                th = font_size
+
+                            pad_x = int(font_size * 0.35)
+                            pad_y = int(font_size * 0.2)
+                            pill_w = tw + pad_x * 2
+                            pill_h = th + pad_y * 2
+
+                            # Position pill above box if room, else inside box
+                            if py1 >= pill_h + 4:
+                                tag_y1 = max(0, py1 - pill_h - 4)
+                            else:
+                                tag_y1 = py1 + 2
+                            tag_y2 = tag_y1 + pill_h
+                            tag_x2 = min(im_w - 1, px1 + pill_w)
+
+                            draw.rectangle([px1, tag_y1, tag_x2, tag_y2], fill=dark_bg)
+                            draw.rectangle([px1, tag_y1, tag_x2, tag_y2], outline=teal_color, width=max(2, stroke_px // 2))
+                            draw.text(
+                                (px1 + pad_x, tag_y1 + pad_y),
+                                tag_text,
+                                font=font,
+                                fill=(255, 255, 255),
+                            )
 
                         buf = io.BytesIO()
-                        annotated.save(buf, format="JPEG", quality=90)
+                        annotated.save(buf, format="JPEG", quality=92)
                         buf.seek(0)
                         return RLImage(buf, width=w, height=h)
 
@@ -336,36 +405,31 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         vis_reasoning = vision_ver.get("reasoning", "Automated neural embedding match; visual correspondence unverified.")
         vis_model = vision_ver.get("model_id") or "not-recorded"
 
-        # Attempt to resolve local frame image files for PDF inclusion
-        suspect_img_path = None
-        ref_img_path = None
+        # Attempt to resolve local frame image files for PDF inclusion using safe deterministic resolver
+        from app.temporal_selector import resolve_frame_path
 
-        # Check suspect frame paths
         sub_aid = incident.get("submitted_asset_id") or incident_id
-        possible_suspect_paths = [
-            storage_root / "suspects" / "frames" / sub_aid / f"frame_{int(suspect_ts):04d}s.jpg",
-            storage_root / "suspects" / "thumbnails" / f"{incident_id}.jpg",
-            storage_root / "suspects" / "thumbnails" / f"{incident_id}_{idx}.jpg",
-            storage_root / "staging" / "frames" / sub_aid / f"frame_{int(suspect_ts):04d}s.jpg",
-        ]
-        for p in possible_suspect_paths:
-            if p.exists() and p.is_file():
-                suspect_img_path = str(p)
-                break
+        suspect_fn = sub.get("filename") or f"frame_{int(suspect_ts):04d}s.jpg"
+        sus_resolved, _ = resolve_frame_path(sub.get("frame_path"), asset_id=sub_aid, filename=suspect_fn)
+        suspect_img_path = str(sus_resolved) if sus_resolved else None
 
-        # Check reference frame paths
-        possible_ref_paths = [
-            storage_root / "frames" / source_aid / f"frame_{int(source_ts):04d}s.jpg",
-            storage_root / "cloud_cache" / "frames" / source_aid / f"frame_{int(source_ts):04d}s.jpg",
-            storage_root / "cloud_cache" / "frames" / source_aid / best.get("source_filename", ""),
-        ]
-        for p in possible_ref_paths:
-            if p.exists() and p.is_file():
-                ref_img_path = str(p)
-                break
+        ref_fn = best.get("source_filename") or f"frame_{int(source_ts):04d}s.jpg"
+        ref_resolved, _ = resolve_frame_path(best.get("source_frame_path"), asset_id=source_aid, filename=ref_fn)
+        ref_img_path = str(ref_resolved) if ref_resolved else None
 
         evidence_id = fm.get("evidence_id") or sub.get("evidence_id") or f"evidence_frame_{int(suspect_ts):04d}s"
-        sam_seg = best.get("sam_segmentation") or fm.get("sam_segmentation") or fm.get("sam_localization")
+        raw_s_sam = best.get("sam_segmentation") or fm.get("sam_segmentation") or fm.get("sam_localization")
+        raw_r_sam = best.get("ref_sam_segmentation") or fm.get("ref_sam_segmentation")
+
+        if raw_s_sam and isinstance(raw_s_sam, dict) and raw_s_sam.get("target") == "reference" and not raw_r_sam:
+            raw_r_sam = raw_s_sam
+            raw_s_sam = None
+        if raw_r_sam and isinstance(raw_r_sam, dict) and raw_r_sam.get("target") == "suspect" and not raw_s_sam:
+            raw_s_sam = raw_r_sam
+            raw_r_sam = None
+
+        sam_seg = raw_s_sam
+        ref_sam_seg = raw_r_sam
 
         frame_correlations.append({
             "correlation_id": f"corr-{idx:03d}",
@@ -386,6 +450,7 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
                 "reasoning": vis_reasoning,
             },
             "sam_segmentation": sam_seg,
+            "ref_sam_segmentation": ref_sam_seg,
             "suspect_image_path": suspect_img_path,
             "ref_image_path": ref_img_path,
         })
@@ -612,7 +677,9 @@ def synthesize_detailed_report(
             "recommended_actions": report_content.get("recommended_actions", []),
             "timeline_intervals": bundle.get("timeline_intervals") or [],
             "sam_segmentations": [
-                fc["sam_segmentation"] for fc in bundle["frame_correlations"] if fc.get("sam_segmentation")
+                s for fc in bundle["frame_correlations"]
+                for s in (fc.get("sam_segmentation"), fc.get("ref_sam_segmentation"))
+                if s
             ],
             "provenance": {
                 "incident_id": bundle["incident_id"],
@@ -1049,10 +1116,22 @@ def generate_detailed_report_pdf(
             )
 
             # SAM segmentation data
-            sam_data = fc.get("sam_segmentation")
-            sam_target = (sam_data.get("target") or "suspect") if isinstance(sam_data, dict) else "suspect"
-            suspect_sam = sam_data if sam_target != "reference" else None
-            ref_sam = sam_data if sam_target == "reference" else fc.get("ref_sam_segmentation")
+            s_cand = fc.get("sam_segmentation")
+            r_cand = fc.get("ref_sam_segmentation")
+            suspect_sam = None
+            ref_sam = None
+
+            if s_cand and isinstance(s_cand, dict):
+                if s_cand.get("target") == "reference":
+                    ref_sam = s_cand
+                else:
+                    suspect_sam = s_cand
+
+            if r_cand and isinstance(r_cand, dict):
+                if r_cand.get("target") == "suspect" and not suspect_sam:
+                    suspect_sam = r_cand
+                else:
+                    ref_sam = r_cand
 
             suspect_has_boxes = bool(suspect_sam and _extract_sam_boxes(suspect_sam))
             ref_has_boxes = bool(ref_sam and _extract_sam_boxes(ref_sam))

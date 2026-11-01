@@ -206,6 +206,8 @@ class MetaSAMProvider(BaseSegmentationProvider):
         asset_id = meta.get("asset_id")
         evidence_id = meta.get("evidence_id")
         frame_idx = meta.get("frame_index")
+        target = meta.get("target", "suspect")
+        frame_filename = meta.get("frame_filename")
         timestamp_sec = meta.get("timestamp_sec")
         if timestamp_sec is not None:
             try:
@@ -223,6 +225,8 @@ class MetaSAMProvider(BaseSegmentationProvider):
                 evidence_id=evidence_id,
                 frame_index=frame_idx,
                 timestamp_sec=timestamp_sec,
+                target=target,
+                frame_filename=frame_filename,
                 prompt=clean_prompt,
                 model_id=model,
                 objects=[],
@@ -230,6 +234,7 @@ class MetaSAMProvider(BaseSegmentationProvider):
                 operational_metadata={
                     "model_id": model,
                     "failure_type": failure_type,
+                    "target": target,
                     "errors": [err_msg],
                     "latency_ms": int((time.perf_counter() - started) * 1000),
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -317,6 +322,8 @@ class MetaSAMProvider(BaseSegmentationProvider):
             evidence_id=evidence_id,
             frame_index=frame_idx,
             timestamp_sec=timestamp_sec,
+            target=target,
+            frame_filename=frame_filename,
             prompt=clean_prompt,
             model_id=model,
             objects=parsed_objects,
@@ -324,6 +331,7 @@ class MetaSAMProvider(BaseSegmentationProvider):
             raw_grammar=raw_grammar,
             operational_metadata={
                 "model_id": model,
+                "target": target,
                 "latency_ms": latency_ms,
                 "token_usage": usage,
                 "objects_detected": len(parsed_objects),

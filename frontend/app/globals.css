@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@source "../components";
+@source "../context";
+@source "../lib";
 
 @theme {
   --font-sans: var(--font-bricolage, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif);

@@ -9,6 +9,8 @@ interface HeaderProps {
   vaultSize: number;
   dbMode?: string;
   isCloud?: boolean;
+  currentSessionId?: string;
+  onSwitchSession?: (sessionId: string) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
   onToggleMobileMenu?: () => void;
@@ -20,6 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
   vaultSize: _vaultSize,
   dbMode: _dbMode,
   isCloud = false,
+  currentSessionId,
+  onSwitchSession,
   onRefresh,
   refreshing = false,
   onToggleMobileMenu,
