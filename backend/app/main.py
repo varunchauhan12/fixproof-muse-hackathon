@@ -24,6 +24,8 @@ load_dotenv()
 logger = logging.getLogger("fixproof.main")
 
 app = FastAPI(title="FixProof API")
+from app.voice_api import router as voice_router
+app.include_router(voice_router)
 app.add_middleware(RequestProtectionMiddleware)
 
 app.add_middleware(

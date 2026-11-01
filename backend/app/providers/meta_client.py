@@ -10,6 +10,7 @@ DEFAULT_BASE_URL = "https://api.meta.ai/v1"
 DEFAULT_REASONING_MODEL = "muse-wonder-1.0"
 DEFAULT_VISION_MODEL = "muse-spark-1.3"
 DEFAULT_SAM_MODEL = "sam-3.1"
+DEFAULT_VOICE_MODEL = "muse-voice-transcribe-1.0"
 DEFAULT_MODEL = "muse-wonder-1.0"
 
 

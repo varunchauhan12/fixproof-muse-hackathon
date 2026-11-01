@@ -25,6 +25,8 @@ def main():
     parser.add_argument("--meta", action="store_true", help="Run mocked Stage A Meta provider checks")
     parser.add_argument("--reasoning", action="store_true", help="Run Stage B reasoning migration checks")
     parser.add_argument("--vision", action="store_true", help="Run mocked Stage C vision migration checks")
+    parser.add_argument("--voice", action="store_true", help="Run isolated voice provider checks")
+    parser.add_argument("--voice-api", action="store_true", help="Run isolated voice upload route checks")
     parser.add_argument("--repair", action="store_true", help="Run isolated real-video and persistence repair checks")
     parser.add_argument("--baseline", action="store_true", help="Test committed HEAD instead of working code")
     args = parser.parse_args()
@@ -54,7 +56,11 @@ def main():
         def deny_network(*_args, **_kwargs):
             raise RuntimeError("External networking disabled for offline tests")
         with patch("dotenv.load_dotenv", return_value=False), patch("socket.socket.connect", side_effect=deny_network):
-            if args.repair:
+            if args.voice_api:
+                suite = unittest.defaultTestLoader.loadTestsFromName("tests.test_voice_api")
+            elif args.voice:
+                suite = unittest.defaultTestLoader.loadTestsFromName("tests.test_voice_provider")
+            elif args.repair:
                 suite = unittest.defaultTestLoader.loadTestsFromName("tests.test_pipeline_repair")
             elif args.vision:
                 suite = unittest.defaultTestLoader.loadTestsFromName("tests.test_meta_vision_migration")

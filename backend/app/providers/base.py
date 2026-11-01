@@ -4,6 +4,33 @@ Base classes for vision verification and forensic reasoning providers in FixProo
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class TranscriptionResult:
+    text: str
+    provider: str
+    model_id: str
+    language: Optional[str] = None
+
+
+class BaseVoiceProvider(ABC):
+    """Recording transcription only; implementations raise safe categorized errors."""
+
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def model_id(self) -> str:
+        pass
+
+    @abstractmethod
+    def transcribe(self, audio_bytes: bytes) -> TranscriptionResult:
+        pass
 
 
 class BaseVisionProvider(ABC):

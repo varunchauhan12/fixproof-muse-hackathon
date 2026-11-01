@@ -11,6 +11,16 @@ from app.providers.base import BaseVisionProvider, BaseReasoningProvider, BaseSe
 from app.providers.nemotron import NemotronVisionProvider, NemotronReasoningProvider
 from app.providers.meta import MetaVisionProvider, MetaReasoningProvider
 from app.providers.sam import MetaSAMProvider
+from app.providers.voice import MetaVoiceProvider
+from app.providers.base import BaseVoiceProvider
+
+
+def get_voice_provider(provider_name: Optional[str] = None) -> BaseVoiceProvider:
+    """Resolve ASR explicitly; no Nemotron voice implementation or fallback."""
+    name = (provider_name or os.getenv("FIXPROOF_AI_PROVIDER", "muse")).strip().lower()
+    if name != "muse":
+        raise ValueError("Unsupported voice provider. Supported: muse")
+    return MetaVoiceProvider()
 
 _DEFAULT_PROVIDER = "nemotron"
 
