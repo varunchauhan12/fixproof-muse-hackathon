@@ -119,11 +119,13 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
     // outside provider
   }
 
+  const setActiveIncidentId = activityContext?.setActiveIncidentId;
+
   useEffect(() => {
-    if (selectedIncident?.incident_id && activityContext?.setActiveIncidentId) {
-      activityContext.setActiveIncidentId(selectedIncident.incident_id);
+    if (selectedIncident?.incident_id && setActiveIncidentId) {
+      setActiveIncidentId(selectedIncident.incident_id, selectedIncident.session_id);
     }
-  }, [selectedIncident?.incident_id, activityContext]);
+  }, [selectedIncident?.incident_id, selectedIncident?.session_id, setActiveIncidentId]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -169,8 +171,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
       const handleSessionChange = (e: any) => {
         const nextId = e.detail || getClientSessionId();
         setActiveSessionId(nextId);
-        setSelectedIncident(null);
-        setSelectedFrameMatch(null);
+        fetchIncidents();
       };
 
       window.addEventListener("fixproof_session_changed", handleSessionChange);

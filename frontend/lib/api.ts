@@ -44,7 +44,7 @@ export function getClientSessionId(): string {
   }
   let sessionId = localStorage.getItem("fixproof_session_id");
   if (!sessionId) {
-    sessionId = "sess_crac4mhaxr_mvwtk3jy";
+    sessionId = "sess_hn4b9l85ox_mvr0c2em";
     localStorage.setItem("fixproof_session_id", sessionId);
   }
   return sessionId;

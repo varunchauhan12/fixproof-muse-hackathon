@@ -296,7 +296,11 @@ function mountWidget(f) {
     console,
     AbortController,
     File,
-    setTimeout: (fn) => fn(),
+    setTimeout: (fn) => {
+      const id = globalThis.setTimeout?.(fn, 0) || 1;
+      return id;
+    },
+    clearTimeout: (id) => globalThis.clearTimeout?.(id),
   };
 
   vm.runInNewContext(widgetCode, context);

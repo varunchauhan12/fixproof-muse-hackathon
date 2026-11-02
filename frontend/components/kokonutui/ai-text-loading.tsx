@@ -105,7 +105,7 @@ export default function AITextLoading({
     <output
       aria-live="polite"
       className={cn(
-        "flex items-baseline justify-center gap-3 font-bold text-3xl text-neutral-950 dark:text-white",
+        "flex items-baseline justify-center gap-3 font-bold text-3xl text-neutral-950 dark:text-inherit",
         className
       )}
     >

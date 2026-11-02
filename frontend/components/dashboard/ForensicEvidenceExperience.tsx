@@ -2,12 +2,9 @@
 
 import React, { useState, useMemo } from "react";
 import {
-  ShieldAlert,
   AlertTriangle,
-  CheckCircle2,
   Cpu,
   ArrowRight,
-  Layers,
   Clock,
   ExternalLink,
   Download,
@@ -15,13 +12,7 @@ import {
   Copy,
   Check,
   Info,
-  Maximize2,
-  ChevronLeft,
-  ChevronRight,
   FileText,
-  Boxes,
-  Database,
-  Calendar,
   Activity,
   FileCheck,
   Sparkles,
@@ -31,14 +22,12 @@ import {
   InvestigationReport,
   DetailedReportRecord,
   TimelineInterval,
-  FrameCorrelationEvidence,
 } from "@/lib/types";
 import {
-  getAssetFrameUrl,
-  getDetailedReportPdfUrl,
   downloadDetailedReportPdf,
-  formatDuration,
 } from "@/lib/api";
+import { buildEvidencePairs } from "@/lib/forensic-evidence";
+import { InvestigationWorkspace } from "./InvestigationWorkspace";
 import { useActivity } from "@/context/ActivityContext";
 
 interface ForensicEvidenceExperienceProps {
@@ -54,7 +43,12 @@ interface ForensicEvidenceExperienceProps {
   onIncidentUpdated?: (updatedIncident: MatchAnalysisResult) => void;
 }
 
-export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProps> = ({
+export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProps> = (props) => (
+  <ForensicInvestigationRoom key={props.incident.incident_id || props.incident.submitted_asset_id} {...props}
+    detailedReport={props.detailedReport?.incident_id === props.incident.incident_id ? props.detailedReport : null} />
+);
+
+const ForensicInvestigationRoom: React.FC<ForensicEvidenceExperienceProps> = ({
   incident,
   latestReport,
   detailedReport,
@@ -64,9 +58,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
   generatingDetailedReport = false,
   detailedReportError,
   onNavigateToNemotron,
-  onIncidentUpdated,
 }) => {
-  const [currentIncident, setCurrentIncident] = useState<MatchAnalysisResult>(incident);
+  const currentIncident = incident;
   const [selectedPairIndex, setSelectedPairIndex] = useState<number>(0);
   const [activeIntervalId, setActiveIntervalId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<boolean>(false);
@@ -75,27 +68,16 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
   const [pdfDownloadSuccess, setPdfDownloadSuccess] = useState<boolean>(false);
   const [activeReportTab, setActiveReportTab] = useState<"summary" | "methodology" | "continuity" | "assessment" | "actions">("summary");
 
-  let activityContext: ReturnType<typeof useActivity> | null = null;
-  try {
-    activityContext = useActivity();
-  } catch {
-    // outside provider
-  }
+  const activityContext = useActivity();
 
   // Sync currentIncident and reset active pair / errors when incident changes
   React.useEffect(() => {
-    setCurrentIncident(incident);
-    setSelectedPairIndex(0);
-    setSuspectImageError({});
-    setRefImageError({});
     if (incident?.incident_id && activityContext?.setActiveIncidentId) {
-      activityContext.setActiveIncidentId(incident.incident_id);
+      activityContext.setActiveIncidentId(incident.incident_id, incident.session_id);
     }
-  }, [incident?.incident_id, activityContext]);
+  }, [incident?.incident_id, incident?.session_id, activityContext]);
 
-  // Handle missing image states gracefully
-  const [suspectImageError, setSuspectImageError] = useState<Record<number, boolean>>({});
-  const [refImageError, setRefImageError] = useState<Record<number, boolean>>({});
+
 
   const handleCopyIncidentId = () => {
     const incId = currentIncident.incident_id || incident.incident_id;
@@ -106,138 +88,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
     }
   };
 
-  // Build unified evidence pairs from detailed report or incident frame matches
-  const evidencePairs: Array<{
-    id: string;
-    evidenceId: string;
-    suspectTimestamp: number;
-    sourceTimestamp: number;
-    sourceAssetId: string;
-    sourceAssetTitle?: string;
-    l2Distance: number | null;
-    visualSimilarity: number;
-    phashMatch?: boolean;
-    phashDistance?: number;
-    sparkVerification?: {
-      modelId: string;
-      visualCorrespondence: string;
-      matchingFeatures: string[];
-      contradictions: string[];
-      reasoning: string;
-    } | null;
-    suspectFrameFilename?: string;
-    refFrameFilename?: string;
-    suspectUrl?: string;
-    refUrl?: string;
-  }> = useMemo(() => {
-    // 1. If detailed report is available with frame_correlations, use rich correlations
-    const reportCorrs = detailedReport?.sections?.frame_correlations;
-    if (reportCorrs && reportCorrs.length > 0) {
-      return reportCorrs.map((c, idx) => {
-        // Suspect frame filename extracted from path or conventional naming
-        let suspectFilename = "";
-        if (c.suspect_image_path) {
-          suspectFilename = c.suspect_image_path.split("/").pop() || "";
-        }
-        if (!suspectFilename) {
-          const sec = Math.round(c.suspect_timestamp_sec ?? idx * 5);
-          suspectFilename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
-        }
-
-        // Reference frame filename extracted from path or conventional naming
-        let refFilename = "";
-        if (c.ref_image_path) {
-          refFilename = c.ref_image_path.split("/").pop() || "";
-        }
-        if (!refFilename && c.source_timestamp_sec !== undefined) {
-          const sec = Math.round(c.source_timestamp_sec);
-          refFilename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
-        }
-
-        const suspectAssetId = currentIncident.submitted_asset_id || currentIncident.incident_id || incident.incident_id;
-        const suspectUrl = suspectAssetId && suspectFilename
-          ? getAssetFrameUrl(suspectAssetId, suspectFilename)
-          : "";
-        const isRefValid = c.source_asset_id && c.source_asset_id !== "other_asset" && c.source_asset_id !== "unregistered";
-        const refUrl = isRefValid && refFilename
-          ? getAssetFrameUrl(c.source_asset_id, refFilename)
-          : "";
-
-        return {
-          id: c.correlation_id || `corr-${idx}`,
-          evidenceId: c.evidence_id || `evidence_frame_${Math.round(c.suspect_timestamp_sec)}s`,
-          suspectTimestamp: c.suspect_timestamp_sec,
-          sourceTimestamp: c.source_timestamp_sec,
-          sourceAssetId: c.source_asset_id,
-          sourceAssetTitle: c.source_asset_title,
-          l2Distance: c.l2_distance,
-          visualSimilarity: c.visual_similarity_score,
-          phashMatch: c.phash_match,
-          phashDistance: c.phash_distance,
-          sparkVerification: c.vision_verification
-            ? {
-                modelId: c.vision_verification.model_id,
-                visualCorrespondence: c.vision_verification.visual_correspondence,
-                matchingFeatures: c.vision_verification.matching_features || [],
-                contradictions: c.vision_verification.contradictions || [],
-                reasoning: c.vision_verification.reasoning || "",
-              }
-            : null,
-          suspectFrameFilename: suspectFilename,
-          refFrameFilename: refFilename,
-          suspectUrl,
-          refUrl,
-        };
-      });
-    }
-
-    // 2. Fallback to incident frame matches
-    const matches = currentIncident.frame_matches || [];
-    return matches.map((fm, idx) => {
-      const best = fm.best_match;
-      const suspectAssetId = currentIncident.submitted_asset_id || currentIncident.incident_id || incident.incident_id;
-      const suspectSec = Math.round(fm.submitted_frame?.timestamp_sec ?? idx * 5);
-      const suspectFilename = fm.submitted_frame?.filename || `frame_${String(suspectSec).padStart(4, "0")}s.jpg`;
-      const refSec = Math.round(best?.source_timestamp_sec ?? 0);
-      const isRefValid = best?.source_asset_id && best.source_asset_id !== "other_asset" && best.source_asset_id !== "unregistered";
-      const refFilename = best?.source_filename || (isRefValid ? `frame_${String(refSec).padStart(4, "0")}s.jpg` : "");
-
-      const suspectUrl = suspectAssetId && suspectFilename
-        ? getAssetFrameUrl(suspectAssetId, suspectFilename)
-        : "";
-      const refUrl = isRefValid && refFilename
-        ? getAssetFrameUrl(best.source_asset_id, refFilename)
-        : "";
-
-      return {
-        id: `pair-${idx}`,
-        evidenceId: fm.evidence_id || `evidence_frame_${Math.round(fm.submitted_frame.timestamp_sec)}s`,
-        suspectTimestamp: fm.submitted_frame.timestamp_sec,
-        sourceTimestamp: best?.source_timestamp_sec ?? 0,
-        sourceAssetId: best?.source_asset_id || "unregistered",
-        sourceAssetTitle: best?.source_filename || undefined,
-        l2Distance: best?.l2_distance ?? null,
-        visualSimilarity: best?.confidence_score ?? best?.visual_similarity_score ?? 0,
-        phashMatch: best?.phash_match ?? false,
-        phashDistance: best?.phash_evidence?.hamming_distance,
-        sparkVerification: best?.vision_verification
-          ? {
-              modelId: best.vision_verification.model_id || "muse-spark-1.3",
-              visualCorrespondence: best.vision_verification.visual_correspondence || "UNVERIFIED",
-              matchingFeatures: best.vision_verification.supporting_visible_features || [],
-              contradictions: best.vision_verification.contradictions || [],
-              reasoning: best.vision_verification.reasoning_summary || "",
-            }
-          : null,
-        suspectFrameFilename: suspectFilename,
-        refFrameFilename: refFilename,
-        suspectUrl,
-        refUrl,
-      };
-    });
-  }, [detailedReport, currentIncident]);
-
-
+  const evidencePairs = useMemo(() => buildEvidencePairs(incident, detailedReport), [incident, detailedReport]);
 
   // Timeline intervals from detailed report or latest report
   const timelineIntervals: TimelineInterval[] = useMemo(() => {
@@ -248,7 +99,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
     );
   }, [detailedReport, latestReport]);
 
-  const currentPair = evidencePairs[selectedPairIndex] || null;
+
 
   // Handle PDF download directly using existing backend endpoint
   const handlePdfDownload = async () => {
@@ -274,8 +125,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
       window.URL.revokeObjectURL(url);
       setPdfDownloadSuccess(true);
       setTimeout(() => setPdfDownloadSuccess(false), 3000);
-    } catch (err: any) {
-      setPdfDownloadError(err?.message || "Failed to download forensic report PDF.");
+    } catch (err: unknown) {
+      setPdfDownloadError(err instanceof Error ? err.message : "Failed to download forensic report PDF.");
     } finally {
       setDownloadingPdf(false);
     }
@@ -294,6 +145,10 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
         }}
         className="p-5 space-y-4"
       >
+        <div className="grid gap-3 sm:grid-cols-2 text-xs">
+          <div className="rounded-lg border border-teal-900 p-3"><span className="block text-teal-300">Reference assets in recorded candidates</span><p className="mt-1 break-all font-mono">{Array.from(new Set(evidencePairs.map(p => p.sourceAssetId).filter(Boolean))).join(', ') || 'No reference asset recorded'}</p></div>
+          <div className="rounded-lg border border-amber-900 p-3"><span className="block text-amber-300">Suspect footage</span><p className="mt-1 break-all">{incident.suspect_filename || incident.submitted_asset_id || 'Not recorded'}</p><p className="mt-1 text-[#8e887d]">Backend threshold matches: {incident.candidate_matches_found ?? 'Not recorded'}</p></div>
+        </div>
         {/* Header row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[rgba(238,231,219,0.08)]">
           <div className="space-y-1">
@@ -450,17 +305,17 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
           </div>
 
           <div className="p-3 bg-[#141312] rounded-xl border border-[rgba(238,231,219,0.06)]">
-            <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">Evidence Keyframes</span>
+            <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">Inspectable Frame Pairs</span>
             <strong className="text-[15px] text-[#f4efe6] font-mono block mt-0.5">
               {evidencePairs.length}
             </strong>
-            <span className="text-[10px] text-[#736d62]">Sampled Frame Pairs</span>
+            <span className="text-[10px] text-[#736d62]">Includes alternative candidates</span>
           </div>
 
           <div className="p-3 bg-[#141312] rounded-xl border border-[rgba(238,231,219,0.06)]">
             <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">Peak Visual Sim</span>
             <strong className="text-[15px] text-teal-400 font-mono block mt-0.5">
-              {(incident.highest_confidence ?? 0).toFixed(1)}%
+              {typeof incident.highest_confidence === "number" ? `${incident.highest_confidence.toFixed(1)} / 100` : "Not recorded"}
             </strong>
             <span className="text-[10px] text-[#736d62]">Feature vector space</span>
           </div>
@@ -491,345 +346,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
         </div>
       </div>
 
-      {/* ─── 2. SIDE-BY-SIDE EVIDENCE COMPARISON ─── */}
-      <div
-        style={{
-          background: "#171615",
-          borderRadius: 16,
-          border: "1px solid rgba(238, 231, 219, 0.08)",
-        }}
-        className="p-5 space-y-4"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[rgba(238,231,219,0.08)]">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-[15px] font-bold text-[#f4efe6] m-0">
-                Side-by-Side Forensic Evidence Comparison
-              </h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#242220] text-[#aba497] border border-[rgba(238,231,219,0.1)]">
-                Pair {evidencePairs.length > 0 ? selectedPairIndex + 1 : 0} of {evidencePairs.length}
-              </span>
-            </div>
-            <p className="text-xs text-[#aba497] m-0 mt-0.5">
-              Exact reference frame versus suspect frame alignment with verified visual features, perceptual hash, and Muse multimodal verification.
-            </p>
-          </div>
-        </div>
-
-        {/* Evidence Pair Selector Tabs */}
-        {evidencePairs.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
-            <button
-              onClick={() => setSelectedPairIndex((prev) => Math.max(0, prev - 1))}
-              disabled={selectedPairIndex === 0}
-              className="p-1.5 rounded-lg bg-[#1c1b1a] text-[#aba497] hover:text-[#f4efe6] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed shrink-0"
-              title="Previous Evidence Pair"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {evidencePairs.map((pair, idx) => {
-              const isSelected = selectedPairIndex === idx;
-
-              return (
-                <button
-                  key={pair.id}
-                  onClick={() => setSelectedPairIndex(idx)}
-                  style={{
-                    background: isSelected ? "#242220" : "#1a1918",
-                    border: isSelected
-                      ? "1px solid #48C7B5"
-                      : "1px solid rgba(238, 231, 219, 0.08)",
-                    color: isSelected ? "#f4efe6" : "#aba497",
-                  }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium shrink-0 transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <span className="font-bold text-[11px]">#{idx + 1}</span>
-                  <span>
-                    {pair.suspectTimestamp.toFixed(1)}s ↔ {pair.sourceTimestamp.toFixed(1)}s
-                  </span>
-                  <span
-                    style={{
-                      color: pair.visualSimilarity >= 70 ? "#dfa974" : "#aba497",
-                    }}
-                    className="font-bold text-[10px]"
-                  >
-                    {pair.visualSimilarity.toFixed(0)}%
-                  </span>
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => setSelectedPairIndex((prev) => Math.min(evidencePairs.length - 1, prev + 1))}
-              disabled={selectedPairIndex === evidencePairs.length - 1}
-              className="p-1.5 rounded-lg bg-[#1c1b1a] text-[#aba497] hover:text-[#f4efe6] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed shrink-0"
-              title="Next Evidence Pair"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
-
-        {/* Dual Frame Comparison Container */}
-        {currentPair ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* ─── SUSPECT FRAME CARD ─── */}
-              <div
-                style={{
-                  background: "#141312",
-                  border: "1px solid rgba(217, 164, 65, 0.25)",
-                  borderRadius: 12,
-                }}
-                className="overflow-hidden flex flex-col"
-              >
-                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                      SUSPECT MEDIA
-                    </span>
-                    <span className="font-mono text-[#f4efe6] font-bold">
-                      {currentPair.suspectTimestamp.toFixed(2)}s
-                    </span>
-                  </div>
-                </div>
-
-                {/* Suspect Frame Image Container */}
-                <div className="relative aspect-video w-full bg-[#0a0a09] flex items-center justify-center overflow-hidden">
-                  {currentPair.suspectUrl && !suspectImageError[selectedPairIndex] ? (
-                    <img
-                      src={currentPair.suspectUrl}
-                      alt={`Suspect Frame at ${currentPair.suspectTimestamp}s`}
-                      className="max-w-full max-h-full object-contain block"
-                      onError={() => {
-                        setSuspectImageError((prev) => ({ ...prev, [selectedPairIndex]: true }));
-                      }}
-                    />
-                  ) : (
-                    <div className="p-6 text-center space-y-2">
-                      <div className="w-10 h-10 mx-auto rounded-full bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] flex items-center justify-center text-[#8e887d]">
-                        <Boxes size={20} />
-                      </div>
-                      <div className="text-xs text-[#aba497]">
-                        Suspect keyframe image unavailable from storage
-                      </div>
-                      <div className="text-[10px] text-[#736d62] font-mono">
-                        {currentPair.suspectFrameFilename || "frame.jpg"} • Ts {currentPair.suspectTimestamp}s
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10 flex items-center gap-1.5">
-                    <span>Suspect: {currentPair.suspectTimestamp.toFixed(2)}s</span>
-                  </div>
-                </div>
-
-                {/* Suspect Footer Info */}
-                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497] flex items-center justify-between">
-                  <div>
-                    <span className="text-[#8e887d]">Source File: </span>
-                    <span className="font-mono text-[#ded7cb]">
-                      {currentIncident.suspect_filename || incident.suspect_filename || "Target stream / upload"}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#8e887d] font-mono">
-                    {currentPair.evidenceId}
-                  </span>
-                </div>
-              </div>
-
-              {/* ─── REFERENCE ARCHIVE CARD ─── */}
-              <div
-                style={{
-                  background: "#141312",
-                  border: "1px solid rgba(20, 184, 166, 0.25)",
-                  borderRadius: 12,
-                }}
-                className="overflow-hidden flex flex-col"
-              >
-                <div className="px-3.5 py-2.5 bg-[#1b1a18] border-b border-[rgba(238,231,219,0.06)] flex items-center justify-between text-xs gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-teal-500/15 text-teal-300 border border-teal-500/30">
-                      REFERENCE ARCHIVE
-                    </span>
-                    <span className="font-mono text-[#f4efe6] font-bold">
-                      {currentPair.sourceTimestamp.toFixed(2)}s
-                    </span>
-                  </div>
-                </div>
-
-                {/* Reference Frame Image Container */}
-                <div className="relative aspect-video w-full bg-[#0a0a09] flex items-center justify-center overflow-hidden">
-                  {currentPair.refUrl && !refImageError[selectedPairIndex] ? (
-                    <img
-                      src={currentPair.refUrl}
-                      alt={`Reference Frame at ${currentPair.sourceTimestamp}s`}
-                      className="max-w-full max-h-full object-contain block"
-                      onError={() => {
-                        setRefImageError((prev) => ({ ...prev, [selectedPairIndex]: true }));
-                      }}
-                    />
-                  ) : (
-                    <div className="p-6 text-center space-y-2">
-                      <div className="w-10 h-10 mx-auto rounded-full bg-[#1c1b1a] border border-[rgba(238,231,219,0.1)] flex items-center justify-center text-[#8e887d]">
-                        <Database size={20} />
-                      </div>
-                      <div className="text-xs text-[#aba497]">
-                        {!currentPair.refUrl && (currentPair.sourceAssetId === "other_asset" || currentPair.sourceAssetId === "unregistered" || !currentPair.sourceAssetId)
-                          ? "No reference frame matched (Media verified clean / negative match)"
-                          : "Reference keyframe image unavailable from storage"}
-                      </div>
-                      <div className="text-[10px] text-[#736d62] font-mono">
-                        Asset: {currentPair.sourceAssetId ? currentPair.sourceAssetId.slice(0, 16) : "None"} • Ts {currentPair.sourceTimestamp}s
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-[#f4efe6] border border-white/10 flex items-center gap-1.5">
-                    <span>Reference: {currentPair.sourceTimestamp.toFixed(2)}s</span>
-                  </div>
-                </div>
-
-                {/* Reference Footer Info */}
-                <div className="p-3 text-[11px] bg-[#141312] border-t border-[rgba(238,231,219,0.06)] text-[#aba497] flex items-center justify-between">
-                  <div className="truncate">
-                    <span className="text-[#8e887d]">Matched Asset: </span>
-                    <span className="font-mono text-[#ded7cb]">
-                      {currentPair.sourceAssetTitle || currentPair.sourceAssetId}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#8e887d] font-mono shrink-0">
-                    Vault: {currentPair.sourceAssetId ? currentPair.sourceAssetId.slice(0, 10) : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Evidence Telemetry & Verification Card */}
-            <div className="p-4 bg-[#141312] rounded-xl border border-[rgba(238,231,219,0.08)] space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">Visual Similarity</span>
-                  <strong className="text-[14px] text-teal-400 font-mono block mt-0.5">
-                    {currentPair.visualSimilarity.toFixed(1)}%
-                  </strong>
-                  <span className="text-[9.5px] text-[#736d62]">Cos-sim feature metric</span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">L2 Vector Distance</span>
-                  <strong className="text-[14px] text-[#ded7cb] font-mono block mt-0.5">
-                    {currentPair.l2Distance !== null ? currentPair.l2Distance.toFixed(4) : "—"}
-                  </strong>
-                  <span className="text-[9.5px] text-[#736d62]">MobileNetV3 576-dim</span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">pHash Result</span>
-                  <strong className="text-[14px] text-[#ded7cb] font-mono block mt-0.5">
-                    {currentPair.phashDistance !== undefined
-                      ? `Hamming: ${currentPair.phashDistance}`
-                      : currentPair.phashMatch
-                      ? "Match Confirmed"
-                      : "Unmatched"}
-                  </strong>
-                  <span className="text-[9.5px] text-[#736d62]">64-bit DCT perceptual hash</span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-[#8e887d] uppercase font-semibold block">Temporal Offset Δt</span>
-                  <strong className="text-[14px] text-[#ded7cb] font-mono block mt-0.5">
-                    {(currentPair.suspectTimestamp - currentPair.sourceTimestamp) >= 0 ? "+" : ""}
-                    {(currentPair.suspectTimestamp - currentPair.sourceTimestamp).toFixed(2)}s
-                  </strong>
-                  <span className="text-[9.5px] text-[#736d62]">Suspect vs Source time</span>
-                </div>
-              </div>
-
-              {/* Muse Spark 1.3 Pairwise Verification Breakdown */}
-              {currentPair.sparkVerification ? (
-                <div className="pt-3 border-t border-[rgba(238,231,219,0.06)] space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-[#f4efe6]">
-                        Pairwise Vision Verification ({currentPair.sparkVerification.modelId})
-                      </span>
-                      <span
-                        style={{
-                          background:
-                            currentPair.sparkVerification.visualCorrespondence === "HIGH_CORRESPONDENCE" ||
-                            currentPair.sparkVerification.visualCorrespondence === "CONFIRMED"
-                              ? "rgba(72,199,181,0.15)"
-                              : "rgba(217, 164, 65, 0.15)",
-                          color:
-                            currentPair.sparkVerification.visualCorrespondence === "HIGH_CORRESPONDENCE" ||
-                            currentPair.sparkVerification.visualCorrespondence === "CONFIRMED"
-                              ? "#5eead4"
-                              : "#dfa974",
-                        }}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-[rgba(238,231,219,0.1)]"
-                      >
-                        {currentPair.sparkVerification.visualCorrespondence.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  </div>
-
-                  {currentPair.sparkVerification.reasoning && (
-                    <p className="text-[#aba497] text-[11.5px] leading-relaxed m-0">
-                      {currentPair.sparkVerification.reasoning}
-                    </p>
-                  )}
-
-                  {currentPair.sparkVerification.matchingFeatures.length > 0 && (
-                    <div className="space-y-1 pt-1">
-                      <span className="text-[10px] font-bold text-[#8e887d] uppercase tracking-wider block">
-                        Observed Supporting Features:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {currentPair.sparkVerification.matchingFeatures.map((feat, fi) => (
-                          <span
-                            key={fi}
-                            className="px-2 py-0.5 rounded text-[10px] bg-[#1c1b1a] text-[#ded7cb] border border-[rgba(238,231,219,0.08)]"
-                          >
-                            ✓ {feat}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {currentPair.sparkVerification.contradictions.length > 0 && (
-                    <div className="space-y-1 pt-1">
-                      <span className="text-[10px] font-bold text-[#dfa974] uppercase tracking-wider block">
-                        Visual Contradictions / Divergences:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {currentPair.sparkVerification.contradictions.map((contra, ci) => (
-                          <span
-                            key={ci}
-                            className="px-2 py-0.5 rounded text-[10px] bg-amber-950/20 text-amber-300 border border-amber-500/20"
-                          >
-                            ! {contra}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="pt-2 border-t border-[rgba(238,231,219,0.06)] text-[11px] text-[#736d62] italic">
-                  Pairwise vision verification (Muse Spark 1.3) was not recorded for this frame correlation.
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="p-8 text-center text-[#736d62] text-xs bg-[#141312] rounded-xl border border-dashed border-[rgba(238,231,219,0.08)]">
-            No candidate evidence keyframe pairs available for this incident.
-          </div>
-        )}
-      </div>
+      <InvestigationWorkspace key={incident.incident_id || incident.submitted_asset_id} pairs={evidencePairs} selectedIndex={Math.min(selectedPairIndex, Math.max(0, evidencePairs.length - 1))} onSelect={setSelectedPairIndex} />
 
       {/* ─── 3. TEMPORAL EVIDENCE TIMELINE ─── */}
       <div
@@ -867,7 +384,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
         >
           <Info size={14} className="text-teal-400 shrink-0" />
           <span>
-            <strong>System Sampling Disclosure:</strong> The forensic pipeline samples discrete keyframes at structured intervals (1.0s – 2.0s).
+            <strong>System Sampling Disclosure:</strong> The forensic pipeline evaluates discrete sampled keyframes.
             Unsampled time windows between keyframes are not continuously inspected. Continuous match status denotes bounded sequence clusters.
           </span>
         </div>
@@ -885,8 +402,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                     setActiveIntervalId(isActive ? null : interval.interval_id);
                     // If evidence_ids match a pair, jump to it
                     if (interval.evidence_ids && interval.evidence_ids.length > 0) {
-                      const foundIdx = evidencePairs.findIndex((p) =>
-                        interval.evidence_ids.includes(p.evidenceId) || interval.evidence_ids.includes(p.id)
+                      const foundIdx = evidencePairs.findIndex((p) => p.sourceAssetId === interval.source_asset_id && (
+                        interval.evidence_ids.includes(p.evidenceId) || interval.evidence_ids.includes(p.id))
                       );
                       if (foundIdx !== -1) {
                         setSelectedPairIndex(foundIdx);
@@ -968,7 +485,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
           </div>
         ) : (
           <div className="p-6 text-center text-[#736d62] text-xs bg-[#141312] rounded-xl border border-dashed border-[rgba(238,231,219,0.08)]">
-            No temporal clusters identified. Media analysis yielded zero or isolated single-frame matches.
+            No stored temporal clusters are available. The sampled evidence timeline above remains inspectable; missing clusters do not establish absence of a match.
           </div>
         )}
       </div>
@@ -988,7 +505,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               Pipeline Architecture & Model Provenance
             </h3>
             <p className="text-xs text-[#aba497] m-0 mt-0.5">
-              Verified operational roles and execution status across deterministic discovery, vision verification, segmentation, and reasoning.
+              Pipeline roles and recorded model provenance. Missing metadata is not evidence of a successful provider call.
             </p>
           </div>
           <span className="text-[11px] font-mono text-[#8e887d]">
@@ -1017,7 +534,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 <td className="py-2.5 px-3 text-[#aba497]">576-dim L2 feature extraction & nearest-neighbor search</td>
                 <td className="py-2.5 px-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-bold bg-[#1c1b1a] text-teal-400 border border-teal-500/20">
-                    Component Tested (Deterministic)
+                    Recorded CV results
                   </span>
                 </td>
               </tr>
@@ -1025,12 +542,12 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               {/* Muse Spark 1.3 */}
               <tr className="hover:bg-[#1a1918] transition-colors">
                 <td className="py-2.5 px-3 font-semibold text-[#f4efe6]">Vision Verification</td>
-                <td className="py-2.5 px-3 text-[#ded7cb]">Meta Muse API</td>
-                <td className="py-2.5 px-3 text-teal-400">muse-spark-1.3</td>
+                <td className="py-2.5 px-3 text-[#ded7cb]">Recorded model below</td>
+                <td className="py-2.5 px-3 text-teal-400">{Array.from(new Set(evidencePairs.map(p => p.vision?.model_id).filter(Boolean))).join(", ") || "Not recorded"}</td>
                 <td className="py-2.5 px-3 text-[#aba497]">Pairwise candidate visual correspondence & contradiction review</td>
                 <td className="py-2.5 px-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-bold bg-[#1c1b1a] text-teal-400 border border-teal-500/20">
-                    Provider / API Validated
+                    {evidencePairs.some(p => p.vision) ? "Vision annotation recorded" : "Not recorded"}
                   </span>
                 </td>
               </tr>
@@ -1040,12 +557,12 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               {/* Muse Wonder 1.0 */}
               <tr className="hover:bg-[#1a1918] transition-colors">
                 <td className="py-2.5 px-3 font-semibold text-[#f4efe6]">Multimodal Reasoning</td>
-                <td className="py-2.5 px-3 text-[#ded7cb]">Meta Muse API</td>
-                <td className="py-2.5 px-3 text-teal-400">muse-wonder-1.0</td>
+                <td className="py-2.5 px-3 text-[#ded7cb]">Recorded model below</td>
+                <td className="py-2.5 px-3 text-teal-400">{detailedReport?.model_id || "Not recorded"}</td>
                 <td className="py-2.5 px-3 text-[#aba497]">Temporal continuity analysis & evidence-grounded report synthesis</td>
                 <td className="py-2.5 px-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[9.5px] uppercase font-bold bg-[#1c1b1a] text-teal-400 border border-teal-500/20">
-                    {detailedReport?.ai_synthesized ? "Provider / API Validated" : "Deterministic Fallback"}
+                    {detailedReport ? detailedReport.ai_synthesized ? "AI synthesis recorded" : "Deterministic report" : "No report loaded"}
                   </span>
                 </td>
               </tr>
@@ -1055,7 +572,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
 
         {/* Validation Scope Notice */}
         <div className="p-3 bg-[#141312] rounded-xl border border-[rgba(238,231,219,0.06)] text-[10.5px] text-[#8e887d] leading-relaxed">
-          <strong className="text-[#ded7cb]">VALIDATION SCOPE NOTICE:</strong> Statuses reflect tested component and API interface functionality.
+          <strong className="text-[#ded7cb]">VALIDATION SCOPE NOTICE:</strong> Statuses reflect stored annotations, not a live provider health check.
           Full end-to-end multimodal pipeline validation requires an active live investigation run against authenticated models.
         </div>
       </div>
@@ -1141,7 +658,7 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveReportTab(tab.id as any)}
+                  onClick={() => setActiveReportTab(tab.id as typeof activeReportTab)}
                   style={{
                     background: activeReportTab === tab.id ? "#242220" : "#1a1918",
                     color: activeReportTab === tab.id ? "#f4efe6" : "#aba497",

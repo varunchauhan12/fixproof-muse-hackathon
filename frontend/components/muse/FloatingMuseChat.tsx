@@ -27,6 +27,36 @@ function extractText(val: unknown): string {
   return "";
 }
 
+/** Animated audio equalizer bars indicating live voice recording */
+function AudioEqualizerBars({ active }: { active: boolean }) {
+  const bars = [8, 20, 14, 28, 18, 32, 12, 26, 16, 22];
+  return (
+    <div className="flex items-center gap-1 h-7 px-1.5 select-none" aria-hidden="true">
+      {bars.map((maxH, i) => (
+        <motion.span
+          key={i}
+          animate={
+            active
+              ? {
+                  height: [4, maxH, 6, Math.round(maxH * 0.7), 4],
+                  opacity: [0.65, 1, 0.8, 1, 0.65],
+                }
+              : { height: 4, opacity: 0.35 }
+          }
+          transition={{
+            duration: 0.38 + (i % 4) * 0.08,
+            repeat: Infinity,
+            repeatType: "mirror",
+            ease: "easeInOut",
+            delay: i * 0.04,
+          }}
+          className="w-1 rounded-full bg-rose-600 block origin-bottom shadow-xs"
+        />
+      ))}
+    </div>
+  );
+}
+
 export interface FloatingMuseChatProps {
   activeIncidentId?: string | null;
 }
@@ -55,28 +85,33 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   const [pendingText, setPendingText] = useState("");
   const [isHolding, setIsHolding] = useState(false);
 
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+
   const client = useRef<MuseConversationClient | null>(null);
   const epoch = useRef(0);
   const sending = useRef(false);
   const isHoldingRef = useRef(false);
   const autoSendRef = useRef(false);
+  const transcribingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const shouldReduceMotion = useReducedMotion();
   const capture = useVoiceRecorder(busy || transcribing);
-  const { discard } = capture;
+  const discardRef = useRef(capture.discard);
+  discardRef.current = capture.discard;
 
-  // Initialize client and incident list
+  // Initialize client and incident list ONCE on mount or session change
   useEffect(() => {
     let lookup: AbortController;
     function initialize() {
       epoch.current++;
       sending.current = false;
       lookup?.abort();
-      discard();
+      discardRef.current?.();
 
       const session = getClientSessionId();
-      const initialActive = effectiveActiveIncident || null;
+      const initialActive = selectedRef.current || effectiveActiveIncident || null;
       client.current = new MuseConversationClient(session, initialActive);
       setDraft("");
       setMessages([]);
@@ -95,11 +130,13 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
         .then((items) => {
           if (ticket === epoch.current) {
             setIncidents(items);
-            if (effectiveActiveIncident) {
-              setSelected(effectiveActiveIncident);
-              setContextIncident(effectiveActiveIncident);
+            if (!selectedRef.current && items.length > 0) {
+              const defaultInc = items[0].incident_id;
+              selectedRef.current = defaultInc;
+              setSelected(defaultInc);
+              setContextIncident(defaultInc);
               if (client.current) {
-                client.current.selectedIncident = effectiveActiveIncident;
+                client.current.selectedIncident = defaultInc;
               }
             }
           }
@@ -111,19 +148,19 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
 
     initialize();
 
-    // Event listener: opens ONLY on explicit open event, never on incident selection
     const handleOpen = () => setIsOpen(true);
     const handleSelect = (e: Event) => {
-      const customEvent = e as CustomEvent<string | null>;
-      const newInc = customEvent.detail || "";
-      if (newInc !== selected) {
+      const customEvent = e as CustomEvent<string | { incident_id?: string; session_id?: string } | null>;
+      const detail = customEvent.detail;
+      const newInc = typeof detail === "string" ? detail : (detail?.incident_id || "");
+      const newSess = (typeof detail === "object" && detail?.session_id) ? detail.session_id : getClientSessionId();
+      if (newInc && (newInc !== selectedRef.current || client.current?.selectedIncident !== newInc)) {
+        selectedRef.current = newInc;
         setSelected(newInc);
-        setContextIncident(newInc || null);
-        if (client.current) {
-          client.current.selectedIncident = newInc || null;
-        }
+        setContextIncident(newInc);
+        setMessages([]); // Reset messages on incident switch so conversation binds cleanly to new incident
+        client.current = new MuseConversationClient(newSess, newInc);
       }
-      // CRITICAL: Does NOT call setIsOpen(true). Open strictly on user click.
     };
 
     window.addEventListener("fixproof_session_changed", initialize);
@@ -137,34 +174,20 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
       window.removeEventListener("fixproof_open_muse", handleOpen);
       window.removeEventListener("fixproof_muse_select_incident", handleSelect);
     };
-  }, [effectiveActiveIncident, discard]);
+  }, []);
 
-  // Synchronize active incident from dashboard automatically without manual selection
+  // Synchronize active incident from dashboard automatically when effectiveActiveIncident changes
   useEffect(() => {
     const targetInc = effectiveActiveIncident || "";
-    if (targetInc !== selected) {
-      const prevInc = selected;
+    if (targetInc && (targetInc !== selectedRef.current || client.current?.selectedIncident !== targetInc)) {
+      selectedRef.current = targetInc;
       setSelected(targetInc);
-      setContextIncident(targetInc || null);
-      if (client.current) {
-        client.current.selectedIncident = targetInc || null;
-      }
-      if (messages.length > 0 && prevInc && targetInc && prevInc !== targetInc) {
-        const targetRec = incidents.find((i) => i.incident_id === targetInc);
-        const name = targetRec?.suspect_filename || targetInc.slice(0, 8);
-        const noticeMessage: MuseMessage = {
-          message_id: `context-switch-${Date.now()}`,
-          role: "assistant",
-          text: `[Active context switched to: ${name}]`,
-          metadata: {
-            status: "completed",
-            citations: [{ incident_id: targetInc }],
-          },
-        };
-        setMessages((prev) => [...prev, noticeMessage]);
-      }
+      setContextIncident(targetInc);
+      setMessages([]);
+      const session = getClientSessionId();
+      client.current = new MuseConversationClient(session, targetInc);
     }
-  }, [effectiveActiveIncident, selected, messages.length, incidents]);
+  }, [effectiveActiveIncident]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -196,8 +219,11 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     setPendingText(textToSend);
     const ticket = epoch.current;
 
+    // Use selected incident, or effective active incident, or fallback to first known incident
+    const incidentToUse = selected || effectiveActiveIncident || client.current?.selectedIncident || (incidents.length > 0 ? incidents[0].incident_id : null);
+
     try {
-      const reply = await active.send(textToSend, selected || null);
+      const reply = await active.send(textToSend, incidentToUse || null);
       if (ticket !== epoch.current) return;
       setDraft("");
       setMessages(active.conversation?.messages || []);
@@ -221,7 +247,18 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
         setPendingText("");
       }
     }
-  }, [draft, selected]);
+  }, [draft, selected, effectiveActiveIncident, incidents]);
+
+  // Reset conversation to start fresh
+  const handleNewChat = useCallback(() => {
+    const session = getClientSessionId();
+    const activeToSet = selected || (incidents.length > 0 ? incidents[0].incident_id : null);
+    client.current = new MuseConversationClient(session, activeToSet);
+    setMessages([]);
+    setDraft("");
+    setError("");
+    setPendingText("");
+  }, [selected, incidents]);
 
   // Push-To-Talk Voice Bubble Handlers (Hold to speak, release to send)
   const handleHoldStart = useCallback(async (e: React.SyntheticEvent) => {
@@ -244,52 +281,52 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
 
   // Auto-transcribe and automatically send once audio recording is converted
   useEffect(() => {
-    if (autoSendRef.current && capture.captured && capture.file) {
+    if (autoSendRef.current && capture.captured && capture.file && !transcribingRef.current) {
       autoSendRef.current = false;
-      let cancelled = false;
+      transcribingRef.current = true;
+      const fileToTranscribe = capture.file;
+      const targetSession = client.current?.session || getClientSessionId();
+
+      setTranscribing(true);
+      setError("");
+
+      // Safety timeout guard (12s) so the UI never gets stuck on transcribing
+      const timeoutTimer = setTimeout(() => {
+        if (transcribingRef.current) {
+          transcribingRef.current = false;
+          setTranscribing(false);
+          capture.discard();
+          setError("Transcription timed out. Please hold and speak again.");
+        }
+      }, 12000);
 
       (async () => {
-        setTranscribing(true);
-        setError("");
+        let transcriptText = "";
+        let errorMsg = "";
         try {
-          const result = await transcribeRecording(
-            capture.file!,
-            client.current?.session || getClientSessionId()
-          );
-          if (cancelled) return;
-          const transcript = result.transcript.trim();
-          if (transcript) {
-            await send(transcript);
-          } else {
-            setError("No speech was detected. Hold and speak again.");
-          }
+          const result = await transcribeRecording(fileToTranscribe, targetSession);
+          transcriptText = result?.transcript?.trim() || "";
         } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : "Voice transcription failed.");
-          }
+          errorMsg = err instanceof Error ? err.message : "Voice transcription failed.";
         } finally {
-          if (!cancelled) {
-            capture.discard();
-            setTranscribing(false);
-          }
+          clearTimeout(timeoutTimer);
+          capture.discard();
+          transcribingRef.current = false;
+          setTranscribing(false);
+        }
+
+        if (errorMsg) {
+          setError(errorMsg);
+        } else if (transcriptText) {
+          void send(transcriptText);
+        } else {
+          setError("No speech was detected. Hold and speak again.");
         }
       })();
-
-      return () => {
-        cancelled = true;
-      };
     }
-  }, [capture.captured, capture.file, send, capture]);
+  }, [capture.captured, capture.file, send, capture.discard]);
 
   const disabled = busy || transcribing || !ready;
-  const activeIncidentRecord = incidents.find(
-    (i) => i.incident_id === (contextIncident || selected)
-  );
-  const activeIncidentName = activeIncidentRecord?.suspect_filename
-    ? activeIncidentRecord.suspect_filename
-    : selected
-    ? `Incident ${selected.slice(0, 8)}`
-    : "All Incidents";
 
   return (
     <>
@@ -315,7 +352,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               onClick={() => setIsOpen(true)}
               aria-label="talk to the analyst"
               title="talk to the analyst"
-              className="group relative flex items-center justify-center w-13 h-13 rounded-full bg-[#11141c] hover:bg-[#181d28] border border-white/10 hover:border-white/25 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="group relative flex items-center justify-center w-13 h-13 rounded-full bg-[#18181B] hover:bg-black border border-white/20 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Image
                 src="/muse-logo-64.png"
@@ -329,7 +366,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
         )}
       </AnimatePresence>
 
-      {/* Open State: Minimal Chat Window */}
+      {/* Open State: Whitish Cream Island with Slide Animation, Viewport Gap & Rounded Corners */}
       <AnimatePresence>
         {isOpen && (
           <motion.section
@@ -338,102 +375,117 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
             initial={
               shouldReduceMotion
                 ? { opacity: 0 }
-                : { opacity: 0, scale: 0.94, y: 20 }
+                : { opacity: 0, x: "100%" }
             }
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            animate={{ opacity: 1, x: 0 }}
             exit={
               shouldReduceMotion
                 ? { opacity: 0 }
-                : { opacity: 0, scale: 0.94, y: 20 }
+                : { opacity: 0, x: "100%" }
             }
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-3 right-3 left-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 flex flex-col w-auto sm:w-[400px] h-[560px] max-h-[calc(100vh-32px)] rounded-2xl bg-[#0b0e14] border border-zinc-800 shadow-2xl overflow-hidden font-sans"
+            transition={{
+              duration: shouldReduceMotion ? 0.15 : 0.32,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className="fixed top-3 right-3 bottom-3 sm:top-4 sm:right-4 sm:bottom-4 z-50 flex flex-col w-[calc(100vw-24px)] sm:w-[430px] lg:w-[450px] max-w-[calc(100vw-24px)] h-[calc(100vh-24px)] sm:h-[calc(100vh-32px)] rounded-2xl sm:rounded-3xl bg-[#FAF8F5] border border-[#D5D0C5] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.35)] overflow-hidden font-sans text-black dark:text-black [color-scheme:light]"
           >
-            {/* Minimal Header */}
-            <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-[#10131a] select-none">
+            {/* Minimal Deskwright-style Top Bar */}
+            <header className="flex items-center justify-between px-4 py-3.5 border-b border-[#E8E3D8] bg-[#FAF8F5] select-none shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="relative w-7 h-7 rounded-full overflow-hidden bg-zinc-800 border border-zinc-700/80 shrink-0">
+                <div className="relative w-7 h-7 rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 shrink-0 flex items-center justify-center p-0.5">
                   <Image
                     src="/muse-logo-64.png"
                     alt="Muse"
-                    width={28}
-                    height={28}
-                    className="object-cover w-full h-full"
+                    width={26}
+                    height={26}
+                    className="object-cover w-full h-full rounded-md"
                   />
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-zinc-100 tracking-wide">
-                      Muse
-                    </span>
-                    <span className="text-[10px] text-zinc-400">· Analyst</span>
-                  </div>
-                  {/* Automatic Incident Indicator */}
-                  <span
-                    className="text-[10px] font-mono text-teal-400/90 truncate max-w-[220px]"
-                    title={`Current Context: ${activeIncidentName}`}
-                  >
-                    {activeIncidentName}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-black dark:text-black tracking-tight">
+                    Muse
                   </span>
+                  <span className="text-[10px] text-zinc-600 dark:text-zinc-600 font-semibold">· Analyst</span>
                 </div>
               </div>
 
-              {/* Minimal Close Button */}
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                title="Close chat"
-                aria-label="Minimize chat"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors text-xs cursor-pointer"
-              >
-                ✕
-              </button>
+              {/* Header Action Controls */}
+              <div className="flex items-center gap-1">
+                {/* New Chat */}
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  title="New conversation"
+                  aria-label="New conversation"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-700 dark:text-zinc-700 hover:text-black dark:hover:text-black hover:bg-zinc-200/60 transition-colors text-xs cursor-pointer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                </button>
+
+                {/* Minimize / Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  title="Close chat"
+                  aria-label="Minimize chat"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-700 dark:text-zinc-700 hover:text-black dark:hover:text-black hover:bg-zinc-200/60 transition-colors text-xs cursor-pointer font-bold ml-0.5"
+                >
+                  ✕
+                </button>
+              </div>
             </header>
 
             {/* Conversation Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-              {/* Empty State */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 scrollbar-thin scrollbar-thumb-zinc-400/50 hover:scrollbar-thumb-zinc-500/70">
+              {/* Empty State: Matching the Deskwright Aesthetic in Screenshot */}
               {!messages.length && !busy && (
-                <div className="flex flex-col items-center justify-center text-center py-8 px-2 space-y-3">
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-zinc-800">
-                    <Image
-                      src="/muse-logo-64.png"
-                      alt="Muse"
-                      width={48}
-                      height={48}
-                      className="object-cover"
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-semibold text-zinc-200">
-                      Muse Voice & Evidence Copilot
-                    </h3>
-                    <p className="mt-1 text-[11px] text-zinc-400 max-w-[260px] leading-relaxed">
-                      Hold the voice bubble to speak, or type below. Active incident is synced automatically.
+                <div className="flex flex-col items-center justify-center text-center h-full min-h-[300px] px-2 space-y-4 my-auto select-none">
+                  <div className="space-y-1.5 mt-8">
+                    <h2 className="text-2xl font-serif text-black dark:text-black tracking-tight font-semibold">
+                      What should I do?
+                    </h2>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-600 font-normal max-w-[260px] leading-relaxed mx-auto">
+                      Describe a task or ask about video evidence.
                     </p>
                   </div>
 
-                  {/* Minimal Text Suggestion Chips */}
-                  <div className="w-full pt-2 space-y-1.5 text-left">
-                    <button
-                      type="button"
-                      onClick={() => send("Show me the latest incident and explain what happened.")}
-                      className="w-full text-left text-[11px] px-3 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800/80 text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
-                    >
-                      Show me latest incident findings
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => send("Were candidate matches found? Explain frame evidence.")}
-                      className="w-full text-left text-[11px] px-3 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800/80 text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
-                    >
-                      Detail candidate match evidence
-                    </button>
+                  {/* Clean Action Chips above composer */}
+                  <div className="w-full pt-10 space-y-2">
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <button
+                        type="button"
+                        onClick={() => send("Show me the latest incident and explain what happened.")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold px-3.5 py-1.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-xs"
+                      >
+                        <span>🎓</span>
+                        <span>Overview</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => send("Can you tell me about this incident , give me the detailed report")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white border border-[#D5D0C5] text-black dark:text-black hover:bg-zinc-100 hover:border-zinc-400 transition-all cursor-pointer shadow-xs"
+                      >
+                        <span>Detailed report</span>
+                        <span className="text-[10px] text-zinc-500">▶ Run</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => send("Were candidate matches found? Detail frame evidence.")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white border border-[#D5D0C5] text-black dark:text-black hover:bg-zinc-100 hover:border-zinc-400 transition-all cursor-pointer shadow-xs"
+                      >
+                        <span>Examine matches</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Message Thread */}
+              {/* Message Thread with High-Contrast Black Typography */}
               {messages.map((message) => {
                 const isUser = message.role === "user";
                 const citations = message.metadata?.citations || [];
@@ -468,17 +520,17 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                     className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                      className={`max-w-[92%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
                         isUser
-                          ? "bg-zinc-800 text-zinc-100 rounded-tr-xs"
-                          : "bg-[#131722] border border-zinc-800/80 text-zinc-200 rounded-tl-xs"
+                          ? "bg-white border border-[#D8D3C8] text-black dark:text-black font-normal rounded-tr-xs shadow-xs"
+                          : "bg-[#F2ECE1] border border-[#DDD6C8] text-black dark:text-black font-normal rounded-tl-xs shadow-2xs"
                       }`}
                     >
                       {!isUser && (
-                        <div className="flex items-center gap-1.5 mb-1 text-[10px] font-mono text-zinc-400">
+                        <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-semibold text-black dark:text-black">
                           <span>Muse</span>
                           {message.metadata?.status === "failed" && (
-                            <span className="text-amber-400">· Incomplete</span>
+                            <span className="text-amber-700 font-normal">· Incomplete</span>
                           )}
                         </div>
                       )}
@@ -486,10 +538,10 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                         <AICitations
                           parts={citationParts}
                           sources={citationSources}
-                          className="text-xs leading-relaxed text-zinc-200"
+                          className="text-xs leading-relaxed text-black dark:text-black font-normal"
                         />
                       ) : (
-                        <p className="whitespace-pre-wrap">{message.text}</p>
+                        <p className="whitespace-pre-wrap text-black dark:text-black text-xs leading-relaxed font-normal">{message.text}</p>
                       )}
                     </div>
                   </motion.div>
@@ -501,22 +553,22 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                 <motion.div
                   initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col items-start space-y-1.5 mr-auto max-w-[90%]"
+                  className="flex flex-col items-start space-y-2 mr-auto max-w-[92%]"
                 >
                   {pendingText && (
-                    <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-xs px-3.5 py-2.5 text-xs bg-zinc-800 text-zinc-100">
+                    <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-xs px-4 py-2.5 text-xs bg-white border border-[#D8D3C8] text-black dark:text-black font-normal shadow-xs">
                       {pendingText}
                     </div>
                   )}
-                  <div className="rounded-2xl rounded-tl-xs px-3.5 py-2.5 text-xs bg-[#131722] border border-zinc-800/80 text-zinc-300">
+                  <div className="rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs bg-[#F2ECE1] border border-[#DDD6C8] text-black dark:text-black shadow-2xs">
                     <AITextLoading
                       texts={[
-                        "Analyzing evidence...",
+                        "Reading evidence bundle...",
                         "Correlating candidate frames...",
-                        "Grounding response...",
+                        "Grounding forensic report...",
                       ]}
                       interval={1400}
-                      className="text-zinc-300 text-xs"
+                      className="text-black dark:text-black text-xs font-semibold"
                     />
                   </div>
                 </motion.div>
@@ -529,22 +581,22 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
             {(error || capture.error) && (
               <div
                 role="alert"
-                className="mx-3 my-1 px-3 py-1.5 rounded-xl bg-amber-950/70 border border-amber-600/30 text-[11px] text-amber-200 flex items-center justify-between"
+                className="mx-3 my-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-[11px] text-amber-900 flex items-center justify-between"
               >
                 <span className="truncate">{error || capture.error}</span>
                 <button
                   type="button"
                   onClick={() => setError("")}
-                  className="text-[10px] text-amber-300 hover:text-white ml-2 cursor-pointer"
+                  className="text-[10px] text-amber-800 hover:text-black ml-2 cursor-pointer font-bold"
                 >
                   ✕
                 </button>
               </div>
             )}
 
-            {/* Minimal Composer Area */}
-            <div className="p-3 bg-[#0a0d14] border-t border-zinc-800/80 space-y-2 select-none">
-              {/* Push-to-Talk Voice Bubble (Hold to speak, release to send) */}
+            {/* Bottom Composer Area: Deskwright Rounded White Card */}
+            <div className="p-3.5 bg-[#FAF8F5] border-t border-[#E8E3D8] space-y-2 select-none shrink-0">
+              {/* Push-to-Talk Voice Bubble with Animated Equalizer Bars */}
               <div className="flex justify-center">
                 <button
                   type="button"
@@ -553,56 +605,102 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                   onMouseLeave={handleHoldEnd}
                   onTouchStart={handleHoldStart}
                   onTouchEnd={handleHoldEnd}
+                  onPointerDown={handleHoldStart}
+                  onPointerUp={handleHoldEnd}
+                  onPointerCancel={handleHoldEnd}
                   disabled={disabled && !isHolding}
                   aria-label="Hold to speak to Muse"
-                  className={`relative flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-medium text-xs transition-all select-none cursor-pointer shadow-md ${
+                  className={`relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-xs transition-all select-none cursor-pointer shadow-xs ${
                     isHolding
-                      ? "bg-rose-500/25 border border-rose-500/60 text-rose-200 shadow-rose-500/20 scale-105 animate-pulse"
+                      ? "bg-rose-50 border-2 border-rose-500 text-rose-950 shadow-rose-200 scale-105"
                       : transcribing
-                      ? "bg-teal-500/20 border border-teal-500/40 text-teal-200"
-                      : "bg-zinc-800/90 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 hover:text-white hover:border-zinc-600 active:scale-95"
+                      ? "bg-teal-50 border border-teal-500 text-teal-950"
+                      : "bg-white hover:bg-zinc-100 border border-[#D5D0C5] text-black dark:text-black hover:border-zinc-400 active:scale-95"
                   }`}
                 >
                   {isHolding ? (
-                    <>
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping" />
-                      <span>Listening… Release to send ({Math.floor(capture.seconds)}s)</span>
-                    </>
+                    <div className="flex items-center gap-2">
+                      <AudioEqualizerBars active={true} />
+                      <span className="font-bold text-rose-950">
+                        Listening… ({Math.floor(capture.seconds)}s) · Release to send
+                      </span>
+                    </div>
                   ) : transcribing ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                      <span>Transcribing & sending to Muse…</span>
-                    </>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
+                      <span className="font-semibold text-teal-950">Transcribing voice…</span>
+                    </div>
                   ) : (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-teal-400" />
+                    <div className="flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-800">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="22" />
+                      </svg>
                       <span>Hold to speak</span>
-                    </>
+                    </div>
                   )}
                 </button>
               </div>
 
-              {/* Secondary Minimal Text Input */}
-              <div className="flex items-center gap-1.5 w-full bg-[#121620] border border-zinc-800/80 rounded-xl px-3 py-1.5 focus-within:border-zinc-700 transition-colors">
-                <input
-                  id="floating-muse-composer"
-                  type="text"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (draft.trim() && !disabled) {
-                        const text = draft.trim();
-                        setDraft("");
-                        void send(text);
+              {/* Text Input Pill Card with Microphone & Vertical Up-Arrow Send Button */}
+              <div className={`flex items-center gap-2 w-full bg-white border rounded-2xl p-2 shadow-xs transition-all ${
+                isHolding ? "border-rose-400 ring-1 ring-rose-200 bg-rose-50/40" : "border-[#D5D0C5] focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-400/40"
+              }`}>
+                {isHolding ? (
+                  <div className="flex items-center gap-2 w-full px-2 py-0.5 select-none min-h-[28px]">
+                    <AudioEqualizerBars active={true} />
+                    <span className="text-xs font-semibold text-rose-950 truncate">
+                      Listening… ({Math.floor(capture.seconds)}s) · Release to send
+                    </span>
+                  </div>
+                ) : (
+                  <input
+                    id="floating-muse-composer"
+                    type="text"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (draft.trim() && !disabled) {
+                          const text = draft.trim();
+                          setDraft("");
+                          void send(text);
+                        }
                       }
-                    }
-                  }}
-                  placeholder="Ask Muse or hold voice bubble… (Enter to send)"
-                  disabled={disabled}
-                  className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none"
-                />
+                    }}
+                    placeholder="Ask Muse or hold voice bubble… (Enter to send)"
+                    disabled={disabled}
+                    className="w-full bg-transparent px-2 text-xs text-black dark:text-black placeholder:text-zinc-500 focus:outline-none font-normal"
+                  />
+                )}
+
+                {/* Microphone Hold Icon */}
+                <button
+                  type="button"
+                  onMouseDown={handleHoldStart}
+                  onMouseUp={handleHoldEnd}
+                  onMouseLeave={handleHoldEnd}
+                  onTouchStart={handleHoldStart}
+                  onTouchEnd={handleHoldEnd}
+                  onPointerDown={handleHoldStart}
+                  onPointerUp={handleHoldEnd}
+                  onPointerCancel={handleHoldEnd}
+                  disabled={disabled && !isHolding}
+                  title="Hold to speak"
+                  className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors cursor-pointer shrink-0 ${
+                    isHolding ? "text-rose-700 bg-rose-100" : "text-zinc-600 dark:text-zinc-600 hover:text-black dark:hover:text-black hover:bg-zinc-100"
+                  }`}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </button>
+
+                {/* Deskwright Black Pill Send Button with Up-Arrow ↑ */}
                 <button
                   type="button"
                   onClick={() => {
@@ -613,9 +711,12 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                     }
                   }}
                   disabled={disabled || !draft.trim()}
-                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:opacity-30 disabled:hover:bg-teal-600 text-white text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
+                  title="Send message"
+                  aria-label="Send"
+                  className="w-7 h-9 rounded-full bg-black hover:bg-zinc-800 disabled:opacity-20 disabled:hover:bg-black text-white flex items-center justify-center font-bold text-xs transition-all shrink-0 cursor-pointer shadow-xs active:scale-95"
                 >
-                  Send
+                  <span className="sr-only">Send</span>
+                  <span aria-hidden="true" className="text-sm font-semibold">↑</span>
                 </button>
               </div>
             </div>

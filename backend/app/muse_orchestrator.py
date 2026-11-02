@@ -119,12 +119,12 @@ def mask_quoted_filenames(output, nodes, cited):
 def is_absence_mention(text: str, start: int, end: int) -> bool:
     """True if the classification mention at text[start:end] is in an explicit absence context."""
     left_text = text[:start]
-    delims = [m.end() for m in re.finditer(r"(?:(?<!\d)\.(?!\d)|[!?;\n])\s*", left_text)]
+    delims = [m.end() for m in re.finditer(r"(?:(?<!\d)\.(?!\d)|[!?;\n]|,\s*(?:and|but|or|while|whereas)\b)\s*", left_text)]
     clause_start = delims[-1] if delims else 0
     before = left_text[clause_start:]
 
     right_text = text[end:]
-    delims = [m.start() for m in re.finditer(r"(?:(?<!\d)\.(?!\d)|[!?;\n])", right_text)]
+    delims = [m.start() for m in re.finditer(r"(?:(?<!\d)\.(?!\d)|[!?;\n]|,\s*(?:and|but|or|while|whereas)\b)", right_text)]
     clause_end = delims[0] if delims else len(right_text)
     after = right_text[:clause_end]
 
@@ -225,8 +225,8 @@ status, timestamps, findings or report provenance. Interpret cautiously and dist
 measured facts from interpretation. Similarity is not an infringement probability or legal proof.
 Prefer a concise qualitative answer; omit unnecessary IDs, numbers and status labels.
 If naming media, quote its exact suspect_filename from a cited source; digits within
-that filename are a label, not a scan date or a measurement. Do not round, convert or
-derive other numeric claims. Report existence does not mean its contents were retrieved.
+that filename are a label, not a scan date or a measurement. Never output filesystem paths (starting with /)
+or URLs in your answer. Do not round, convert or derive other numeric claims. Report existence does not mean its contents were retrieved.
 If latest/details lacks frame evidence or a report summary, say what was retrieved,
 avoid explaining unseen findings, and request the appropriate read-only tool for detail.
 A citation timestamp_sec is a SUSPECT timestamp tied to its evidence_id (not source time).
@@ -250,7 +250,9 @@ not suspicious frames or missing evidence. Keep NO_MATCH, SUSPECT_MATCH and CONF
 distinct. observation_counts refer to the returned bounded sample. Missing vision annotations
 do not describe what an image shows. No new image analysis is performed by these tools.
 If a selected_incident_hint exists, treat it as the active incident currently open on the user's screen.
-Prioritize that incident ID for any question about 'this video', 'this incident', 'the current scan', 'what happened', or 'evidence'.
+Prioritize that incident ID for any question about 'this video', 'this incident', 'the current scan', 'what happened', 'evidence', or 'detailed report'.
+When selected_incident_hint is present and the user asks about 'this incident', 'what happened', 'detailed report', or 'explain', immediately inspect that incident using get_incident_details and get_evidence_bundle with incident_id=selected_incident_hint.
+Only call get_investigation_reports if has_investigation_reports is true in get_incident_details. If has_investigation_reports is false, do not call get_investigation_reports; provide the comprehensive forensic report and evidence analysis directly from get_incident_details and get_evidence_bundle. Never ask for clarification of which incident when selected_incident_hint is present.
 Do NOT call get_latest_incident or list_recent_incidents when a valid selected_incident_hint is present unless the user explicitly requests other incidents or the latest scan.
 If no selected_incident_hint exists, do not assume an arbitrary incident is active; use list_recent_incidents or clarify.
 """

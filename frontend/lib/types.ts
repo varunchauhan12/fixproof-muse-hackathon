@@ -128,6 +128,7 @@ export interface MatchAnalysisResult {
   matched_assets: string[];
   frame_matches: FrameMatchDetail[];
   scanned_at?: string;
+  session_id?: string | null;
   file_size?: number;
   duration_seconds?: number;
   frame_count?: number;

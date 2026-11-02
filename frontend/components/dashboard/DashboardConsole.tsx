@@ -200,9 +200,11 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   }
 
   useEffect(() => {
-    const incId = selectedIncidentForInspection?.incident_id || nemotronPreselectedIncident?.incident_id || null;
+    const inc = selectedIncidentForInspection || nemotronPreselectedIncident;
+    const incId = inc?.incident_id || null;
+    const incSess = inc?.session_id || null;
     if (incId && activityContext?.setActiveIncidentId) {
-      activityContext.setActiveIncidentId(incId);
+      activityContext.setActiveIncidentId(incId, incSess);
     }
   }, [selectedIncidentForInspection, nemotronPreselectedIncident, activityContext]);
 

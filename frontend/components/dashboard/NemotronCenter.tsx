@@ -212,11 +212,6 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     // outside provider
   }
 
-  useEffect(() => {
-    if (selectedIncidentId && activityContext?.setActiveIncidentId) {
-      activityContext.setActiveIncidentId(selectedIncidentId);
-    }
-  }, [selectedIncidentId, activityContext]);
   const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("ALL");
 
@@ -380,6 +375,15 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const selectedIncident = useMemo(() => {
     return incidents.find((i) => i.incident_id === selectedIncidentId) || incidents[0] || null;
   }, [incidents, selectedIncidentId]);
+
+  const setActiveIncidentId = activityContext?.setActiveIncidentId;
+
+  useEffect(() => {
+    const targetId = selectedIncident?.incident_id || selectedIncidentId;
+    if (targetId && setActiveIncidentId) {
+      setActiveIncidentId(targetId, selectedIncident?.session_id);
+    }
+  }, [selectedIncident?.incident_id, selectedIncident?.session_id, selectedIncidentId, setActiveIncidentId]);
 
   // Auto-fill work title from matched asset if available
   useEffect(() => {
