@@ -24,6 +24,7 @@ import {
   Calendar,
   Activity,
   FileCheck,
+  Sparkles,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -38,6 +39,7 @@ import {
   downloadDetailedReportPdf,
   formatDuration,
 } from "@/lib/api";
+import { useActivity } from "@/context/ActivityContext";
 
 interface ForensicEvidenceExperienceProps {
   incident: MatchAnalysisResult;
@@ -73,10 +75,23 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
   const [pdfDownloadSuccess, setPdfDownloadSuccess] = useState<boolean>(false);
   const [activeReportTab, setActiveReportTab] = useState<"summary" | "methodology" | "continuity" | "assessment" | "actions">("summary");
 
-  // Sync currentIncident when parent incident prop changes
+  let activityContext: ReturnType<typeof useActivity> | null = null;
+  try {
+    activityContext = useActivity();
+  } catch {
+    // outside provider
+  }
+
+  // Sync currentIncident and reset active pair / errors when incident changes
   React.useEffect(() => {
     setCurrentIncident(incident);
-  }, [incident]);
+    setSelectedPairIndex(0);
+    setSuspectImageError({});
+    setRefImageError({});
+    if (incident?.incident_id && activityContext?.setActiveIncidentId) {
+      activityContext.setActiveIncidentId(incident.incident_id);
+    }
+  }, [incident?.incident_id, activityContext]);
 
   // Handle missing image states gracefully
   const [suspectImageError, setSuspectImageError] = useState<Record<number, boolean>>({});
@@ -125,7 +140,8 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
           suspectFilename = c.suspect_image_path.split("/").pop() || "";
         }
         if (!suspectFilename) {
-          suspectFilename = `frame_${String(idx).padStart(4, "0")}s.jpg`;
+          const sec = Math.round(c.suspect_timestamp_sec ?? idx * 5);
+          suspectFilename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
         }
 
         // Reference frame filename extracted from path or conventional naming
@@ -133,14 +149,17 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
         if (c.ref_image_path) {
           refFilename = c.ref_image_path.split("/").pop() || "";
         }
-        if (!refFilename) {
-          refFilename = `frame_${String(idx).padStart(4, "0")}s.jpg`;
+        if (!refFilename && c.source_timestamp_sec !== undefined) {
+          const sec = Math.round(c.source_timestamp_sec);
+          refFilename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
         }
 
-        const suspectUrl = currentIncident.submitted_asset_id
-          ? getAssetFrameUrl(currentIncident.submitted_asset_id, suspectFilename)
+        const suspectAssetId = currentIncident.submitted_asset_id || currentIncident.incident_id || incident.incident_id;
+        const suspectUrl = suspectAssetId && suspectFilename
+          ? getAssetFrameUrl(suspectAssetId, suspectFilename)
           : "";
-        const refUrl = c.source_asset_id
+        const isRefValid = c.source_asset_id && c.source_asset_id !== "other_asset" && c.source_asset_id !== "unregistered";
+        const refUrl = isRefValid && refFilename
           ? getAssetFrameUrl(c.source_asset_id, refFilename)
           : "";
 
@@ -176,13 +195,17 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
     const matches = currentIncident.frame_matches || [];
     return matches.map((fm, idx) => {
       const best = fm.best_match;
-      const suspectFilename = fm.submitted_frame.filename || `frame_${String(idx).padStart(4, "0")}s.jpg`;
-      const refFilename = best?.source_filename || "";
+      const suspectAssetId = currentIncident.submitted_asset_id || currentIncident.incident_id || incident.incident_id;
+      const suspectSec = Math.round(fm.submitted_frame?.timestamp_sec ?? idx * 5);
+      const suspectFilename = fm.submitted_frame?.filename || `frame_${String(suspectSec).padStart(4, "0")}s.jpg`;
+      const refSec = Math.round(best?.source_timestamp_sec ?? 0);
+      const isRefValid = best?.source_asset_id && best.source_asset_id !== "other_asset" && best.source_asset_id !== "unregistered";
+      const refFilename = best?.source_filename || (isRefValid ? `frame_${String(refSec).padStart(4, "0")}s.jpg` : "");
 
-      const suspectUrl = currentIncident.submitted_asset_id
-        ? getAssetFrameUrl(currentIncident.submitted_asset_id, suspectFilename)
+      const suspectUrl = suspectAssetId && suspectFilename
+        ? getAssetFrameUrl(suspectAssetId, suspectFilename)
         : "";
-      const refUrl = best?.source_asset_id && refFilename
+      const refUrl = isRefValid && refFilename
         ? getAssetFrameUrl(best.source_asset_id, refFilename)
         : "";
 
@@ -389,6 +412,30 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                 <ArrowRight size={11} />
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("fixproof_muse_select_incident", {
+                      detail: incident.incident_id,
+                    })
+                  );
+                  window.dispatchEvent(new CustomEvent("fixproof_open_muse"));
+                }
+              }}
+              style={{
+                background: "#1c1b1a",
+                border: "1px solid rgba(72, 199, 181, 0.35)",
+                color: "#48C7B5",
+              }}
+              className="px-3 py-1.5 rounded-lg hover:bg-teal-500/10 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Open Muse AI Copilot for this incident"
+            >
+              <Sparkles size={12} className="text-teal-400" />
+              <span>Ask Muse</span>
+            </button>
           </div>
         </div>
 
@@ -629,10 +676,12 @@ export const ForensicEvidenceExperience: React.FC<ForensicEvidenceExperienceProp
                         <Database size={20} />
                       </div>
                       <div className="text-xs text-[#aba497]">
-                        Reference keyframe image unavailable from storage
+                        {!currentPair.refUrl && (currentPair.sourceAssetId === "other_asset" || currentPair.sourceAssetId === "unregistered" || !currentPair.sourceAssetId)
+                          ? "No reference frame matched (Media verified clean / negative match)"
+                          : "Reference keyframe image unavailable from storage"}
                       </div>
                       <div className="text-[10px] text-[#736d62] font-mono">
-                        Asset: {currentPair.sourceAssetId.slice(0, 16)} • Ts {currentPair.sourceTimestamp}s
+                        Asset: {currentPair.sourceAssetId ? currentPair.sourceAssetId.slice(0, 16) : "None"} • Ts {currentPair.sourceTimestamp}s
                       </div>
                     </div>
                   )}

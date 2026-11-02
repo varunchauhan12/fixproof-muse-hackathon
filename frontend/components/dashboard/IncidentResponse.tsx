@@ -47,6 +47,7 @@ import {
   verifyEvidencePackage,
   getAssetVideoUrl,
   getAssetFrameUrl,
+  getAssetThumbnailUrl,
   getDetailedReportsForIncident,
   getDetailedReport,
   formatDuration,
@@ -57,6 +58,7 @@ import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import { TableRowSkeleton, FrameViewerSkeleton } from "@/components/ui/Skeleton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
 import { ForensicEvidenceExperience } from "@/components/dashboard/ForensicEvidenceExperience";
+import { useActivity } from "@/context/ActivityContext";
 
 const packageVerificationStepsConfig = [
   {
@@ -109,6 +111,19 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   const [sessionCopied, setSessionCopied] = useState<boolean>(false);
   const [dossierMode, setDossierMode] = useState<"FORENSIC_EXPERIENCE" | "FRAME_SYNC">("FORENSIC_EXPERIENCE");
   const [activeDetailedReport, setActiveDetailedReport] = useState<DetailedReportRecord | null>(null);
+
+  let activityContext: ReturnType<typeof useActivity> | null = null;
+  try {
+    activityContext = useActivity();
+  } catch {
+    // outside provider
+  }
+
+  useEffect(() => {
+    if (selectedIncident?.incident_id && activityContext?.setActiveIncidentId) {
+      activityContext.setActiveIncidentId(selectedIncident.incident_id);
+    }
+  }, [selectedIncident?.incident_id, activityContext]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -499,22 +514,39 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   }, [selectedIncident]);
 
   // Derive URLs for suspect and reference frames
-  const suspectFrameUrl =
-    selectedIncident?.investigation_type === "URL_SCREENING"
-      ? selectedIncident.suspect_thumbnail_preview_url
-        ? `${API_BASE}${selectedIncident.suspect_thumbnail_preview_url}`
-        : selectedIncident.thumbnail_url || ""
-      : selectedIncident?.submitted_asset_id && selectedFrameMatch?.submitted_frame?.filename
-      ? getAssetFrameUrl(selectedIncident.submitted_asset_id, selectedFrameMatch.submitted_frame.filename)
-      : "";
+  const suspectFrameUrl = (() => {
+    if (!selectedIncident) return "";
+    if (selectedIncident.investigation_type === "URL_SCREENING") {
+      if (selectedIncident.suspect_thumbnail_preview_url) {
+        return getAssetThumbnailUrl(selectedIncident.suspect_thumbnail_preview_url);
+      }
+      return getAssetThumbnailUrl(selectedIncident.thumbnail_url) || "";
+    }
+    const assetId = selectedIncident.submitted_asset_id || selectedIncident.incident_id;
+    if (!assetId) return "";
+    let filename = selectedFrameMatch?.submitted_frame?.filename;
+    if (!filename && selectedFrameMatch?.submitted_frame?.timestamp_sec !== undefined) {
+      const sec = Math.round(selectedFrameMatch.submitted_frame.timestamp_sec);
+      filename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
+    }
+    return filename ? getAssetFrameUrl(assetId, filename) : "";
+  })();
 
-  const refFrameUrl =
-    selectedFrameMatch?.best_match?.source_asset_id && selectedFrameMatch.best_match.source_filename
-      ? getAssetFrameUrl(
-          selectedFrameMatch.best_match.source_asset_id,
-          selectedFrameMatch.best_match.source_filename
-        )
-      : "";
+  const isRefValid =
+    selectedFrameMatch?.best_match?.source_asset_id &&
+    selectedFrameMatch.best_match.source_asset_id !== "other_asset" &&
+    selectedFrameMatch.best_match.source_asset_id !== "unregistered";
+
+  const refFrameUrl = (() => {
+    if (!isRefValid) return "";
+    const sourceAssetId = selectedFrameMatch!.best_match!.source_asset_id;
+    let filename = selectedFrameMatch?.best_match?.source_filename;
+    if (!filename && selectedFrameMatch?.best_match?.source_timestamp_sec !== undefined) {
+      const sec = Math.round(selectedFrameMatch.best_match.source_timestamp_sec);
+      filename = `frame_${String(sec).padStart(4, "0")}s.jpg`;
+    }
+    return filename ? getAssetFrameUrl(sourceAssetId, filename) : "";
+  })();
 
   // Filtered keyframes for the forensic sequence ledger
   const filteredKeyframes = (selectedIncident?.frame_matches || []).filter((fm) => {

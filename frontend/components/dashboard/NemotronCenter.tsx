@@ -42,6 +42,7 @@ import {
   DetailedReportListItem,
   DetailedReportResponse,
 } from "@/lib/types";
+import { useActivity } from "@/context/ActivityContext";
 import {
   getNemotronStatus,
   fetchNoCache,
@@ -203,6 +204,19 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     preselectedIncident?.incident_id ||
       (incidents.length > 0 && incidents[0].incident_id ? incidents[0].incident_id : "")
   );
+
+  let activityContext: ReturnType<typeof useActivity> | null = null;
+  try {
+    activityContext = useActivity();
+  } catch {
+    // outside provider
+  }
+
+  useEffect(() => {
+    if (selectedIncidentId && activityContext?.setActiveIncidentId) {
+      activityContext.setActiveIncidentId(selectedIncidentId);
+    }
+  }, [selectedIncidentId, activityContext]);
   const [incidentSearchQuery, setIncidentSearchQuery] = useState("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("ALL");
 
@@ -538,8 +552,8 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   };
 
   const handleDownloadPdf = async (reportId?: string) => {
-    const targetId = reportId || activeDetailedReport?.report_id;
-    if (!targetId) throw new Error("No detailed report selected for download");
+    const targetId = reportId || activeDetailedReport?.report_id || selectedIncident?.incident_id;
+    if (!targetId) throw new Error("No detailed report or incident selected for download");
     const url = getDetailedReportPdfUrl(targetId);
     const res = await fetchNoCache(url);
     if (!res.ok) throw new Error(`PDF download failed (${res.status})`);

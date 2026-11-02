@@ -61,6 +61,8 @@ logger = logging.getLogger(__name__)
 
 DETAILED_REPORTS_DIR = Path(__file__).resolve().parent.parent / "storage" / "detailed_reports"
 DETAILED_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+LEGACY_REPORTS_DIR = Path(__file__).resolve().parent.parent / "storage" / "reports"
+SAFE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 _active_reasoning = provider_factory.get_reasoning_provider()
 _active_vision = provider_factory.get_vision_provider()
@@ -1499,57 +1501,299 @@ def save_detailed_report(
         f.write(pdf_bytes)
 
 
-def get_detailed_report_record(report_id: str) -> Optional[Dict[str, Any]]:
-    """Loads a specific detailed report JSON by report_id."""
-    for inc_dir in DETAILED_REPORTS_DIR.iterdir():
-        if inc_dir.is_dir():
-            target = inc_dir / f"report_{report_id}.json"
-            if target.exists():
+def normalize_report_identifier(raw_id: str) -> str:
+    """Normalizes report identifiers by stripping whitespace, extensions, and standard prefixes."""
+    if not raw_id:
+        return ""
+    cleaned = raw_id.strip()
+    if "?" in cleaned:
+        cleaned = cleaned.split("?")[0]
+    if cleaned.lower().endswith(".pdf"):
+        cleaned = cleaned[:-4]
+    elif cleaned.lower().endswith(".json"):
+        cleaned = cleaned[:-5]
+    for prefix in (
+        "fixproof-meta-forensic-report-",
+        "fixproof-forensic-report-",
+        "fixproof-detailed-report-",
+        "fixproof-summary-",
+        "report_",
+    ):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    return cleaned.strip()
+
+
+def _get_report_search_dirs() -> List[Path]:
+    """Returns all directories containing generated reports and incident subdirectories."""
+    dirs = []
+    if DETAILED_REPORTS_DIR.exists():
+        dirs.extend([d for d in DETAILED_REPORTS_DIR.iterdir() if d.is_dir()])
+        dirs.append(DETAILED_REPORTS_DIR)
+    if LEGACY_REPORTS_DIR.exists():
+        dirs.extend([d for d in LEGACY_REPORTS_DIR.iterdir() if d.is_dir()])
+        dirs.append(LEGACY_REPORTS_DIR)
+    return dirs
+
+
+def _is_safe_path(target: Path) -> bool:
+    """Verifies that target resolves strictly within allowed report storage boundaries."""
+    try:
+        resolved = target.resolve()
+        safe_bases = [DETAILED_REPORTS_DIR.resolve()]
+        if LEGACY_REPORTS_DIR.exists():
+            safe_bases.append(LEGACY_REPORTS_DIR.resolve())
+        return any(resolved == base or base in resolved.parents for base in safe_bases)
+    except Exception:
+        return False
+
+
+def resolve_detailed_report_pdf(
+    identifier: str,
+) -> Optional[Tuple[bytes, Optional[Dict[str, Any]], str, str]]:
+    """Deterministically resolves stored PDF bytes, report metadata, report_id, and incident_id.
+    
+    Resolution order:
+    1. Direct report_id matching report_<id>.pdf
+    2. Direct report_id matching report_<id>.json (with PDF in same directory)
+    3. Direct incident_id resolving the latest report deterministically
+    4. Nemotron/Investigation report ID mapped to incident via registry
+    5. Prefix match (>= 6 chars) for truncated download filenames
+    
+    Returns (pdf_bytes, report_record, resolved_report_id, incident_id) or None.
+    Never creates a new report on retrieval.
+    """
+    if not identifier:
+        return None
+
+    clean_id = normalize_report_identifier(identifier)
+    if not clean_id or not SAFE_ID_REGEX.match(clean_id):
+        return None
+
+    search_dirs = _get_report_search_dirs()
+
+    # ── Strategy 1: Direct report_id matching report_<clean_id>.pdf ──
+    for d in search_dirs:
+        pdf_target = d / f"report_{clean_id}.pdf"
+        if pdf_target.is_file() and _is_safe_path(pdf_target):
+            try:
+                pdf_bytes = pdf_target.read_bytes()
+                json_target = d / f"report_{clean_id}.json"
+                record = None
+                if json_target.is_file() and _is_safe_path(json_target):
+                    with open(json_target, "r", encoding="utf-8") as fp:
+                        record = json.load(fp)
+                inc_id = (record.get("incident_id") if record else "") or (d.name if d != DETAILED_REPORTS_DIR and d != LEGACY_REPORTS_DIR else "")
+                return pdf_bytes, record, clean_id, inc_id
+            except Exception as e:
+                logger.warning(f"[PDF Resolver] Error reading {pdf_target}: {e}")
+
+    # ── Strategy 2: Direct report_id matching report_<clean_id>.json ──
+    for d in search_dirs:
+        json_target = d / f"report_{clean_id}.json"
+        if json_target.is_file() and _is_safe_path(json_target):
+            try:
+                with open(json_target, "r", encoding="utf-8") as fp:
+                    record = json.load(fp)
+                inc_id = record.get("incident_id") or (d.name if d != DETAILED_REPORTS_DIR and d != LEGACY_REPORTS_DIR else "")
+                pdf_target = d / f"report_{clean_id}.pdf"
+                if pdf_target.is_file() and _is_safe_path(pdf_target):
+                    return pdf_target.read_bytes(), record, clean_id, inc_id
+                # Fallback: check other report PDFs in that same directory
+                pdf_files = sorted(
+                    [p for p in d.glob("report_*.pdf") if _is_safe_path(p)],
+                    key=lambda p: (p.stat().st_mtime, p.name),
+                    reverse=True,
+                )
+                if pdf_files:
+                    chosen_pdf = pdf_files[0]
+                    resolved_id = normalize_report_identifier(chosen_pdf.stem)
+                    return chosen_pdf.read_bytes(), record, resolved_id, inc_id
+            except Exception as e:
+                logger.warning(f"[PDF Resolver] Error reading JSON {json_target}: {e}")
+
+    # ── Strategy 3: Identifier is an incident_id ──
+    incident_dirs = []
+    for base in (DETAILED_REPORTS_DIR, LEGACY_REPORTS_DIR):
+        cand = base / clean_id
+        if cand.is_dir() and _is_safe_path(cand):
+            incident_dirs.append(cand)
+
+    known_incident = None
+    try:
+        from app.registry import get_incident_by_id
+        known_incident = get_incident_by_id(clean_id)
+    except Exception as e:
+        logger.debug(f"[PDF Resolver] get_incident_by_id failed: {e}")
+
+    if incident_dirs or known_incident:
+        inc_id = clean_id
+        # 3A: Resolve via metadata list (deterministic sort by generated_at DESC, report_id DESC)
+        rep_list = list_detailed_reports_for_incident(inc_id)
+        for meta in rep_list:
+            cand_rep_id = meta.get("report_id")
+            if cand_rep_id:
+                for d in (incident_dirs or search_dirs):
+                    pdf_target = d / f"report_{cand_rep_id}.pdf"
+                    if pdf_target.is_file() and _is_safe_path(pdf_target):
+                        json_target = d / f"report_{cand_rep_id}.json"
+                        record = None
+                        if json_target.is_file() and _is_safe_path(json_target):
+                            try:
+                                with open(json_target, "r", encoding="utf-8") as fp:
+                                    record = json.load(fp)
+                            except Exception:
+                                pass
+                        return pdf_target.read_bytes(), record, cand_rep_id, inc_id
+
+        # 3B: Deterministic fallback across pdf files in incident directory
+        for inc_d in incident_dirs:
+            pdf_files = sorted(
+                [p for p in inc_d.glob("report_*.pdf") if _is_safe_path(p)],
+                key=lambda p: (p.stat().st_mtime, p.name),
+                reverse=True,
+            )
+            if pdf_files:
+                chosen_pdf = pdf_files[0]
+                resolved_id = normalize_report_identifier(chosen_pdf.stem)
+                json_target = inc_d / f"report_{resolved_id}.json"
+                record = None
+                if json_target.is_file() and _is_safe_path(json_target):
+                    try:
+                        with open(json_target, "r", encoding="utf-8") as fp:
+                            record = json.load(fp)
+                    except Exception:
+                        pass
+                return chosen_pdf.read_bytes(), record, resolved_id, inc_id
+
+    # ── Strategy 4: Identifier is an investigation report ID from nemotron_reports ──
+    try:
+        from app.registry import get_nemotron_report_by_id
+        nem_rep = get_nemotron_report_by_id(clean_id)
+        if nem_rep and nem_rep.get("incident_id"):
+            parent_inc_id = nem_rep["incident_id"]
+            sub_res = resolve_detailed_report_pdf(parent_inc_id)
+            if sub_res:
+                return sub_res
+    except Exception as e:
+        logger.debug(f"[PDF Resolver] Nemotron report lookup failed: {e}")
+
+    # ── Strategy 5: Truncated prefix match (minimum 6 alphanumeric chars) ──
+    if len(clean_id) >= 6:
+        candidates = []
+        for d in search_dirs:
+            for pdf_file in d.glob(f"report_{clean_id}*.pdf"):
+                if pdf_file.is_file() and _is_safe_path(pdf_file):
+                    candidates.append((pdf_file.stat().st_mtime, pdf_file, d))
+        if candidates:
+            candidates.sort(key=lambda x: (x[0], x[1].name), reverse=True)
+            chosen_pdf = candidates[0][1]
+            chosen_dir = candidates[0][2]
+            resolved_id = normalize_report_identifier(chosen_pdf.stem)
+            inc_id = chosen_dir.name if chosen_dir != DETAILED_REPORTS_DIR and chosen_dir != LEGACY_REPORTS_DIR else ""
+            json_target = chosen_dir / f"report_{resolved_id}.json"
+            record = None
+            if json_target.is_file() and _is_safe_path(json_target):
                 try:
-                    with open(target, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                except Exception as e:
-                    logger.warning(f"Failed to read report {target}: {e}")
+                    with open(json_target, "r", encoding="utf-8") as fp:
+                        record = json.load(fp)
+                except Exception:
+                    pass
+            return chosen_pdf.read_bytes(), record, resolved_id, inc_id
+
+    return None
+
+
+def get_detailed_report_record(report_id: str) -> Optional[Dict[str, Any]]:
+    """Loads a specific detailed report JSON by report_id, incident_id, or formatted filename."""
+    if not report_id:
+        return None
+    clean_id = normalize_report_identifier(report_id)
+    if not clean_id or not SAFE_ID_REGEX.match(clean_id):
+        return None
+
+    # First try exact match in search directories
+    for d in _get_report_search_dirs():
+        target = d / f"report_{clean_id}.json"
+        if target.is_file() and _is_safe_path(target):
+            try:
+                with open(target, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to read report {target}: {e}")
+
+    # Fallback via resolver
+    resolved = resolve_detailed_report_pdf(report_id)
+    if resolved:
+        _, record, _, _ = resolved
+        if record:
+            return record
     return None
 
 
 def get_detailed_report_pdf_bytes(report_id: str) -> Optional[bytes]:
-    """Retrieves stored PDF bytes for a given report_id."""
-    for inc_dir in DETAILED_REPORTS_DIR.iterdir():
-        if inc_dir.is_dir():
-            target = inc_dir / f"report_{report_id}.pdf"
-            if target.exists():
-                try:
-                    with open(target, "rb") as f:
-                        return f.read()
-                except Exception as e:
-                    logger.warning(f"Failed to read pdf {target}: {e}")
+    """Retrieves stored PDF bytes for a given report_id, incident_id, or formatted filename."""
+    if not report_id:
+        return None
+    clean_id = normalize_report_identifier(report_id)
+    if not clean_id or not SAFE_ID_REGEX.match(clean_id):
+        return None
+
+    # Direct search first
+    for d in _get_report_search_dirs():
+        target = d / f"report_{clean_id}.pdf"
+        if target.is_file() and _is_safe_path(target):
+            try:
+                with open(target, "rb") as f:
+                    return f.read()
+            except Exception as e:
+                logger.warning(f"Failed to read pdf {target}: {e}")
+
+    # Fallback via resolver
+    resolved = resolve_detailed_report_pdf(report_id)
+    if resolved:
+        pdf_bytes, _, _, _ = resolved
+        return pdf_bytes
     return None
 
 
 def list_detailed_reports_for_incident(incident_id: str) -> List[Dict[str, Any]]:
     """Lists compact metadata for all detailed reports generated for an incident."""
-    inc_dir = DETAILED_REPORTS_DIR / incident_id
-    if not inc_dir.exists():
+    if not incident_id:
         return []
+    clean_inc_id = normalize_report_identifier(incident_id)
+    if not clean_inc_id or not SAFE_ID_REGEX.match(clean_inc_id):
+        return []
+
+    inc_dir = DETAILED_REPORTS_DIR / clean_inc_id
+    if not inc_dir.exists():
+        legacy_inc_dir = LEGACY_REPORTS_DIR / clean_inc_id
+        if legacy_inc_dir.exists():
+            inc_dir = legacy_inc_dir
+        else:
+            return []
 
     reports = []
     for f in inc_dir.glob("report_*.json"):
+        if not _is_safe_path(f):
+            continue
         try:
             with open(f, "r", encoding="utf-8") as fp:
                 data = json.load(fp)
                 reports.append({
                     "report_id": data["report_id"],
                     "incident_id": data["incident_id"],
-                    "generated_at": data["generated_at"],
-                    "model_id": data["model_id"],
+                    "generated_at": data.get("generated_at", ""),
+                    "model_id": data.get("model_id", ""),
                     "ai_synthesized": data.get("ai_synthesized", False),
                     "summary": data.get("sections", {}).get("executive_summary", "")[:180],
                 })
         except Exception:
             continue
 
-    reports.sort(key=lambda x: x["generated_at"], reverse=True)
+    # Strictly deterministic ordering: generated_at DESC, report_id DESC
+    reports.sort(key=lambda x: (x.get("generated_at", ""), x.get("report_id", "")), reverse=True)
     return reports
 
 

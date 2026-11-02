@@ -26,6 +26,7 @@ import CardStack, { DeckCard } from "@/components/kokonutui/card-stack";
 import { AssetRecord, VaultStatus } from "@/lib/types";
 import {
   API_BASE,
+  getAssetThumbnailUrl,
   ingestReferenceVideo,
   indexAssetInVault,
   deleteAssetFromVault,
@@ -939,7 +940,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                     <div className="relative w-full h-full bg-[#121211] overflow-hidden rounded-xl flex items-center justify-center select-none">
                       {asset.thumbnail_url ? (
                         <img
-                          src={`${API_BASE}${asset.thumbnail_url}`}
+                          src={getAssetThumbnailUrl(asset.thumbnail_url)}
                           alt={asset.filename}
                           className="w-full h-full object-cover"
                         />
@@ -1084,7 +1085,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
                   >
                     {asset.thumbnail_url ? (
                       <img
-                        src={`${API_BASE}${asset.thumbnail_url}`}
+                        src={getAssetThumbnailUrl(asset.thumbnail_url)}
                         alt={asset.filename}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />

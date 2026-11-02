@@ -3,6 +3,7 @@ import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 import { ActivityProvider } from "@/context/ActivityContext";
 import { AppStatusIsland } from "@/components/ui/AppStatusIsland";
+import { FloatingMuseChat } from "@/components/muse/FloatingMuseChat";
 
 const bricolageGrotesque = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -35,6 +36,7 @@ export default function RootLayout({
         <ActivityProvider>
           {children}
           <AppStatusIsland />
+          <FloatingMuseChat />
         </ActivityProvider>
       </body>
     </html>

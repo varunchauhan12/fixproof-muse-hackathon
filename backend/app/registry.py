@@ -382,22 +382,30 @@ def delete_asset_record(asset_id: str, vault: Any) -> bool:
 
 # ─── Incidents & Scans Storage ───────────────────────────────────────────────
 
-def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Loads recorded threat scan incidents from local JSON or Supabase PostgreSQL."""
+def load_incidents(session_id: Optional[str] = None, *, exact_session: bool = False) -> List[Dict[str, Any]]:
+    """Loads incidents; opt-in exact_session excludes legacy/shared/demo records.
+
+    Strict reads propagate storage errors; legacy callers keep their existing policy.
+    """
+    if exact_session and not session_id:
+        raise ValueError("An explicit session is required for strict incident reads")
     demo = is_demo_mode()
 
     if is_cloud_mode():
-        if not demo and session_id:
+        if exact_session or (not demo and session_id):
+            # Only fixed SQL fragments; session values remain parameterized.
+            session_filter = "session_id = %s" if exact_session else "(session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')"
+            ordering = "scanned_at DESC NULLS LAST, incident_id DESC" if exact_session else "scanned_at DESC"
             rows = default_db_manager.fetch_all(
-                """
+                f"""
                 SELECT incident_id, investigation_type, suspect_filename, suspect_url, file_size_bytes,
                        duration_seconds, total_frames_analyzed, candidate_matches_found,
                        highest_confidence, lowest_l2_distance, overall_status,
                        matched_asset_ids, cv_evidence_dossier, scanned_at,
                        score_version, screening_mode, session_id, suspect_storage_path, thumbnail_storage_path
                 FROM incidents
-                WHERE (session_id = %s OR session_id IS NULL OR session_id = 'demo-showcase')
-                ORDER BY scanned_at DESC
+                WHERE {session_filter}
+                ORDER BY {ordering}
                 LIMIT 200;
                 """,
                 (session_id,),
@@ -482,6 +490,8 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
     # Local mode: load from incidents.json
     try:
         all_local = _load_all_local_incidents()
+        if exact_session:
+            return [inc for inc in all_local if inc.get("session_id") == session_id]
         if not demo and session_id:
             return [
                 inc for inc in all_local
@@ -494,6 +504,8 @@ def load_incidents(session_id: Optional[str] = None) -> List[Dict[str, Any]]:
             reverse=True,
         )
     except Exception as e:
+        if exact_session:
+            raise
         logger.error(f"[Registry] Failed to read {INCIDENTS_FILE}: {e}")
         return []
 
@@ -694,8 +706,11 @@ def save_incident(incident_data: Dict[str, Any], session_id: Optional[str] = Non
         raise
 
 
-def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieves an incident record by its incident_id."""
+def get_incident_by_id(incident_id: str, *, strict_read: bool = False) -> Optional[Dict[str, Any]]:
+    """Retrieves an incident; strict_read forbids global fallback and propagates errors.
+
+    This is a retrieval helper, not authorization: callers must check session ownership.
+    """
     if is_cloud_mode():
         import uuid as _uuid
         is_uuid = False
@@ -782,7 +797,12 @@ def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
                         "thumbnail_storage_path": row.get("thumbnail_storage_path"),
                     }
             except Exception as e:
+                if strict_read:
+                    raise
                 logger.warning(f"[Registry] Error querying incident {incident_id} directly: {e}")
+
+        if strict_read:
+            return None  # Never fall back to an unscoped global cloud listing.
 
     for inc in (load_incidents() if is_cloud_mode() else _load_all_local_incidents()):
         if str(inc.get("incident_id")) == str(incident_id):
@@ -790,7 +810,7 @@ def get_incident_by_id(incident_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def load_nemotron_reports() -> List[Dict[str, Any]]:
+def load_nemotron_reports(*, strict_read: bool = False) -> List[Dict[str, Any]]:
     """Loads all persisted Nemotron reports from local JSON or Supabase PostgreSQL."""
     if is_cloud_mode():
         try:
@@ -843,6 +863,8 @@ def load_nemotron_reports() -> List[Dict[str, Any]]:
         with open(NEMOTRON_REPORTS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
+        if strict_read:
+            raise
         logger.error(f"[Registry] Failed to read {NEMOTRON_REPORTS_FILE}: {e}")
         return []
 
@@ -968,10 +990,10 @@ def get_nemotron_report_by_id(report_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def get_nemotron_reports_for_incident(incident_id: str) -> List[Dict[str, Any]]:
+def get_nemotron_reports_for_incident(incident_id: str, *, strict_read: bool = False) -> List[Dict[str, Any]]:
     """Retrieves all Nemotron reports generated for a specific incident, ordered newest first."""
     matching = []
-    for rep in load_nemotron_reports():
+    for rep in (load_nemotron_reports(strict_read=True) if strict_read else load_nemotron_reports()):
         if rep.get("incident_id") == str(incident_id):
             matching.append(rep)
 

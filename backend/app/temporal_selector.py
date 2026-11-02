@@ -101,12 +101,46 @@ def resolve_frame_path(
     clean_fn = Path(filename).name if filename else (Path(path_str).name if path_str else None)
     clean_aid = Path(asset_id).name if asset_id else None
 
+    search_aids: List[str] = []
+    if clean_aid:
+        search_aids.append(clean_aid)
+        try:
+            from app.registry import get_incident_by_id
+            inc = get_incident_by_id(clean_aid)
+            if inc:
+                sub_id = inc.get("submitted_asset_id")
+                if sub_id and sub_id not in search_aids:
+                    search_aids.append(sub_id)
+        except Exception:
+            pass
+
+    search_fns: List[str] = []
     if clean_fn:
-        if clean_aid:
+        search_fns.append(clean_fn)
+        import re
+        m = re.match(r"^frame_(\d+)(s)?\.(jpe?g|png)$", clean_fn, re.IGNORECASE)
+        if m:
+            sec = int(m.group(1))
+            ext = m.group(3).lower()
+            variants = [
+                f"frame_{sec:04d}s.{ext}",
+                f"frame_{sec}s.{ext}",
+                f"frame_{sec:04d}.{ext}",
+                f"frame_{sec}.{ext}",
+            ]
+            for v in variants:
+                if v not in search_fns:
+                    search_fns.append(v)
+
+    if search_fns:
+        if search_aids:
+            for aid in search_aids:
+                for fn in search_fns:
+                    for r in roots:
+                        candidates.append(r / aid / fn)
+        for fn in search_fns:
             for r in roots:
-                candidates.append(r / clean_aid / clean_fn)
-        for r in roots:
-            candidates.append(r / clean_fn)
+                candidates.append(r / fn)
 
     # Validate candidates deterministically
     checked_paths: List[str] = []
@@ -121,6 +155,44 @@ def resolve_frame_path(
         except Exception as e:
             logger.debug(f"[TemporalSelector] Error checking candidate {cand}: {e}")
             continue
+
+    # 3b. Closest timestamp keyframe fallback if exact timestamp variant is not present
+    if clean_fn and search_aids:
+        import re
+        m_time = re.match(r"^frame_(\d+)s?\.(jpe?g|png)$", clean_fn, re.IGNORECASE)
+        if m_time:
+            target_sec = int(m_time.group(1))
+            best_cand: Optional[Path] = None
+            min_diff = float("inf")
+            for aid in search_aids:
+                for r in roots:
+                    aid_dir = r / aid
+                    if aid_dir.is_dir() and is_safe_storage_path(aid_dir, roots):
+                        try:
+                            for f in aid_dir.glob("*.jpg"):
+                                fm = re.match(r"^frame_(\d+)s?\.jpe?g$", f.name, re.IGNORECASE)
+                                if fm:
+                                    f_sec = int(fm.group(1))
+                                    diff = abs(f_sec - target_sec)
+                                    if diff < min_diff:
+                                        min_diff = diff
+                                        best_cand = f
+                        except Exception:
+                            pass
+            if best_cand and min_diff <= 15:  # within 15 seconds keyframe sampling tolerance
+                try:
+                    res = best_cand.resolve()
+                    if is_safe_storage_path(res, roots) and res.is_file():
+                        return res, None
+                except Exception:
+                    pass
+
+    # 3c. Suspect thumbnail fallback for incident
+    if search_aids:
+        for aid in search_aids:
+            thumb_cand = storage_base / "suspects" / "thumbnails" / f"{aid}.jpg"
+            if is_safe_storage_path(thumb_cand, roots) and thumb_cand.is_file():
+                return thumb_cand.resolve(), None
 
     # 4. If running in cloud mode and file is not yet cached locally, attempt retrieval from cloud buckets
     try:

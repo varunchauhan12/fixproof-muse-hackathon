@@ -26,6 +26,9 @@ logger = logging.getLogger("fixproof.main")
 app = FastAPI(title="FixProof API")
 from app.voice_api import router as voice_router
 app.include_router(voice_router)
+from app.muse_conversation_api import router as muse_conversation_router, incident_router as muse_incident_router
+app.include_router(muse_conversation_router)
+app.include_router(muse_incident_router)
 app.add_middleware(RequestProtectionMiddleware)
 
 app.add_middleware(
@@ -341,38 +344,63 @@ def get_single_asset(asset_id: str):
 
 
 @app.get("/api/vault/assets/{asset_id}/frames/{frame_filename}")
+@app.get("/api/incidents/{asset_id}/frames/{frame_filename}")
+@app.get("/api/threats/{asset_id}/frames/{frame_filename}")
 def stream_asset_frame(asset_id: str, frame_filename: str):
     """
     Safely streams an extracted video frame to the client.
     Supports both reference asset IDs and incident IDs / suspect asset IDs.
     Strictly checks path containment and character safety.
-    In cloud mode, streams from Supabase Storage (suspect-frames or reference-frames bucket).
+    Prioritizes local file storage roots, then cloud buckets if in cloud mode.
     """
     if not SAFE_ID_REGEX.match(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID format.")
     if not SAFE_FRAME_REGEX.match(frame_filename):
         raise HTTPException(status_code=400, detail="Invalid frame filename.")
 
-    # Check if asset_id is an incident_id
+    # 1. Check local storage via resolve_frame_path across all approved roots
+    from app.temporal_selector import resolve_frame_path
+    resolved_path, _ = resolve_frame_path(None, asset_id=asset_id, filename=frame_filename)
+    if resolved_path and resolved_path.is_file():
+        return FileResponse(
+            str(resolved_path),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    # Check if asset_id is an incident_id to resolve submitted_asset_id
     from app.registry import get_incident_by_id
     incident = get_incident_by_id(asset_id)
     resolved_id = asset_id
     if incident:
         resolved_id = incident.get("submitted_asset_id") or asset_id
+        if resolved_id != asset_id:
+            resolved_path, _ = resolve_frame_path(None, asset_id=resolved_id, filename=frame_filename)
+            if resolved_path and resolved_path.is_file():
+                return FileResponse(
+                    str(resolved_path),
+                    media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=3600"},
+                )
 
-    # Check suspect frames directory first
-    suspect_frame_path = (SUSPECTS_FRAMES_DIR / resolved_id / frame_filename).resolve()
-    if not suspect_frame_path.is_file() and resolved_id != asset_id:
-        suspect_frame_path = (SUSPECTS_FRAMES_DIR / asset_id / frame_filename).resolve()
-    suspect_base = SUSPECTS_FRAMES_DIR.resolve()
+    # 2. Check local suspect frames and reference frames directories directly
+    for aid in ([resolved_id, asset_id] if resolved_id != asset_id else [resolved_id]):
+        suspect_frame_path = (SUSPECTS_FRAMES_DIR / aid / frame_filename).resolve()
+        if suspect_frame_path.is_relative_to(SUSPECTS_FRAMES_DIR.resolve()) and suspect_frame_path.is_file():
+            return FileResponse(
+                str(suspect_frame_path),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
+        ref_frame_path = (FRAMES_DIR / aid / frame_filename).resolve()
+        if ref_frame_path.is_relative_to(FRAMES_DIR.resolve()) and ref_frame_path.is_file():
+            return FileResponse(
+                str(ref_frame_path),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
 
-    if suspect_frame_path.is_relative_to(suspect_base) and suspect_frame_path.is_file():
-        return FileResponse(
-            str(suspect_frame_path),
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=3600"},
-        )
-
+    # 3. In cloud mode, check local cache or download from Supabase Storage
     if is_cloud_mode():
         cloud_cache_file = (
             Path(__file__).resolve().parent.parent
@@ -406,19 +434,15 @@ def stream_asset_frame(asset_id: str, frame_filename: str):
             except Exception as e:
                 logger.warning(f"[StreamFrame] Error checking bucket {bkt}: {e}")
 
-
-    # Local mode fallback
-    frame_path = (FRAMES_DIR / resolved_id / frame_filename).resolve()
-    if not frame_path.is_file() and resolved_id != asset_id:
-        frame_path = (FRAMES_DIR / asset_id / frame_filename).resolve()
-    base_dir = FRAMES_DIR.resolve()
-
-    if frame_path.is_relative_to(base_dir) and frame_path.is_file():
-        return FileResponse(
-            str(frame_path),
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=3600"},
-        )
+    # 4. Suspect thumbnail fallback if frame not found
+    for aid in ([resolved_id, asset_id] if resolved_id != asset_id else [resolved_id]):
+        thumb_path = (SUSPECTS_THUMBNAILS_DIR / f"{aid}.jpg").resolve()
+        if thumb_path.is_relative_to(SUSPECTS_THUMBNAILS_DIR.resolve()) and thumb_path.is_file():
+            return FileResponse(
+                str(thumb_path),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
 
     raise HTTPException(status_code=404, detail="Frame not found.")
 
@@ -910,14 +934,57 @@ def screen_video_url_endpoint(
 
 
 @app.get("/api/threats/suspect-thumbnail/{incident_id}")
+@app.get("/api/incidents/{incident_id}/thumbnail")
 def get_suspect_thumbnail_endpoint(incident_id: str):
     """Serves the cached suspect thumbnail image for UI preview."""
     if not SAFE_ID_REGEX.match(incident_id):
         raise HTTPException(status_code=400, detail="Invalid incident ID format.")
-    thumb_path = SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg"
-    if thumb_path.exists():
+
+    # 1. Direct thumbnail by incident ID
+    thumb_path = (SUSPECTS_THUMBNAILS_DIR / f"{incident_id}.jpg").resolve()
+    if thumb_path.is_relative_to(SUSPECTS_THUMBNAILS_DIR.resolve()) and thumb_path.is_file():
         return FileResponse(thumb_path, media_type="image/jpeg")
 
+    # 2. Check submitted_asset_id if incident exists
+    from app.registry import get_incident_by_id
+    incident = get_incident_by_id(incident_id)
+    sub_aid = incident.get("submitted_asset_id") if incident else None
+
+    if sub_aid:
+        sub_thumb = (SUSPECTS_THUMBNAILS_DIR / f"{sub_aid}.jpg").resolve()
+        if sub_thumb.is_relative_to(SUSPECTS_THUMBNAILS_DIR.resolve()) and sub_thumb.is_file():
+            return FileResponse(sub_thumb, media_type="image/jpeg")
+
+    # 3. If incident has an explicit thumbnail_storage_path, resolve and serve
+    if incident and incident.get("thumbnail_storage_path"):
+        from app.temporal_selector import resolve_frame_path
+        res_p, _ = resolve_frame_path(incident.get("thumbnail_storage_path"))
+        if res_p and res_p.is_file():
+            return FileResponse(str(res_p), media_type="image/jpeg")
+
+    # 4. Uploaded video keyframe fallback: check first frame in suspects/frames/{sub_aid or incident_id}
+    for check_id in ([sub_aid, incident_id] if sub_aid else [incident_id]):
+        suspect_frames_subdir = SUSPECTS_FRAMES_DIR / check_id
+        if suspect_frames_subdir.is_dir():
+            frame0 = suspect_frames_subdir / "frame_0000s.jpg"
+            if frame0.is_file():
+                return FileResponse(str(frame0), media_type="image/jpeg")
+            jpgs = sorted(suspect_frames_subdir.glob("*.jpg"))
+            if jpgs and jpgs[0].is_file():
+                return FileResponse(str(jpgs[0]), media_type="image/jpeg")
+
+    # 5. Check reference frames if applicable
+    for check_id in ([sub_aid, incident_id] if sub_aid else [incident_id]):
+        ref_frames_subdir = FRAMES_DIR / check_id
+        if ref_frames_subdir.is_dir():
+            frame0 = ref_frames_subdir / "frame_0000s.jpg"
+            if frame0.is_file():
+                return FileResponse(str(frame0), media_type="image/jpeg")
+            jpgs = sorted(ref_frames_subdir.glob("*.jpg"))
+            if jpgs and jpgs[0].is_file():
+                return FileResponse(str(jpgs[0]), media_type="image/jpeg")
+
+    # 6. Cloud mode download fallback
     if is_cloud_mode():
         try:
             storage_client = SupabaseStorageClient()
@@ -1547,16 +1614,19 @@ def generate_detailed_report_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to generate detailed report: {e}")
 
 
+@app.get("/api/reports/{report_id}")
 @app.get("/api/nemotron/detailed-report/{report_id}")
 def get_detailed_report_endpoint(
     report_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
     """Retrieves the full detailed forensic report JSON by report_id."""
-    if not SAFE_ID_REGEX.match(report_id):
+    from app.detailed_report import normalize_report_identifier
+    clean_id = normalize_report_identifier(report_id)
+    if not clean_id or not SAFE_ID_REGEX.match(clean_id):
         raise HTTPException(status_code=400, detail="Invalid report ID format.")
 
-    record = get_detailed_report_record(report_id)
+    record = get_detailed_report_record(clean_id)
     if not record:
         raise HTTPException(status_code=404, detail=f"Detailed report {report_id} not found.")
 
@@ -1572,54 +1642,26 @@ def get_detailed_report_endpoint(
     return record
 
 
+@app.get("/api/reports/{report_id}/pdf")
 @app.get("/api/nemotron/detailed-report/{report_id}/pdf")
 def get_detailed_report_pdf_endpoint(
     report_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
     """Downloads or streams the pre-generated binary PDF for a detailed forensic report."""
-    if not SAFE_ID_REGEX.match(report_id):
+    from app.detailed_report import normalize_report_identifier, resolve_detailed_report_pdf
+
+    clean_id = normalize_report_identifier(report_id)
+    if not clean_id or not SAFE_ID_REGEX.match(clean_id):
         raise HTTPException(status_code=400, detail="Invalid report ID format.")
 
-    record = get_detailed_report_record(report_id)
-    if not record:
-        # Check if report_id is directly an incident_id
-        incident = get_incident_by_id(report_id)
-        if incident:
-            inc_sess = incident.get("session_id")
-            if not is_demo_mode():
-                if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
-                    raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
+    resolved = resolve_detailed_report_pdf(clean_id)
+    if not resolved:
+        raise HTTPException(status_code=404, detail=f"Detailed report or associated incident {report_id} not found.")
 
-            existing_reports = list_detailed_reports_for_incident(report_id)
-            bundle = build_evidence_bundle(report_id)
-            if existing_reports:
-                latest_id = existing_reports[0]["report_id"]
-                latest_rec = get_detailed_report_record(latest_id) or {}
-                pdf_bytes = generate_detailed_report_pdf(latest_rec, bundle)
-                save_detailed_report(report_id, latest_rec, pdf_bytes)
-                return Response(
-                    content=pdf_bytes,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
-                    },
-                )
+    pdf_bytes, record, resolved_rep_id, incident_id = resolved
 
-            # Generate dynamically from evidence bundle
-            report_data = synthesize_detailed_report(bundle)
-            pdf_bytes = generate_detailed_report_pdf(report_data, bundle)
-            save_detailed_report(report_id, report_data, pdf_bytes)
-            return Response(
-                content=pdf_bytes,
-                media_type="application/pdf",
-                headers={
-                    "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
-                },
-            )
-        raise HTTPException(status_code=404, detail=f"Detailed report {report_id} not found.")
-
-    incident_id = record.get("incident_id")
+    # Session access verification
     if incident_id:
         incident = get_incident_by_id(incident_id)
         if incident:
@@ -1628,27 +1670,11 @@ def get_detailed_report_pdf_endpoint(
                 if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
                     raise HTTPException(status_code=403, detail="Access denied: report belongs to a different session.")
 
-    # Re-render with latest evidence bundle to guarantee high-resolution SAM overlays
-    pdf_bytes = None
-    try:
-        if incident_id:
-            bundle = build_evidence_bundle(incident_id)
-            pdf_bytes = generate_detailed_report_pdf(record, bundle)
-            save_detailed_report(incident_id, record, pdf_bytes)
-    except Exception as regen_err:
-        logger.warning(f"[PDF] Dynamic rendering failed: {regen_err}")
-
-    if not pdf_bytes:
-        pdf_bytes = get_detailed_report_pdf_bytes(report_id)
-
-    if not pdf_bytes:
-        raise HTTPException(status_code=404, detail="PDF binary file not found on server.")
-
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{report_id[:8]}.pdf"',
+            "Content-Disposition": f'attachment; filename="fixproof-forensic-report-{resolved_rep_id[:8]}.pdf"',
         },
     )
 
@@ -1902,6 +1928,7 @@ def run_incident_sam_investigation_endpoint(
 
 
 @app.get("/api/incidents/{incident_id}/frames/{pair_index}/annotated")
+@app.get("/api/forensics/{incident_id}/annotated-frame/{pair_index}")
 def stream_annotated_incident_frame(
     incident_id: str,
     pair_index: int,
@@ -1942,7 +1969,7 @@ def stream_annotated_incident_frame(
 
     if target == "suspect":
         sub = match.get("submitted_frame") or {}
-        sub_aid = sub.get("asset_id") or incident.get("submitted_asset_id")
+        sub_aid = sub.get("asset_id") or incident.get("submitted_asset_id") or incident_id
         sub_fn = sub.get("filename") or f"frame_{int(sub.get('timestamp_sec', 0)):04d}s.jpg"
         raw_bytes, _ = load_frame_image_bytes(
             sub.get("frame_path"),
@@ -1960,12 +1987,13 @@ def stream_annotated_incident_frame(
     else:
         # Reference frame
         ref_aid = best.get("source_asset_id")
-        ref_fn = best.get("source_filename") or f"frame_{int(best.get('source_timestamp_sec', 0)):04d}s.jpg"
-        raw_bytes, _ = load_frame_image_bytes(
-            best.get("source_frame_path"),
-            asset_id=ref_aid,
-            filename=ref_fn,
-        )
+        if ref_aid and ref_aid not in ("other_asset", "unregistered"):
+            ref_fn = best.get("source_filename") or f"frame_{int(best.get('source_timestamp_sec', 0)):04d}s.jpg"
+            raw_bytes, _ = load_frame_image_bytes(
+                best.get("source_frame_path"),
+                asset_id=ref_aid,
+                filename=ref_fn,
+            )
         if not raw_bytes:
             from app.matcher import load_reference_frame_image
             ref_pil = load_reference_frame_image(best)

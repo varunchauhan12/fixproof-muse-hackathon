@@ -24,6 +24,7 @@ import {
   getClientSessionId,
   setClientSessionId,
 } from "@/lib/api";
+import { useActivity } from "@/context/ActivityContext";
 import { Home } from "lucide-react";
 
 const PAGE_TITLES: Record<NavTab, string> = {
@@ -190,6 +191,20 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   const [nemotronPreselectedDocType, setNemotronPreselectedDocType] = useState<
     "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER" | null
   >(null);
+
+  let activityContext: ReturnType<typeof useActivity> | null = null;
+  try {
+    activityContext = useActivity();
+  } catch {
+    // outside provider
+  }
+
+  useEffect(() => {
+    const incId = selectedIncidentForInspection?.incident_id || nemotronPreselectedIncident?.incident_id || null;
+    if (incId && activityContext?.setActiveIncidentId) {
+      activityContext.setActiveIncidentId(incId);
+    }
+  }, [selectedIncidentForInspection, nemotronPreselectedIncident, activityContext]);
 
   const handleNavigateToIncidents = (incident: MatchAnalysisResult) => {
     setSelectedIncidentForInspection(incident);

@@ -18,6 +18,8 @@ export interface ActivityTask extends IslandTask {
 interface ActivityContextType {
   tasks: IslandTask[];
   backendHealth: "healthy" | "offline" | "checking";
+  activeIncidentId: string | null;
+  setActiveIncidentId: (id: string | null) => void;
   addTask: (task: Omit<IslandTask, "id"> & { id?: string }) => string;
   updateTask: (id: string, updates: Partial<Omit<IslandTask, "id">>) => void;
   dismissTask: (id: string) => void;
@@ -30,7 +32,19 @@ const ActivityContext = createContext<ActivityContextType | null>(null);
 export function ActivityProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<IslandTask[]>([]);
   const [backendHealth, setBackendHealth] = useState<"healthy" | "offline" | "checking">("checking");
+  const [activeIncidentId, setActiveIncidentIdState] = useState<string | null>(null);
   const taskCounter = useRef(0);
+
+  const setActiveIncidentId = useCallback((id: string | null) => {
+    setActiveIncidentIdState(id);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("fixproof_muse_select_incident", {
+          detail: id,
+        })
+      );
+    }
+  }, []);
 
   // Check real backend health
   const checkHealth = useCallback(async () => {
@@ -91,6 +105,8 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
       value={{
         tasks,
         backendHealth,
+        activeIncidentId,
+        setActiveIncidentId,
         addTask,
         updateTask,
         dismissTask,

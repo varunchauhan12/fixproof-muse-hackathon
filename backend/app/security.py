@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 
 
 def cors_origins():
-    raw = os.getenv("FIXPROOF_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+    raw = os.getenv("FIXPROOF_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001")
     origins = [value.strip() for value in raw.split(",") if value.strip()]
     for origin in origins:
         parsed = urlsplit(origin)
