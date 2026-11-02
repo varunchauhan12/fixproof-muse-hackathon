@@ -818,6 +818,7 @@ export const AssetVault: React.FC<AssetVaultProps> = ({
               <input
                 type="text"
                 placeholder="Search reference assets..."
+                aria-label="Search reference assets by filename or asset ID"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{

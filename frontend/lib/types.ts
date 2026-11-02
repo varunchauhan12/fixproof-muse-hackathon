@@ -339,7 +339,7 @@ export interface SendEmailPayload {
 
 export interface SendEmailResult {
   success: boolean;
-  status: "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
+  status: "ACCEPTED" | "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
   delivery_id?: string | null;
   audit_id: string;
   message: string;
@@ -352,7 +352,7 @@ export interface EmailAuditEntry {
   document_type: string;
   recipient_email: string;
   subject: string;
-  status: "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
+  status: "ACCEPTED" | "DELIVERED" | "NOT_CONFIGURED" | "FAILED";
   provider: string;
   delivery_id?: string | null;
   session_id?: string | null;
@@ -441,6 +441,8 @@ export interface FrameCorrelationEvidence {
 }
 
 export interface DetailedReportSections {
+  temporal_evidence?: import("./temporal-evidence").TemporalEvidenceResult;
+  sam_context?: {availability: string; observations: unknown[]; limitation: string};
   executive_summary: string;
   methodology_scope: string;
   suspect_and_reference_details: {
@@ -512,6 +514,9 @@ export interface EmailDetailedReportPayload {
   incident_id: string;
   report_id: string;
   recipient_email: string;
+  subject?: string;
+  body?: string;
+  user_confirmed?: boolean;
 }
 
 export interface SessionSummary {
@@ -520,4 +525,14 @@ export interface SessionSummary {
   latest_activity: string;
 }
 
-
+export type {
+  ToleranceBand,
+  OffsetStatistics,
+  ChronologicalInversion,
+  ChronologicalConsistency,
+  ClusterTemporalSummary,
+  TrendMetrics,
+  TemporalCandidate,
+  PopulationMetrics,
+  TemporalEvidenceResult,
+} from "./temporal-evidence";

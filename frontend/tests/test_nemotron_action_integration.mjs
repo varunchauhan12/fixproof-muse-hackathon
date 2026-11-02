@@ -30,8 +30,8 @@ async function runTests() {
     const res = await fetch(`${BASE_URL}/api/nemotron/status`);
     assert(res.status === 200, `Status code is 200 (got ${res.status})`);
     const data = await res.json();
-    assert(data.configured_model === "nvidia/Nemotron-3_5-Lightning", `Configured model is nvidia/Nemotron-3_5-Lightning`);
-    assert(data.vision_model === "nvidia/Nemotron-3.5-Super-VL", `Vision model is nvidia/Nemotron-3.5-Super-VL`);
+    assert(data.configured_model === "muse-wonder-1.0", `Configured model is muse-wonder-1.0`);
+    assert(data.vision_model === "muse-spark-1.3", `Vision model is muse-spark-1.3`);
     assert(data.email_provider === "Resend", `Email provider is Resend`);
     assert(Array.isArray(data.supported_documents) && data.supported_documents.includes("COPYRIGHT_NOTICE"), `Supports COPYRIGHT_NOTICE`);
     assert(Array.isArray(data.supported_jurisdictions) && data.supported_jurisdictions.includes("US_DMCA"), `Supports US_DMCA`);

@@ -519,7 +519,7 @@ export async function emailDetailedReport(
       "Content-Type": "application/json",
       "X-Client-Session-ID": getClientSessionId(),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, user_confirmed: payload.user_confirmed === true }),
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));

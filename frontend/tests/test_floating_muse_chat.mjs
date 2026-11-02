@@ -222,6 +222,7 @@ function mountWidget(f) {
       }
       if (name === "@/lib/api") return { getClientSessionId: f.getSession };
       if (name === "@/lib/muse-assistant") return f.api;
+      if (name === "./MuseDocumentWorkspace") return {MuseDocumentWorkspace: props => ({type:"document-studio",props})};
       if (name === "@/hooks/useVoiceRecorder") return { useVoiceRecorder: () => capture };
       if (name === "@/components/kokonutui/ai-voice") {
         return {

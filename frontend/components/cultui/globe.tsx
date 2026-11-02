@@ -124,7 +124,7 @@ export function CultGlobe({
         theta: 0.24 + thetaOffsetRef.current,
         dark: 1,
         diffuse: 1.6,
-        mapSamples: 11000,
+        mapSamples: 10000,
         mapBrightness: 5.5,
         mapBaseBrightness: 0.05,
         baseColor: [0.03, 0.12, 0.12], // Deep teal charcoal
@@ -217,7 +217,8 @@ export function CultGlobe({
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
         >
           <svg
-            className="w-full h-full animate-[spin_55s_linear_infinite]"
+            className="w-full h-full animate-[spin_55s_linear_infinite] will-change-transform"
+            style={{ transform: "translate3d(0, 0, 0)" }}
             viewBox="0 0 520 520"
           >
             <path
@@ -238,12 +239,13 @@ export function CultGlobe({
         </div>
       )}
 
-      {/* Soft atmospheric depth illumination */}
+      {/* Soft atmospheric depth illumination (smooth radial falloff without expensive 40px blur filter) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full z-0 opacity-40 blur-2xl"
+        className="pointer-events-none absolute inset-0 rounded-full z-0 opacity-40 will-change-transform"
         style={{
           background: "radial-gradient(circle at 50% 50%, rgba(20, 184, 166, 0.22) 0%, transparent 68%)",
+          transform: "translate3d(0, 0, 0)",
         }}
       />
     </div>

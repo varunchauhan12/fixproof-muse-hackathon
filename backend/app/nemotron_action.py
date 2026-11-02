@@ -79,25 +79,13 @@ def extract_incident_evidence_facts(incident: Dict[str, Any]) -> Dict[str, Any]:
     lowest_l2 = float(incident["lowest_l2_distance"]) if incident.get("lowest_l2_distance") is not None else None
     overall_status = incident.get("overall_status") or "CLEAN"
 
-    # Extract frame match observations
-    frames = incident.get("frame_matches") or []
-    frame_correlations = []
-    for idx, fm in enumerate(frames):
-        best = fm.get("best_match") or {}
-        sub = fm.get("submitted_frame") or {}
-        if best.get("match_confirmed") or (best.get("l2_distance") is not None and best["l2_distance"] < 0.75):
-            suspect_ts = sub.get("timestamp_sec") if sub.get("timestamp_sec") is not None else fm.get("timestamp_sec", idx * 5)
-            source_ts = best.get("source_timestamp_sec", suspect_ts)
-            l2 = best.get("l2_distance")
-            phash = best.get("phash_match", False)
-            frame_correlations.append({
-                "frame_index": idx,
-                "suspect_timestamp_sec": suspect_ts,
-                "source_timestamp_sec": source_ts,
-                "source_asset_id": best.get("source_asset_id", "REF_ASSET"),
-                "l2_distance": round(l2, 4) if l2 is not None else None,
-                "phash_match": phash,
-            })
+    # Reuse canonical recorded provenance; never synthesize sampling timestamps.
+    from app.temporal_evidence import build_temporal_evidence_for_incident
+    temporal = build_temporal_evidence_for_incident(incident)
+    frame_correlations = [{"frame_index": c.frame_match_index,
+        "suspect_timestamp_sec": c.suspect_timestamp_sec, "source_timestamp_sec": c.source_timestamp_sec,
+        "source_asset_id": c.source_asset_id, "l2_distance": c.l2_distance,
+        "phash_match": ((incident.get("frame_matches") or [])[c.frame_match_index].get("best_match") or {}).get("phash_match")} for c in temporal.candidates if c.eligible and c.rank == 1]
 
     return {
         "incident_id": iid,
@@ -112,6 +100,7 @@ def extract_incident_evidence_facts(incident: Dict[str, Any]) -> Dict[str, Any]:
         "lowest_l2_distance": lowest_l2,
         "overall_status": overall_status,
         "frame_correlations": frame_correlations[:12],
+        "temporal_evidence": temporal.model_dump(mode="json", exclude={"candidates", "by_source"}),
     }
 
 
@@ -151,10 +140,10 @@ def generate_copyright_notice_draft(
     # Default evidence table string
     evidence_lines = []
     if evidence["frame_correlations"]:
-        evidence_lines.append("Verified Frame Match Telemetry:")
+        evidence_lines.append("Recorded CV candidate telemetry (heuristic, human review required):")
         for fc in evidence["frame_correlations"]:
             evidence_lines.append(
-                f"  - Suspect Timestamp {fc['suspect_timestamp_sec']}s corresponds to Reference Asset {fc['source_asset_id'][:8]} at {fc['source_timestamp_sec']}s (L2 Metric: {fc['l2_distance']}, pHash Corroborated: {fc['phash_match']})"
+                f"  - Suspect Timestamp {fc['suspect_timestamp_sec'] if fc['suspect_timestamp_sec'] is not None else 'Not recorded'}s corresponds to Reference Asset {fc['source_asset_id'][:8]} at {fc['source_timestamp_sec'] if fc['source_timestamp_sec'] is not None else 'Not recorded'}s (L2 Metric: {fc['l2_distance']}, pHash Corroborated: {fc['phash_match']})"
             )
     elif not is_clean:
         evidence_lines.append(f"  - Observed peak heuristic similarity: {evidence['highest_confidence']}% (Lowest L2 distance: {evidence['lowest_l2_distance']})")
@@ -206,9 +195,9 @@ def generate_copyright_notice_draft(
 
 Date: {datetime.now(timezone.utc).strftime('%B %d, %Y')}
 To: {recipient_name or '[Designated Copyright Agent / Platform Operator]'}
-Notice Recipient: {recipient_email or '[recipient-email@platform.com]'}
+Notice Recipient: {recipient_email or '[Recipient email — not supplied]'}
 From: {authorized_rep + ' on behalf of ' if authorized_rep else ''}{rights_holder or '[Rights Holder Legal Name]'}
-Contact: {contact_email or '[legal-contact@rightsholder.com]'}
+Contact: {contact_email or '[Sender contact email — not supplied]'}
 
 1. IDENTIFICATION OF COPYRIGHTED WORK:
 The copyrighted work at issue is:
@@ -295,7 +284,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
         "status": draft_status,
         "jurisdiction": jurisdiction,
         "subject": subject,
-        "body": body_template,
+        "body": "DRAFT — HUMAN REVIEW REQUIRED. Parties, authority, URLs and proposed terms must be verified. No legal conclusion has been established.\n\n" + body_template,
         "facts_imported": evidence,
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
@@ -327,9 +316,11 @@ def generate_rev_share_proposal_draft(
     recipient_name = (user_inputs.get("recipient_name") or "").strip()
     recipient_email = (user_inputs.get("recipient_email") or "").strip()
     work_title = (user_inputs.get("work_title") or "").strip()
-    rev_share_pct = user_inputs.get("proposed_rev_share_pct") or 70.0
+    rev_share_pct = user_inputs.get("proposed_rev_share_pct")
+    if rev_share_pct is not None and (isinstance(rev_share_pct, bool) or not isinstance(rev_share_pct, (int, float)) or not 0 <= rev_share_pct <= 100):
+        raise ValueError("Proposed revenue share must be between 0 and 100.")
     commercial_terms = (user_inputs.get("commercial_terms") or "").strip()
-    response_deadline_days = int(user_inputs.get("response_deadline_days") or 14)
+    response_deadline_days = user_inputs.get("response_deadline_days")
 
     missing_fields = []
     if not rights_holder:
@@ -361,15 +352,16 @@ def generate_rev_share_proposal_draft(
 
     subject = f"Commercial Content Partnership Proposal — {work_title or 'Official Broadcast'} / {recipient_name or 'Creator'}"
 
-    creator_share = max(0.0, min(100.0, 100.0 - float(rev_share_pct)))
+    creator_share = 100.0 - rev_share_pct if rev_share_pct is not None else "[To be proposed]"
+    rev_share_pct = rev_share_pct if rev_share_pct is not None else "[To be proposed]"
 
     body_template = f"""COMMERCIAL LICENSING & REVENUE-SHARING PROPOSAL (NON-BINDING OFFER)
 
 Date: {datetime.now(timezone.utc).strftime('%B %d, %Y')}
 To: {recipient_name or '[Channel Owner / Content Creator]'}
-Email: {recipient_email or '[creator@domain.com]'}
+Email: {recipient_email or '[Recipient email — not supplied]'}
 From: {rep_name + ' on behalf of ' if rep_name else ''}{rights_holder or '[Rights Holder Organization]'}
-Contact: {contact_email or '[partnerships@rightsholder.com]'}
+Contact: {contact_email or '[Sender email — not supplied]'}
 
 Dear {recipient_name or 'Content Creator'},
 
@@ -386,11 +378,11 @@ PROPOSED COMMERCIAL PARTNERSHIP TERMS:
    - Rights Holder Allocation: {rev_share_pct}% of net platform advertising / sponsorship revenues.
    - Creator Allocation: {creator_share}% retained directly by your channel.
 2. Official White-Listing:
-   - Upon agreement, your publication will be officially white-listed against automated copyright claims for this specific segment.
+   - [Optional whitelisting scope — subject to separate agreement and operational review]
 3. Additional Commercial Scope:
-   {commercial_terms or "- Standard digital distribution terms with transparent monthly revenue reporting."}
+   {commercial_terms or "[Commercial scope and reporting terms — to be proposed]"}
 4. Discussion Window:
-   - This preliminary licensing framework is open for review until {(datetime.now(timezone.utc)).strftime('%B %d, %Y')} (open for {response_deadline_days} days).
+   - This preliminary licensing framework is open for review until {(datetime.now(timezone.utc)).strftime('%B %d, %Y')} (open for {response_deadline_days if response_deadline_days is not None else "[To be proposed]"} days).
 
 IMPORTANT NOTICE:
 This communication represents a commercial invitation to negotiate and does not constitute a formal licensing contract, a waiver of any statutory rights, or an admission of liability. Heuristic similarity scores are not calibrated probabilities of copyright infringement. If you are interested in legalizing this broadcast and sharing ongoing revenue, please reply directly to {contact_email or '[email]'} to finalize terms.
@@ -401,7 +393,7 @@ Sincerely,
 
 {rep_name or rights_holder or '[Business Development Representative]'}
 {rights_holder or '[Rights Holder Organization]'}
-{contact_email or '[partnerships@rightsholder.com]'}
+{contact_email or '[Sender email — not supplied]'}
 Forensic Record ID: {evidence['incident_id']}
 """
 
@@ -440,7 +432,7 @@ Forensic Record ID: {evidence['incident_id']}
         "document_type": "REVENUE_SHARE_OFFER",
         "status": "READY_FOR_REVIEW" if not missing_fields else "INCOMPLETE_EVIDENCE",
         "subject": subject,
-        "body": body_template,
+        "body": "DRAFT — HUMAN REVIEW REQUIRED. Parties, authority, URLs and proposed terms must be verified. No legal conclusion has been established.\n\n" + body_template,
         "facts_imported": evidence,
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
@@ -551,7 +543,7 @@ def send_nemotron_document_email(
                 "document_type": document_type,
                 "recipient_email": recipient_email,
                 "subject": subject,
-                "status": "DELIVERED",
+                "status": "ACCEPTED",
                 "provider": "Resend",
                 "delivery_id": delivery_id,
                 "session_id": client_session_id,
@@ -559,10 +551,10 @@ def send_nemotron_document_email(
             })
             return {
                 "success": True,
-                "status": "DELIVERED",
+                "status": "ACCEPTED",
                 "delivery_id": delivery_id,
                 "audit_id": audit_id,
-                "message": f"Document successfully dispatched to {recipient_email} via Resend.",
+                "message": "Resend accepted the document email request. Recipient delivery is not verified.",
             }
         else:
             err_msg = f"HTTP {res.status_code}: {res.text}"

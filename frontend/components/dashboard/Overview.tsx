@@ -188,6 +188,7 @@ export const Overview: React.FC<OverviewProps> = ({
                 onClick={onRefresh}
                 disabled={refreshing}
                 title="Sync telemetry"
+                aria-label="Sync telemetry"
                 style={{
                   background: "#22211E",
                   border: "1px solid #302E29",
@@ -195,7 +196,7 @@ export const Overview: React.FC<OverviewProps> = ({
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-[#2A2824] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <RefreshCw size={13} className={refreshing ? "animate-spin text-[#48C7B5]" : "text-[#A29B8F]"} />
+                <RefreshCw size={13} className={refreshing ? "animate-spin text-[#48C7B5]" : "text-[#A29B8F]"} aria-hidden="true" />
                 <span className="hidden sm:inline">Sync</span>
               </button>
             )}
@@ -512,7 +513,7 @@ export const Overview: React.FC<OverviewProps> = ({
                         {asset.thumbnail_url ? (
                           <img
                             src={getAssetThumbnailUrl(asset.thumbnail_url)}
-                            alt=""
+                            alt={`Thumbnail preview for reference asset ${asset.filename}`}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -632,6 +633,9 @@ export const Overview: React.FC<OverviewProps> = ({
                   return (
                     <div
                       key={inc.incident_id || i}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open investigation for ${inc.suspect_filename || inc.incident_id}`}
                       onClick={() => {
                         if (onViewIncident) {
                           onViewIncident(inc);
@@ -639,7 +643,17 @@ export const Overview: React.FC<OverviewProps> = ({
                           onNavigateToTab("incidents");
                         }
                       }}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#22211E] border border-[#302E29] hover:border-[#48C7B5]/30 transition-colors cursor-pointer"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          if (onViewIncident) {
+                            onViewIncident(inc);
+                          } else {
+                            onNavigateToTab("incidents");
+                          }
+                        }
+                      }}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#22211E] border border-[#302E29] hover:border-[#48C7B5]/30 transition-colors cursor-pointer focus-visible:ring-1 focus-visible:ring-[#48C7B5]"
                     >
                       <div className="truncate pr-2">
                         <div className="flex items-center gap-1.5 mb-0.5">

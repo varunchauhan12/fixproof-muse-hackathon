@@ -263,7 +263,7 @@ class TestDetailedReportWorkflow(unittest.TestCase):
             summary_text="Test forensic summary.",
         )
         self.assertTrue(res["success"])
-        self.assertEqual(res["status"], "DELIVERED")
+        self.assertEqual(res["status"], "ACCEPTED")
         self.assertEqual(res["delivery_id"], "res_delivery_999")
 
         # Verify Resend payload structure

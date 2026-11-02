@@ -218,7 +218,14 @@ export default function HalftoneBackground({
     const lens = { x: 0, y: 0, tx: 0, ty: 0, r: 0, target: 0, placed: false };
 
     const readTheme = () => {
-      const color = inkColor || getComputedStyle(inkEl).color;
+      if (inkColor) {
+        const key = `${inkColor}|false`;
+        if (key === ink) return false;
+        ink = key;
+        invert = false;
+        return true;
+      }
+      const color = getComputedStyle(inkEl).color;
       // Light ink means a dark page: print the light, not the shadow, so
       // the picture still reads the right way round. Read through a 1px
       // canvas, which understands any CSS color, oklch included.
@@ -317,7 +324,7 @@ export default function HalftoneBackground({
       }
       width = rect.width;
       height = rect.height;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       base.width = canvas.width;
@@ -420,15 +427,18 @@ export default function HalftoneBackground({
     document.addEventListener("visibilitychange", onVisibility);
 
     // Follow light and dark mode without asking the app for a theme. Only
-    // checked while the background is on screen.
-    const themeTimer = window.setInterval(() => {
-      if (!visible) {
-        return;
-      }
-      if (readTheme()) {
-        build();
-      }
-    }, 500);
+    // checked while the background is on screen and inkColor is dynamic.
+    let themeTimer: number | null = null;
+    if (!inkColor) {
+      themeTimer = window.setInterval(() => {
+        if (!visible) {
+          return;
+        }
+        if (readTheme()) {
+          build();
+        }
+      }, 1000);
+    }
 
     const place = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -476,7 +486,9 @@ export default function HalftoneBackground({
       resizeObserver.disconnect();
       intersection.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(themeTimer);
+      if (themeTimer) {
+        window.clearInterval(themeTimer);
+      }
       if (image) {
         image.onload = null;
       }

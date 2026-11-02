@@ -35,6 +35,10 @@ export function AppStatusIsland() {
             /* Idle Readiness Pill */
             <motion.div
               key="idle-pill"
+              role="button"
+              tabIndex={0}
+              aria-label="FixProof Sentinel system status"
+              aria-expanded={showIdleDetail}
               initial={{ opacity: 0, y: 10, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.96 }}
@@ -42,7 +46,13 @@ export function AppStatusIsland() {
               onMouseEnter={() => setShowIdleDetail(true)}
               onMouseLeave={() => setShowIdleDetail(false)}
               onClick={() => setShowIdleDetail((prev) => !prev)}
-              className="group flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#171615]/95 border border-[rgba(238,231,219,0.12)] shadow-[0_8px_24px_rgba(0,0,0,0.55),0_0_20px_-8px_rgba(20,184,166,0.2)] backdrop-blur-md cursor-pointer transition-all hover:border-teal-500/30"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setShowIdleDetail((prev) => !prev);
+                }
+              }}
+              className="group flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#171615]/95 border border-[rgba(238,231,219,0.12)] shadow-[0_8px_24px_rgba(0,0,0,0.55),0_0_20px_-8px_rgba(20,184,166,0.2)] backdrop-blur-md cursor-pointer transition-all hover:border-teal-500/30 focus-visible:ring-1 focus-visible:ring-[#48C7B5]"
               title="Click to view Sentinel system status"
             >
               {/* Indicator Dot */}

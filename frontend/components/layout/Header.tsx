@@ -108,16 +108,18 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onRefresh}
             disabled={refreshing}
             title="Refresh vault & state"
+            aria-label="Refresh vault & state"
             style={{
               background: "#1B1A18",
               border: "1px solid #302E29",
               color: "#F1EBDD",
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22211E] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22211E] text-[12px] font-medium transition-colors disabled:opacity-50 cursor-pointer focus-visible:ring-1 focus-visible:ring-[#48C7B5]"
           >
             <RefreshCw
               size={13}
               className={refreshing ? "animate-spin text-[#48C7B5]" : "text-[#A29B8F]"}
+              aria-hidden="true"
             />
             <span className="hidden sm:inline">Refresh</span>
           </button>
@@ -128,10 +130,12 @@ export const Header: React.FC<HeaderProps> = ({
           <Search
             size={13}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[#736D62]"
+            aria-hidden="true"
           />
           <input
             type="text"
             placeholder="Search assets, incidents..."
+            aria-label="Search assets and incidents"
             style={{
               border: "1px solid #302E29",
               background: "#1B1A18",

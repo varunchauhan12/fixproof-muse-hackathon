@@ -100,3 +100,15 @@ export class MuseConversationClient {
     } finally { this.busy = false; }
   }
 }
+
+export type MuseWorkflow = 'report' | 'copyright' | 'licensing' | 'summary' | 'email';
+/** UI navigation only. This never grants the model new tools or executes an action. */
+export function workflowForText(text: string): MuseWorkflow | null {
+  if (!/\b(generate|prepare|draft|create|write|make|give me)\b/i.test(text)) return null;
+  if (/\b(e-?mail)\b/i.test(text)) return 'email';
+  if (/\b(copyright|takedown|notice)\b/i.test(text)) return 'copyright';
+  if (/\b(licensing|licen[cs]e|revenue.shar|proposal)\b/i.test(text)) return 'licensing';
+  if (/\b(professional|executive) summary\b/i.test(text)) return 'summary';
+  if (/\b(report|pdf)\b/i.test(text)) return 'report';
+  return null;
+}

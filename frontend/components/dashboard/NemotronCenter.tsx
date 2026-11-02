@@ -1,5 +1,6 @@
 "use client";
 
+import { MuseDocumentWorkspace } from "@/components/muse/MuseDocumentWorkspace";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Cpu,
@@ -604,7 +605,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
       setActiveDetailedReport(res.report);
 
       if (targetEmail) {
-        if (res.email_status?.status === "DELIVERED") {
+        if (res.email_status?.status === "ACCEPTED" || res.email_status?.status === "DELIVERED") {
           setDetailedReportState("COMPLETE");
         } else {
           setDetailedReportState("EMAIL_FAILED");
@@ -633,12 +634,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     setRetryEmailError(null);
     try {
       const res = await emailDetailedReport({
+        user_confirmed: true,
         incident_id: selectedIncident.incident_id,
         report_id: activeDetailedReport.report_id,
         recipient_email: targetEmail,
       });
       setRetryEmailResult(res);
-      if (res.status === "DELIVERED") {
+      if (res.status === "ACCEPTED" || res.status === "DELIVERED") {
         setDetailedReportState("COMPLETE");
       } else {
         setRetryEmailError(res.message || "Email delivery failed.");
@@ -1039,6 +1041,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
             <input
               type="text"
               placeholder="Search filename or ID..."
+              aria-label="Search investigated incidents by filename or ID"
               value={incidentSearchQuery}
               onChange={(e) => setIncidentSearchQuery(e.target.value)}
               style={{
@@ -1139,6 +1142,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
         {!showIncidentList && <div className="space-y-6">
           {selectedIncident ? (
             <>
+              <details className="rounded-xl border border-white/10 p-4"><summary className="cursor-pointer text-sm">Muse Copilot · Reports, Document Studio & Email</summary><div className="mt-4"><MuseDocumentWorkspace key={selectedIncident.incident_id} incidentId={selectedIncident.incident_id!} /></div></details>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <button type="button" onClick={() => setShowIncidentList(true)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#ded7cb]">← Back to incidents</button>
                 {onNavigateToIncidents && <button type="button" onClick={() => onNavigateToIncidents(selectedIncident)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-teal-300">Open CV / SAM investigation ↗</button>}
@@ -1558,7 +1562,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     <div className="flex items-center gap-2">
                       <CheckCircle size={14} className="shrink-0 text-teal-400" />
                       <span>
-                        Detailed report generated and emailed successfully to{" "}
+                        Report generated; email accepted for dispatch to{" "}
                         <strong>{detailedReportEmail}</strong>.
                       </span>
                     </div>
@@ -2651,13 +2655,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       <span
                         style={{
                           background:
-                            entry.status === "DELIVERED"
+                            (entry.status === "ACCEPTED" || entry.status === "DELIVERED")
                               ? "rgba(34, 197, 94, 0.15)"
                               : entry.status === "NOT_CONFIGURED"
                               ? "rgba(234, 179, 8, 0.15)"
                               : "rgba(239, 68, 68, 0.15)",
                           color:
-                            entry.status === "DELIVERED"
+                            (entry.status === "ACCEPTED" || entry.status === "DELIVERED")
                               ? "#4ade80"
                               : entry.status === "NOT_CONFIGURED"
                               ? "#facc15"

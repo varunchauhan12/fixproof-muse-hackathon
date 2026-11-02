@@ -642,6 +642,7 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
           type="file"
           accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.flv,.wmv,.ts,.3gp,.ogg,.ogv,video/*"
           multiple
+          aria-label="Upload suspect video files"
           onChange={handleFileChange}
           disabled={isScanActive}
           className="hidden"
@@ -820,15 +821,17 @@ export const ThreatHunter: React.FC<ThreatHunterProps> = ({
                   }}
                   disabled={isScanActive}
                   placeholder="Paste public video URL, e.g. https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+                  aria-label="Suspect video URL to scan"
                   className="w-full bg-transparent border-none text-[12px] text-[#f4efe6] placeholder-[#736d62] focus:outline-none"
                 />
                 {suspectUrl && !isScanActive && (
                   <button
                     type="button"
                     onClick={() => setSuspectUrl("")}
+                    aria-label="Clear suspect URL"
                     className="text-[#8e887d] hover:text-[#f4efe6] cursor-pointer"
                   >
-                    <XCircle size={15} />
+                    <XCircle size={15} aria-hidden="true" />
                   </button>
                 )}
               </div>

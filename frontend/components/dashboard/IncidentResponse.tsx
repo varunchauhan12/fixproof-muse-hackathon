@@ -658,6 +658,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 <input
                   type="text"
                   placeholder="Search filename or ID..."
+                  aria-label="Search investigations by filename or incident ID"
                   value={incidentSearchQuery}
                   onChange={(e) => setIncidentSearchQuery(e.target.value)}
                   style={{
@@ -727,18 +728,30 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
               {filteredIncidents.map((inc) => (
                 <div
                   key={inc.incident_id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open investigation for ${inc.suspect_filename || inc.incident_id}`}
                   onClick={() => {
                     setSelectedIncident(inc);
                     setIsFocusedView(true);
                     setRefFrameLoading(true);
                     setSuspectFrameLoading(true);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedIncident(inc);
+                      setIsFocusedView(true);
+                      setRefFrameLoading(true);
+                      setSuspectFrameLoading(true);
+                    }
+                  }}
                   style={{
                     background: "#171615",
                     border: "1px solid rgba(238, 231, 219, 0.08)",
                     borderRadius: 14,
                   }}
-                  className="p-4 hover:border-[rgba(238,231,219,0.22)] hover:bg-[#1c1b19] transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                  className="p-4 hover:border-[rgba(238,231,219,0.22)] hover:bg-[#1c1b19] transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group focus-visible:ring-1 focus-visible:ring-[#48C7B5]"
                 >
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">

@@ -129,8 +129,9 @@ class MuseToolRegistry:
     store is an injected read-only adapter. No session may appear in arguments.
     Errors are fixed categories, never raw exception strings or logging payloads.
     """
-    def __init__(self, store):
+    def __init__(self, store, sam_reader=None):
         self.store = store
+        self.sam_reader = sam_reader
         self.tools = MappingProxyType({
             "list_recent_incidents": (ListArguments, self._list),
             "get_latest_incident": (EmptyArguments, self._latest),
@@ -264,6 +265,18 @@ class MuseToolRegistry:
         frames, bounds = self._frames(record)
         if not frames:
             raise ToolFailure("DATA_UNAVAILABLE")
+
+        from app.temporal_evidence import build_temporal_evidence_for_incident
+        # Same canonical object as the API/report; existing result byte limit fails
+        # closed rather than silently replacing missing or truncated statistics.
+        temporal_result = build_temporal_evidence_for_incident(record)
+        temporal_summary = temporal_result.model_dump(mode="json", exclude={"candidates", "by_source"})
+        temporal_summary["candidate_provenance"] = [
+            {key: getattr(c, key) for key in ("candidate_id", "frame_match_index", "rank", "evidence_id", "source_asset_id")}
+            for c in temporal_result.candidates[:MAX_FRAMES]]
+        temporal_summary["provenance_truncated"] = len(temporal_result.candidates) > MAX_FRAMES
+        temporal_summary["scope"] = "Metrics cover all raw eligible candidates; candidate detail projection is bounded separately."
+
         return {
             "incident_id": reference(record.get("incident_id")),
             "frames": [{key: (reference(getattr(f, key)) if key in ("evidence_id", "source_asset_id") else number(getattr(f, key)))
@@ -274,9 +287,15 @@ class MuseToolRegistry:
                 "interval_id": reference(interval.interval_id), "source_asset_id": reference(interval.source_asset_id),
                 "evidence_ids": [reference(eid) for eid in interval.evidence_ids[:MAX_FRAMES]]}
                 for interval in cluster_frame_matches(frames)[:MAX_FRAMES]],
+            "temporal_evidence": temporal_summary,
             "bounds": bounds,
-            "limitations": ["Similarity metrics are uncalibrated heuristics, not infringement probabilities.",
-                            "Intervals connect sampled matching frames; they do not prove unsampled content."],
+            "limitations": [
+                "Similarity metrics are uncalibrated heuristics, not infringement probabilities.",
+                "Intervals connect sampled matching frames; they do not prove unsampled content.",
+                "Temporal offset describes chronological difference, never proof of copying or infringement.",
+                "Zero MAD does not require all offsets to be identical and does not verify unsampled footage.",
+                "Unsampled intervals between sampled keyframes cannot be evaluated.",
+            ],
         }
 
     def _matching(self, session, args):
@@ -311,6 +330,12 @@ class MuseToolRegistry:
             "incident_id": args.incident_id, "frames": [], "timeline_intervals": [], "bounds": bounds,
             "limitations": ["No eligible matching timestamp correspondences in the returned observations."],
         }
+        sam = self.sam_reader(record, session) if self.sam_reader else {
+            'availability': 'UNAVAILABLE_OR_EXPIRED', 'observations': [],
+            'limitation': 'SAM cache is unavailable here; this does not establish that SAM never ran.'}
+        # Apply the same text sanitation as other tool projections. Never expose masks or payloads.
+        for observation in sam.get('observations', []):
+            observation['labels'] = strings(observation.get('labels'))
         reports = self._reports(args.incident_id)
         # Pure evidence/timeline services avoid report module/vault initialization,
         # image path resolution, raw model reasoning and fabricated timestamp defaults.
@@ -319,7 +344,7 @@ class MuseToolRegistry:
                 "observation_counts": {"stored": bounds["input_frame_count"], "returned": len(frames),
                     **{status: sum(f.similarity_status == status for f in frames)
                        for status in ("NO_MATCH", "SUSPECT_MATCH", "CONFIRMED_MATCH", "UNVERIFIED")}},
-                "matching_evidence": matching, "bounds": bounds,
+                "matching_evidence": matching, "sam_context": sam, "bounds": bounds,
                 "investigation_reports": self._report_items(args.incident_id, reports),
                 "reports_truncated": len(reports) > MAX_REPORTS,
                 "recorded_limitations": strings(record.get("limitations")),

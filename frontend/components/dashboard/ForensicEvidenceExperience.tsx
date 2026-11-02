@@ -29,6 +29,8 @@ import {
 import { buildEvidencePairs } from "@/lib/forensic-evidence";
 import { SAMInvestigationWorkspace } from "./SAMInvestigationWorkspace";
 import { InvestigationWorkspace } from "./InvestigationWorkspace";
+import { findCVPairIndex } from "@/lib/temporal-evidence";
+import { TemporalEvidenceWorkspace } from "./TemporalEvidenceWorkspace";
 import { useActivity } from "@/context/ActivityContext";
 
 interface ForensicEvidenceExperienceProps {
@@ -61,7 +63,7 @@ const ForensicInvestigationRoom: React.FC<ForensicEvidenceExperienceProps> = ({
   onNavigateToNemotron,
 }) => {
   const [samOpened, setSamOpened] = useState(false);
-  const [investigationTab, setInvestigationTab] = useState<'cv' | 'sam'>('cv');
+  const [investigationTab, setInvestigationTab] = useState<'cv' | 'sam' | 'temporal'>('cv');
   const currentIncident = incident;
   const [selectedPairIndex, setSelectedPairIndex] = useState<number>(0);
   const [activeIntervalId, setActiveIntervalId] = useState<string | null>(null);
@@ -349,8 +351,41 @@ const ForensicInvestigationRoom: React.FC<ForensicEvidenceExperienceProps> = ({
         </div>
       </div>
 
-      <div role="tablist" aria-label="Investigation stages" className="flex gap-2 rounded-xl border border-white/10 p-2">
-        {(['cv', 'sam'] as const).map(tab => <button key={tab} role="tab" id={`${tab}-investigation-tab`} aria-selected={investigationTab === tab} aria-controls={`${tab}-investigation-panel`} onClick={() => { setInvestigationTab(tab); if (tab === 'sam') setSamOpened(true); }} className={`rounded-lg px-4 py-2 text-sm ${investigationTab === tab ? 'bg-teal-950/40 text-teal-200 ring-1 ring-teal-700' : 'text-[#aba497]'}`}>{tab === 'cv' ? 'CV Investigation' : 'SAM Investigation'}</button>)}
+      <div role="tablist" aria-label="Investigation stages" className="flex flex-wrap gap-2 rounded-xl border border-white/10 p-2">
+        {(['cv', 'sam', 'temporal'] as const).map(tab => (
+          <button
+            key={tab}
+            role="tab"
+            id={`${tab}-investigation-tab`}
+            aria-selected={investigationTab === tab}
+            aria-controls={`${tab}-investigation-panel`}
+            onClick={() => {
+              setInvestigationTab(tab);
+              if (tab === 'sam') setSamOpened(true);
+            }}
+            className={`rounded-lg px-4 py-2 text-sm transition-colors ${
+              investigationTab === tab
+                ? 'bg-teal-950/40 text-teal-200 ring-1 ring-teal-700'
+                : 'text-[#aba497] hover:text-[#f4efe6]'
+            }`}
+          >
+            {tab === 'cv' ? 'CV Investigation' : tab === 'sam' ? 'SAM Investigation' : 'Temporal Evidence'}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id="temporal-investigation-panel" aria-labelledby="temporal-investigation-tab" hidden={investigationTab !== 'temporal'}>
+        {incident.incident_id && (
+          <TemporalEvidenceWorkspace
+            incidentId={incident.incident_id}
+            active={investigationTab === 'temporal'}
+            onSelectCandidate={(candidate) => {
+              const pairIndex = findCVPairIndex(evidencePairs, candidate);
+              if (pairIndex < 0) return;
+              setSelectedPairIndex(pairIndex);
+              setInvestigationTab('cv');
+            }}
+          />
+        )}
       </div>
       <div role="tabpanel" id="sam-investigation-panel" aria-labelledby="sam-investigation-tab" hidden={investigationTab !== 'sam'}>
         {samOpened && (incident.incident_id ? <SAMInvestigationWorkspace incidentId={incident.incident_id} active={investigationTab === 'sam'}/> : <p>Save an investigation before starting SAM analysis.</p>)}

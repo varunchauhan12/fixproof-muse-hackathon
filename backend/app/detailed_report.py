@@ -334,7 +334,7 @@ def _load_proportional_image(
 
 # ─── 1. Evidence Bundle Extractor ─────────────────────────────────────────────
 
-def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
+def build_evidence_bundle(incident_id: str, client_session_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Assembles a complete, immutable evidence bundle for an incident from
     disk, database records, frame matches, reference assets, and vision verifier cache.
@@ -379,6 +379,9 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
     frame_correlations: List[Dict[str, Any]] = []
 
     storage_root = Path(__file__).resolve().parent.parent / "storage"
+    from app.temporal_evidence import _is_valid_number
+    def recorded(value):
+        return float(value) if _is_valid_number(value) else None
 
     for idx, fm in enumerate(raw_frames):
         best = fm.get("best_match") or {}
@@ -391,8 +394,8 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         if not is_candidate and matches_found > 0:
             continue
 
-        suspect_ts = sub.get("timestamp_sec") if sub.get("timestamp_sec") is not None else fm.get("timestamp_sec", idx * 5.0)
-        source_ts = best.get("source_timestamp_sec", suspect_ts)
+        suspect_ts = recorded(sub.get("timestamp_sec") if sub.get("timestamp_sec") is not None else fm.get("timestamp_sec"))
+        source_ts = recorded(best.get("source_timestamp_sec"))
         source_aid = best.get("source_asset_id", "REF_ASSET")
         l2 = best.get("l2_distance")
         phash = best.get("phash_match", False)
@@ -411,15 +414,15 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         from app.temporal_selector import resolve_frame_path
 
         sub_aid = incident.get("submitted_asset_id") or incident_id
-        suspect_fn = sub.get("filename") or f"frame_{int(suspect_ts):04d}s.jpg"
+        suspect_fn = sub.get("filename")
         sus_resolved, _ = resolve_frame_path(sub.get("frame_path"), asset_id=sub_aid, filename=suspect_fn)
         suspect_img_path = str(sus_resolved) if sus_resolved else None
 
-        ref_fn = best.get("source_filename") or f"frame_{int(source_ts):04d}s.jpg"
+        ref_fn = best.get("source_filename")
         ref_resolved, _ = resolve_frame_path(best.get("source_frame_path"), asset_id=source_aid, filename=ref_fn)
         ref_img_path = str(ref_resolved) if ref_resolved else None
 
-        evidence_id = fm.get("evidence_id") or sub.get("evidence_id") or f"evidence_frame_{int(suspect_ts):04d}s"
+        evidence_id = fm.get("evidence_id") or sub.get("evidence_id") or (f"evidence_frame_{int(suspect_ts):04d}s" if suspect_ts is not None else "Not recorded")
         raw_s_sam = best.get("sam_segmentation") or fm.get("sam_segmentation") or fm.get("sam_localization")
         raw_r_sam = best.get("ref_sam_segmentation") or fm.get("ref_sam_segmentation")
 
@@ -436,14 +439,14 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         frame_correlations.append({
             "correlation_id": f"corr-{idx:03d}",
             "evidence_id": evidence_id,
-            "suspect_timestamp_sec": float(suspect_ts),
-            "source_timestamp_sec": float(source_ts),
+            "suspect_timestamp_sec": suspect_ts,
+            "source_timestamp_sec": source_ts,
             "source_asset_id": source_aid,
             "source_asset_title": assets_map.get(source_aid, {}).get("filename", source_aid[:8]),
             "l2_distance": round(l2, 4) if l2 is not None else None,
             "phash_match": phash,
             "phash_distance": phash_dist,
-            "visual_similarity_score": round(vis_score, 1),
+            "visual_similarity_score": round(vis_score, 1) if isinstance(vis_score, (int, float)) else None,
             "vision_verification": {
                 "model_id": vis_model,
                 "visual_correspondence": vis_correspondence,
@@ -474,6 +477,18 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Error clustering frames into intervals: {e}")
 
+    # Recompute canonical temporal evidence directly from raw normalized incident
+    temporal_evidence = {}
+    try:
+        from app.temporal_evidence import build_temporal_evidence_for_incident
+        temp_res = build_temporal_evidence_for_incident(incident)
+        temporal_evidence = temp_res.model_dump(mode="json")
+    except Exception as e:
+        logger.warning("Canonical temporal evidence unavailable (%s)", type(e).__name__)
+
+    from app.sam_workspace_api import read_cached_context
+    sam_context = read_cached_context(incident, client_session_id or incident.get('session_id'))
+
     return {
         "incident_id": incident_id,
         "investigation_type": inv_type,
@@ -488,6 +503,8 @@ def build_evidence_bundle(incident_id: str) -> Dict[str, Any]:
         "matched_assets": matched_asset_details,
         "frame_correlations": frame_correlations[:15],
         "timeline_intervals": timeline_intervals,
+        "temporal_evidence": temporal_evidence,
+        "sam_context": sam_context,
         "prior_reports": prior_reports[:3],
         "latest_investigation": prior_reports[0] if prior_reports else None,
     }
@@ -520,7 +537,9 @@ def synthesize_detailed_report(
         "2. Ground all statements strictly in the provided evidence bundle. Do NOT invent timestamps, URLs, asset titles, or names.\n"
         "3. Accurately reflect recorded vision results and model IDs: if visual correspondence is UNVERIFIED or contradictory, clearly disclose it.\n"
         "4. Similarity metrics are uncalibrated algorithmic heuristic scores, NOT calibrated probabilities of copyright infringement.\n"
-        "5. Return valid JSON strictly adhering to the requested schema."
+        "5. Return valid JSON strictly adhering to the requested schema.\n"
+        "6. Temporal numbers come only from temporal_evidence. Zero MAD need not mean identical offsets; no inference about unsampled footage.\n"
+        "7. SAM cached snapshots are historical per-image labels, not tracking or cross-image object identity. Missing cache does not mean SAM never ran."
     )
 
     prompt_data = {
@@ -546,6 +565,9 @@ def synthesize_detailed_report(
             }
             for fc in bundle["frame_correlations"][:10]
         ],
+        "sam_context": bundle.get("sam_context"),
+        "temporal_evidence": {key: value for key, value in (bundle.get("temporal_evidence") or {}).items()
+                              if key not in ("candidates", "by_source")},
     }
 
     schema_instruction = (
@@ -678,6 +700,8 @@ def synthesize_detailed_report(
             "risk_and_limitations": report_content.get("risk_limitations", ""),
             "recommended_actions": report_content.get("recommended_actions", []),
             "timeline_intervals": bundle.get("timeline_intervals") or [],
+            "temporal_evidence": bundle.get("temporal_evidence") or {},
+            "sam_context": bundle.get("sam_context") or {},
             "sam_segmentations": [
                 s for fc in bundle["frame_correlations"]
                 for s in (fc.get("sam_segmentation"), fc.get("ref_sam_segmentation"))
@@ -969,9 +993,9 @@ def generate_detailed_report_pdf(
             phash_val = "MATCH" if fc.get("phash_match") else "NO_MATCH"
             cv_rows.append([
                 Paragraph(f"<font name='Courier'>{ev_id}</font>", mono_style),
-                Paragraph(f"{fc.get('suspect_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph((f"{fc['suspect_timestamp_sec']:.1f}s" if fc.get('suspect_timestamp_sec') is not None else 'Not recorded'), body_style),
                 Paragraph(str(fc.get("source_asset_title", "Ref Asset")), body_style),
-                Paragraph(f"{fc.get('source_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph((f"{fc['source_timestamp_sec']:.1f}s" if fc.get('source_timestamp_sec') is not None else 'Not recorded'), body_style),
                 Paragraph(l2_val, mono_style),
                 Paragraph(sim_val, body_style),
                 Paragraph(phash_val, mono_style),
@@ -1006,7 +1030,7 @@ def generate_detailed_report_pdf(
             feats = ", ".join(ver.get("matching_features") or []) or "None recorded"
             contras = ", ".join(ver.get("contradictions") or []) or "None recorded"
             spark_rows.append([
-                Paragraph(f"<font name='Courier'>{ev_id}</font><br/>Suspect {fc.get('suspect_timestamp_sec', 0.0):.1f}s ↔ Ref {fc.get('source_timestamp_sec', 0.0):.1f}s", body_style),
+                Paragraph(f"<font name='Courier'>{ev_id}</font><br/>Suspect {fc.get('suspect_timestamp_sec') if fc.get('suspect_timestamp_sec') is not None else 'Not recorded'}s ↔ Ref {fc.get('source_timestamp_sec') if fc.get('source_timestamp_sec') is not None else 'Not recorded'}s", body_style),
                 Paragraph(f"<b>{v_verdict}</b>", badge_style if v_verdict == "CONFIRMED" else body_style),
                 Paragraph(feats, body_style),
                 Paragraph(contras, body_style),
@@ -1027,6 +1051,13 @@ def generate_detailed_report_pdf(
 
     # ─── SECTION 6: SPECIALIST VISUAL LOCALIZATION (META SAM 3.1) ───
     elements.append(Paragraph("6. Specialist Visual Localization (Meta SAM 3.1)", sec_h1_style))
+    from xml.sax.saxutils import escape as escape_sam
+    cached_sam = secs.get('sam_context') or {}
+    if cached_sam:
+        elements.append(Paragraph(escape_sam(cached_sam.get('limitation', '')), body_style))
+        for observation in cached_sam.get('observations', []):
+            elements.append(Paragraph(escape_sam(f"Cached candidate {observation.get('candidate_id')}, {observation.get('target')}: {observation.get('status')}; labels: {', '.join(observation.get('labels') or [])}; model: {observation.get('model_id')}. No cross-frame identity claim."), body_style))
+
     sam_detections = []
     for fc in corrs:
         sam_data = fc.get("sam_segmentation")
@@ -1083,7 +1114,7 @@ def generate_detailed_report_pdf(
     else:
         elements.append(
             Paragraph(
-                "Specialist segmentation (Meta SAM 3.1) was not executed or recorded no localized objects for this incident record. "
+                "No persisted SAM objects are available in these frame records. This does not establish whether SAM ran; temporary workspace caches may be unavailable. "
                 "Pairwise visual verification remains grounded in Muse Spark 1.3 keyframe analysis.",
                 body_style,
             )
@@ -1260,6 +1291,45 @@ def generate_detailed_report_pdf(
     else:
         elements.append(Paragraph("No coherent multi-frame timeline intervals were clustered. Matches represent discrete, isolated keyframe occurrences.", body_style))
     elements.append(Spacer(1, 3))
+
+    temp_ev = secs.get("temporal_evidence") or {}
+    if temp_ev:
+        def temporal_paragraph(value):
+            # Stored identifiers/methodology are data, not ReportLab markup.
+            from xml.sax.saxutils import escape
+            elements.append(Paragraph(escape(str(value)), body_style))
+        glob_off = temp_ev.get("global_offset") or {}
+        chrono = temp_ev.get("chronological_consistency") or {}
+        temporal_paragraph("Canonical temporal evidence — all eligible CV candidates; alternatives count separately.")
+        temporal_paragraph(f"Raw observations: {temp_ev.get('total_candidate_count', 0)}; "
+                           f"raw valid pairs: {temp_ev.get('valid_pair_count', 0)}; "
+                           f"raw missing timestamp pairs: {temp_ev.get('missing_timestamp_count', 0)}. "
+                           f"Eligible offset sample: {glob_off.get('valid_pair_count', 0)}; "
+                           f"eligible missing: {glob_off.get('missing_timestamp_count', 0)}.")
+        temporal_paragraph(f"Median offset: {glob_off.get('median_offset_sec')}; MAD: {glob_off.get('mad_sec')}; "
+                           f"minimum: {glob_off.get('min_offset_sec')}; maximum: {glob_off.get('max_offset_sec')} seconds. "
+                           f"{glob_off.get('dispersion_note', '')}")
+        temporal_paragraph(f"Ordering inversions: {chrono.get('inversions_count', 0)}; "
+                           f"sum of per-source increasing subsequences: {chrono.get('lis_length', 0)} / {chrono.get('sample_count', 0)}. "
+                           f"{chrono.get('interpretation', '')}")
+        for name, population in (temp_ev.get('populations') or {}).items():
+            off = population.get('offset_stats') or {}
+            temporal_paragraph(f"{name}: {population.get('population_definition')}; "
+                               f"valid {population.get('valid_pairs', 0)}, missing {population.get('missing_timestamps', 0)}, "
+                               f"median {off.get('median_offset_sec')}, MAD {off.get('mad_sec')} seconds.")
+        for cluster in temp_ev.get('clusters') or []:
+            temporal_paragraph(f"Cluster {cluster.get('interval_id')}, source {cluster.get('source_asset_id')}: "
+                               f"{cluster.get('sample_count')} retained pairs, median {cluster.get('median_offset_sec')}, "
+                               f"MAD {cluster.get('mad_sec')} seconds. {cluster.get('method', '')}")
+        temporal_paragraph(temp_ev.get('methodology', ''))
+        temporal_paragraph(glob_off.get('method', ''))
+        temporal_paragraph(chrono.get('method', ''))
+        for limitation in temp_ev.get('limitations') or []:
+            temporal_paragraph(limitation)
+        elements.append(Spacer(1, 3))
+    else:
+        elements.append(Paragraph("Canonical temporal evidence is unavailable for this report.", body_style))
+
     elements.append(Paragraph(secs.get("temporal_continuity", ""), body_style))
     elements.append(Spacer(1, 6))
 
@@ -1806,6 +1876,8 @@ def send_detailed_report_email(
     pdf_bytes: bytes,
     summary_text: Optional[str] = None,
     client_session_id: Optional[str] = None,
+    subject_override: Optional[str] = None,
+    body_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Delivers a completed forensic investigation PDF report to a specified email address
@@ -1814,13 +1886,17 @@ def send_detailed_report_email(
     if not recipient_email or not EMAIL_REGEX.match(recipient_email.strip()):
         raise ValueError(f"Invalid recipient email address: '{recipient_email}'.")
 
+    if subject_override is not None and (not subject_override.strip() or len(subject_override)>200 or '\n' in subject_override or '\r' in subject_override):
+        raise ValueError("Email subject must be a single line of 1–200 characters.")
+    if body_override is not None and (not body_override.strip() or len(body_override)>20000):
+        raise ValueError("Email body must contain 1–20000 characters.")
     configured, api_key, from_email = get_email_config()
     # Default to official Resend onboarding address for unverified domains
     effective_from = os.getenv("FROM_EMAIL", "").strip() or "onboarding@resend.dev"
 
     audit_id = str(uuid.uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()
-    subject = f"FixProof Detailed Forensic Investigation Report — Ref: {incident_id[:8]}"
+    subject = subject_override.strip() if subject_override is not None else f"FixProof Detailed Forensic Investigation Report — Ref: {incident_id[:8]}"
 
     if not configured:
         save_email_audit_entry({
@@ -1857,6 +1933,9 @@ def send_detailed_report_email(
         f"Notice: This report is a forensic analysis aid requiring authorized human review."
     )
 
+    if body_override is not None:
+        body_text = body_override.strip()
+
     payload = {
         "from": effective_from,
         "to": [recipient_email.strip()],
@@ -1892,7 +1971,7 @@ def send_detailed_report_email(
                 "document_type": "DETAILED_REPORT_PDF",
                 "recipient_email": recipient_email,
                 "subject": subject,
-                "status": "DELIVERED",
+                "status": "ACCEPTED",
                 "provider": "Resend",
                 "delivery_id": delivery_id,
                 "session_id": client_session_id,
@@ -1900,10 +1979,11 @@ def send_detailed_report_email(
             })
             return {
                 "success": True,
-                "status": "DELIVERED",
+                "status": "ACCEPTED",
                 "delivery_id": delivery_id,
                 "audit_id": audit_id,
-                "message": f"Detailed PDF report dispatched successfully to {recipient_email} via Resend.",
+                "message": "Resend accepted the email request. Delivery to the recipient is not verified.",
+                "acceptance_status": "ACCEPTED",
             }
         else:
             err_msg = f"HTTP {res.status_code}: {res.text}"

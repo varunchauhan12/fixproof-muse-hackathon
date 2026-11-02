@@ -159,7 +159,8 @@ def default_provider():
 def default_tools():
     # The full application already initializes registry; imports remain lazy for offline tests.
     from app import registry
-    return MuseToolRegistry(RegistryReadStore(registry))
+    from app.sam_workspace_api import read_cached_context
+    return MuseToolRegistry(RegistryReadStore(registry), sam_reader=read_cached_context)
 
 
 def encode(value):
@@ -255,6 +256,19 @@ When selected_incident_hint is present and the user asks about 'this incident', 
 Only call get_investigation_reports if has_investigation_reports is true in get_incident_details. If has_investigation_reports is false, do not call get_investigation_reports; provide the comprehensive forensic report and evidence analysis directly from get_incident_details and get_evidence_bundle. Never ask for clarification of which incident when selected_incident_hint is present.
 Do NOT call get_latest_incident or list_recent_incidents when a valid selected_incident_hint is present unless the user explicitly requests other incidents or the latest scan.
 If no selected_incident_hint exists, do not assume an arbitrary incident is active; use list_recent_incidents or clarify.
+For questions about objects or SAM, retrieve get_evidence_bundle and inspect sam_context. Explain its availability and cache limitations.
+Only describe returned validated labels for their exact candidate and target. PARTIAL observations are incomplete.
+Missing/expired cache does not mean SAM never ran. Never infer tracking, object correspondence or decoded masks.
+Document/report/email requests are supported by the UI document workspace, not read tools. Explain that generation requires its explicit Generate action; sending requires a separate reviewed Send action. Never claim a document was generated or sent from read-tool results.
+For temporal relationships, chronological consistency, or match offsets, inspect get_matching_timestamps or get_evidence_bundle.
+Quote measured statistics only from the returned temporal_evidence object (global_offset.median_offset_sec, global_offset.mad_sec, chronological_consistency.inversions_count and lis_length).
+Keep confirmed/unconfirmed populations separate. Global offsets pool eligible sources; do not attribute them to one source.
+Clusters provide source-scoped measurements; alternative candidates are not independent frame observations.
+Zero MAD does not imply every offset is identical; slope is descriptive regression, not proven playback speed.
+Explain sample counts and missing timestamps; do not extrapolate beyond recorded pairs.
+Reference actual candidate identities and timestamps when describing ordering contradictions.
+Never describe a temporal offset, dispersion, or progression rate as proof of copying or copyright infringement.
+Unsampled intervals between sampled keyframes cannot be evaluated and do not prove missing or edited footage.
 """
 
 

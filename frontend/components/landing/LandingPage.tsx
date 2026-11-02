@@ -55,10 +55,10 @@ export const FlipWords = ({
       <AnimatePresence mode="wait">
         <motion.span
           key={words[index]}
-          initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          exit={{ opacity: 0, y: -28, filter: "blur(6px)" }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
           className="inline-block"
         >
           {words[index]}
@@ -205,8 +205,8 @@ export const CometCard = ({
 
 // ─── Ripple Grid (Interactive Ripple Effect) ─────────────────────────────────
 export const RippleGrid = ({
-  rows = 10,
-  cols = 24,
+  rows = 8,
+  cols = 20,
   cellSize = 60,
 }: {
   rows?: number;
@@ -255,7 +255,7 @@ export const RippleGrid = ({
           return (
             <div
               key={`${key}-${idx}`}
-              className={`border border-[#DCD5C9]/50 hover:bg-[#009E91]/10 transition-colors duration-100 ${
+              className={`border border-[#DCD5C9]/40 hover:bg-[#009E91]/10 ${
                 clicked ? "animate-cell-ripple will-change-transform" : ""
               }`}
               style={
@@ -291,12 +291,12 @@ export const StatCard = ({
   rotate?: number;
 }) => (
   <motion.div
-    initial={{ y: -60, opacity: 0, rotate: rotate - 10, scale: 0.72, filter: "blur(8px)" }}
-    animate={{ y: 0, opacity: 1, rotate, scale: 1, filter: "blur(0px)" }}
-    transition={{ delay, duration: 1.0, type: "spring", stiffness: 120, damping: 16 }}
+    initial={{ y: -40, opacity: 0, scale: 0.82 }}
+    animate={{ y: 0, opacity: 1, scale: 1 }}
+    transition={{ delay, duration: 0.8, type: "spring", stiffness: 120, damping: 16 }}
   >
     <motion.div
-      animate={{ y: [0, -9, 0], rotate: [rotate, rotate + 1.5, rotate] }}
+      animate={{ y: [0, -8, 0], rotate: [rotate, rotate + 1.2, rotate] }}
       transition={{
         duration: 5 + delay * 1.5,
         repeat: Infinity,
@@ -304,13 +304,12 @@ export const StatCard = ({
         delay: delay * 0.3,
       }}
       whileHover={{
-        scale: 1.06,
+        scale: 1.05,
         boxShadow: "0 12px 36px rgba(0,158,145,0.15), 0 2px 8px rgba(0,0,0,0.06)",
       }}
-      className="bg-[#FFFEFA]/95 backdrop-blur-md rounded-2xl p-4 border border-[#DCD5C9] w-[164px] cursor-default"
+      className="bg-[#FFFEFA] rounded-2xl p-4 border border-[#DCD5C9] w-[164px] cursor-default will-change-transform"
       style={{
         boxShadow: "0 12px 32px rgba(23,23,23,0.08), 0 0 0 1px rgba(0,0,0,0.03)",
-        transform: `rotate(${rotate}deg)`,
       }}
     >
       <div className="w-6 h-[2.5px] bg-[#009E91] rounded-full mb-2.5" />
@@ -352,7 +351,8 @@ export const LiveTicker = () => (
     <motion.div
       animate={{ x: ["0%", "-50%"] }}
       transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-      className="flex gap-6 w-max px-4"
+      className="flex gap-6 w-max px-4 will-change-transform"
+      style={{ transform: "translate3d(0, 0, 0)" }}
     >
       {[...TICKER_EVENTS, ...TICKER_EVENTS].map((e, i) => (
         <span
@@ -1054,7 +1054,7 @@ export const Hero = ({
           <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
             <HalftoneBackground
               className="!bg-transparent w-full h-full min-h-0 opacity-70"
-              cell={14}
+              cell={16}
               inkColor="#009E91"
               center={true}
               loupe={false}
@@ -1065,9 +1065,10 @@ export const Hero = ({
 
           <div className="relative z-10 flex items-center justify-center" style={{ width: 560, height: 560 }}>
             <div
-              className="absolute inset-0 rounded-full pointer-events-none"
+              className="absolute inset-0 rounded-full pointer-events-none will-change-transform"
               style={{
                 background: "radial-gradient(circle, rgba(0,158,145,0.12) 0%, transparent 70%)",
+                transform: "translate3d(0, 0, 0)",
               }}
             />
             <motion.div

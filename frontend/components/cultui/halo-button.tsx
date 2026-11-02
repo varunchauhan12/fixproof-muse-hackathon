@@ -243,9 +243,9 @@ export function HaloButton({
         primaryBg: "linear-gradient(90deg, #009E91, #14b8a6, #c2a677, #009E91)",
         secondaryBg: "linear-gradient(90deg, #14b8a6, #2dd4bf, #009E91)",
         tertiaryBg: "linear-gradient(90deg, #c2a677, #009E91, #14b8a6)",
-        primaryLeft: ["-10%", "85%", "-10%"],
-        secondaryLeft: ["70%", "10%", "70%"],
-        tertiaryLeft: ["20%", "60%", "20%"],
+        primaryX: ["-20%", "95%", "-20%"],
+        secondaryX: ["80%", "0%", "80%"],
+        tertiaryX: ["15%", "70%", "15%"],
         durationMain: 5.5,
         durationSec: 4.5,
         durationTer: 3.5,
@@ -258,9 +258,9 @@ export function HaloButton({
         primaryBg: "linear-gradient(90deg, #009E91, #2dd4bf, #0d9488)",
         secondaryBg: "linear-gradient(90deg, #0d9488, #5eead4, #009E91)",
         tertiaryBg: "linear-gradient(90deg, #009E91, #14b8a6, #0d9488)",
-        primaryLeft: ["0%", "80%", "0%"],
-        secondaryLeft: ["75%", "15%", "75%"],
-        tertiaryLeft: ["15%", "65%", "15%"],
+        primaryX: ["-10%", "90%", "-10%"],
+        secondaryX: ["85%", "5%", "85%"],
+        tertiaryX: ["10%", "75%", "10%"],
         durationMain: 6,
         durationSec: 5,
         durationTer: 4,
@@ -273,9 +273,9 @@ export function HaloButton({
       primaryBg: "linear-gradient(90deg, #DCD5C9, #009E91, #C4BCAD, #DCD5C9)",
       secondaryBg: "linear-gradient(90deg, #C4BCAD, #EDE7DC, #009E91)",
       tertiaryBg: "linear-gradient(90deg, #DCD5C9, #009E91, #C4BCAD)",
-      primaryLeft: ["-5%", "75%", "-5%"],
-      secondaryLeft: ["65%", "10%", "65%"],
-      tertiaryLeft: ["25%", "55%", "25%"],
+      primaryX: ["-15%", "85%", "-15%"],
+      secondaryX: ["75%", "0%", "75%"],
+      tertiaryX: ["20%", "65%", "20%"],
       durationMain: 6,
       durationSec: 5,
       durationTer: 4,
@@ -341,44 +341,53 @@ export function HaloButton({
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
             <motion.div
-              animate={{
-                left: borderGlow.primaryLeft,
-              }}
-              className="-bottom-4 absolute h-14 w-44 blur-md"
+              animate={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { x: borderGlow.primaryX }
+              }
+              className="-bottom-4 absolute left-0 h-14 w-44 blur-md will-change-transform pointer-events-none"
               style={{
                 background: borderGlow.primaryBg,
+                transform: "translate3d(0, 0, 0)",
               }}
               transition={{
                 duration: borderGlow.durationMain,
-                repeat: Number.POSITIVE_INFINITY,
+                repeat: reduceMotion ? 0 : Number.POSITIVE_INFINITY,
                 ease: "easeInOut",
               }}
             />
             <motion.div
-              animate={{
-                left: borderGlow.secondaryLeft,
-              }}
-              className="-bottom-3 absolute h-10 w-28 blur-md"
+              animate={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { x: borderGlow.secondaryX }
+              }
+              className="-bottom-3 absolute left-0 h-10 w-28 blur-md will-change-transform pointer-events-none"
               style={{
                 background: borderGlow.secondaryBg,
+                transform: "translate3d(0, 0, 0)",
               }}
               transition={{
                 duration: borderGlow.durationSec,
-                repeat: Number.POSITIVE_INFINITY,
+                repeat: reduceMotion ? 0 : Number.POSITIVE_INFINITY,
                 ease: "easeInOut",
               }}
             />
             <motion.div
-              animate={{
-                left: borderGlow.tertiaryLeft,
-              }}
-              className="-bottom-2 absolute h-8 w-20 blur-sm"
+              animate={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { x: borderGlow.tertiaryX }
+              }
+              className="-bottom-2 absolute left-0 h-8 w-20 blur-sm will-change-transform pointer-events-none"
               style={{
                 background: borderGlow.tertiaryBg,
+                transform: "translate3d(0, 0, 0)",
               }}
               transition={{
                 duration: borderGlow.durationTer,
-                repeat: Number.POSITIVE_INFINITY,
+                repeat: reduceMotion ? 0 : Number.POSITIVE_INFINITY,
                 ease: "easeInOut",
               }}
             />

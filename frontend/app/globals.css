@@ -5,6 +5,7 @@
 
 @theme {
   --font-sans: var(--font-bricolage, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif);
+  --breakpoint-xs: 480px;
 }
 
 :root {
@@ -52,6 +53,12 @@ body {
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Accessible focus indicators for keyboard navigation (WCAG 2.4.7) */
+:focus-visible {
+  outline: 2px solid var(--accent-teal, #48C7B5);
+  outline-offset: 2px;
 }
 
 /* Ensure monospace elements retain clean technical typography */

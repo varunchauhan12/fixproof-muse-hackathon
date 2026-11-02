@@ -63,3 +63,11 @@ class AutomaticRequest(BaseModel):
 def automatic(incident_id: str, candidate_id: str, payload: AutomaticRequest, x_client_session_id: str | None = Header(None), workspace=Depends(get_workspace)):
     from app.sam_scene import MuseSceneDiscovery
     return workspace.automatic(incident_id, candidate_id, x_client_session_id, MuseSceneDiscovery(), payload.retry)
+
+
+def read_cached_context(incident, session):
+    """Read only an already-existing workspace; never initialize providers/load frames."""
+    if not get_workspace.cache_info().currsize:
+        return {'availability': 'UNAVAILABLE_OR_EXPIRED', 'observations': [],
+                'limitation': 'No current in-process snapshot. This does not establish that SAM never ran.'}
+    return get_workspace().read_cached_context(incident, session)

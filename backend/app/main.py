@@ -162,9 +162,9 @@ class DraftDocumentRequest(BaseModel):
     recipient_email: Optional[str] = None
     jurisdiction: Optional[str] = "US_DMCA"
     custom_notes: Optional[str] = None
-    rev_share_pct: Optional[float] = 50.0
+    rev_share_pct: Optional[float] = Field(default=None, ge=0, le=100)
     commercial_terms: Optional[str] = None
-    response_deadline_days: Optional[int] = 14
+    response_deadline_days: Optional[int] = Field(default=None, ge=1, le=365)
     use_ai_synthesis: Optional[bool] = True
 
 class SendDocumentEmailRequest(BaseModel):
@@ -186,6 +186,9 @@ class EmailDetailedReportRequest(BaseModel):
     incident_id: str
     report_id: str
     recipient_email: str
+    subject: Optional[str] = Field(default=None, min_length=1, max_length=200, pattern=r"^[^\r\n]+$")
+    body: Optional[str] = Field(default=None, min_length=1, max_length=20000)
+    user_confirmed: bool = False
 
 
 def is_valid_completed_report(report: Dict[str, Any]) -> bool:
@@ -1461,9 +1464,9 @@ def draft_nemotron_document_endpoint(
             "recipient_email": req.recipient_email,
             "jurisdiction": req.jurisdiction or "US_DMCA",
             "additional_notes": req.custom_notes,
-            "proposed_rev_share_pct": float(req.rev_share_pct or 50.0),
+            "proposed_rev_share_pct": req.rev_share_pct,
             "commercial_terms": req.commercial_terms,
-            "response_deadline_days": int(req.response_deadline_days or 14),
+            "response_deadline_days": req.response_deadline_days,
         }
         if doc_type == "COPYRIGHT_NOTICE":
             draft = generate_copyright_notice_draft(
@@ -1587,7 +1590,7 @@ def generate_detailed_report_endpoint(
             raise HTTPException(status_code=400, detail=f"Invalid recipient email address format: '{recipient}'.")
 
     try:
-        bundle = build_evidence_bundle(req.incident_id)
+        bundle = build_evidence_bundle(req.incident_id, client_session_id=x_client_session_id)
         report_data = synthesize_detailed_report(bundle, model_override=req.model_override)
         pdf_bytes = generate_detailed_report_pdf(report_data, bundle)
         save_detailed_report(req.incident_id, report_data, pdf_bytes)
@@ -1711,6 +1714,10 @@ def email_detailed_report_endpoint(
     Retries or dispatches email delivery for an existing detailed report and PDF,
     without re-synthesizing the expensive model report.
     """
+    if req.user_confirmed is not True:
+        raise HTTPException(status_code=400, detail="Explicit review confirmation is required before sending.")
+    if not x_client_session_id or not re.fullmatch(r"[A-Za-z0-9_-]{3,64}", x_client_session_id):
+        raise HTTPException(status_code=400, detail="A valid client session header is required.")
     if not SAFE_ID_REGEX.match(req.incident_id) or not SAFE_ID_REGEX.match(req.report_id):
         raise HTTPException(status_code=400, detail="Invalid ID format.")
 
@@ -1743,6 +1750,8 @@ def email_detailed_report_endpoint(
             pdf_bytes=pdf_bytes,
             summary_text=record.get("sections", {}).get("executive_summary"),
             client_session_id=x_client_session_id,
+            subject_override=req.subject,
+            body_override=req.body,
         )
         return result
     except ValueError as ve:
@@ -2027,3 +2036,7 @@ def stream_annotated_incident_frame(
             "Expires": "0",
         },
     )
+
+
+from app.temporal_evidence_api import router as temporal_evidence_router
+app.include_router(temporal_evidence_router)

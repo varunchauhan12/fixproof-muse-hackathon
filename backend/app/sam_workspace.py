@@ -262,6 +262,44 @@ class SAMWorkspace:
                     self.inflight.discard(lock_key)
 
 
+    def read_cached_context(self, incident, session):
+        """Authorized callers supply an already-read incident. No frame or provider I/O.
+
+        Snapshots describe validated historical bytes, not a fresh image verification.
+        Expired entries are skipped without pruning or mutating the cache.
+        """
+        current = {pair['candidate_id']: pair for pair, _, _ in candidate_queue(incident, self.threshold())}
+        now = self.clock()
+        observations = []
+        seen = set()
+        with self.lock:
+            cached = list(self.auto_cache.items())
+        for key, (created, result) in reversed(cached):
+            pair = result.get('candidate') or {}
+            cid = pair.get('candidate_id')
+            if key[0] != session or now-created >= self.ttl or cid in seen or cid not in current:
+                continue
+            if pair != current[cid]:
+                continue
+            seen.add(cid)
+            for target, observation in (result.get('targets') or {}).items():
+                association = observation.get('association') or {}
+                expected = {**pair[target], 'incident_id': incident.get('incident_id'), 'candidate_id': cid,
+                            'frame_match_index': pair['frame_match_index'], 'target': target, 'evidence_id': pair['evidence_id']}
+                if association != expected:
+                    continue
+                status = observation.get('status')
+                labels = [str(obj.get('label', ''))[:60] for obj in observation.get('objects', [])[:20]
+                          if isinstance(obj, dict) and obj.get('label')] if status in ('VALIDATED','PARTIAL') else []
+                observations.append({'candidate_id': cid, 'frame_match_index': pair['frame_match_index'],
+                    'rank': pair['rank'], 'target': target, 'timestamp_sec': association.get('timestamp_sec'),
+                    'source_asset_id': pair['reference']['asset_id'], 'status': status,
+                    'labels': labels, 'model_id': observation.get('model_id'),
+                    'discovery_model': observation.get('discovery_model'), 'tracking_supported': False})
+        return {'availability': 'CACHED_SNAPSHOT' if observations else 'UNAVAILABLE_OR_EXPIRED',
+                'observations': observations[:40], 'truncated': len(observations)>40,
+                'limitation': 'In-memory observations of previously validated frames; no fresh inference or image check. No cross-frame identity, tracking or mask decoding. Missing cache does not mean SAM never ran.'}
+
     def automatic(self, incident_id, candidate_id, session, discover, retry=False):
         """One bounded discovery pass, then SAM only for actually proposed per-image concepts."""
         pair, frame, candidate = self.resolve(incident_id, candidate_id, session)

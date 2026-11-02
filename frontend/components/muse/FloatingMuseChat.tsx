@@ -7,11 +7,14 @@ import { getClientSessionId } from "@/lib/api";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import {
   listMuseIncidents,
+  workflowForText,
+  type MuseWorkflow,
   MuseConversationClient,
   transcribeRecording,
   type MuseIncident,
   type MuseMessage,
 } from "@/lib/muse-assistant";
+import { MuseDocumentWorkspace } from "./MuseDocumentWorkspace";
 import { useActivity } from "@/context/ActivityContext";
 import AITextLoading from "@/components/kokonutui/ai-text-loading";
 import AICitations, {
@@ -84,6 +87,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   const [contextIncident, setContextIncident] = useState<string | null>(effectiveActiveIncident || null);
   const [pendingText, setPendingText] = useState("");
   const [isHolding, setIsHolding] = useState(false);
+  const [workflow, setWorkflow] = useState<MuseWorkflow | null>(null);
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
@@ -107,6 +111,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     function initialize() {
       epoch.current++;
       sending.current = false;
+      setWorkflow(null);
       lookup?.abort();
       discardRef.current?.();
 
@@ -155,6 +160,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
       const newInc = typeof detail === "string" ? detail : (detail?.incident_id || "");
       const newSess = (typeof detail === "object" && detail?.session_id) ? detail.session_id : getClientSessionId();
       if (newInc && (newInc !== selectedRef.current || client.current?.selectedIncident !== newInc)) {
+        epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null);
         selectedRef.current = newInc;
         setSelected(newInc);
         setContextIncident(newInc);
@@ -180,6 +186,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   useEffect(() => {
     const targetInc = effectiveActiveIncident || "";
     if (targetInc && (targetInc !== selectedRef.current || client.current?.selectedIncident !== targetInc)) {
+      epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null);
       selectedRef.current = targetInc;
       setSelected(targetInc);
       setContextIncident(targetInc);
@@ -213,6 +220,12 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     const active = client.current;
     if (!active || sending.current || !textToSend) return;
 
+    const requestedWorkflow = workflowForText(textToSend);
+    if (requestedWorkflow) {
+      if (!selectedRef.current) { setError("Select an incident before opening a document workflow."); return; }
+      setWorkflow(requestedWorkflow); setDraft(""); setError("");
+      return; // UI navigation only; Generate and Send remain separate human actions.
+    }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -255,6 +268,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     const activeToSet = selected || (incidents.length > 0 ? incidents[0].incident_id : null);
     client.current = new MuseConversationClient(session, activeToSet);
     setMessages([]);
+    setWorkflow(null);
     setDraft("");
     setError("");
     setPendingText("");
@@ -438,10 +452,29 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               </div>
             </header>
 
+            <div className="border-b border-[#e8e3d8] px-4 py-3 space-y-2">
+              <label className="block text-[11px] font-medium">Active investigation
+                <select aria-label="Muse active incident" className="mt-1 w-full rounded-lg border border-[#d5d0c5] bg-white p-2 text-xs" value={selected} disabled={busy || transcribing} onChange={e => {
+                  const iid=e.target.value; epoch.current++; sending.current=false; setBusy(false); setPendingText("");
+                  selectedRef.current=iid; setSelected(iid); setContextIncident(iid || null); setMessages([]); setWorkflow(null); setError("");
+                  client.current=new MuseConversationClient(getClientSessionId(),iid || null);
+                }}><option value="">Select an incident</option>{selected && !incidents.some(i=>i.incident_id===selected) && <option value={selected}>{selected}</option>}{incidents.map(i=><option key={i.incident_id} value={i.incident_id}>{i.suspect_filename || i.incident_id}</option>)}</select>
+              </label>
+              <div className="flex flex-wrap gap-1.5">{[
+                ["Explain investigation","Explain what happened in this selected incident."],
+                ["Temporal analysis","Explain the temporal evidence and its inconsistencies for this incident."],
+                ["SAM findings","Explain the recorded SAM observations and any unavailable information."],
+                ["Generate report","Generate an investigation report."],
+                ["Copyright notice","Prepare a copyright notice."],
+                ["Licensing proposal","Prepare a licensing proposal."],
+                ["Prepare email","Prepare an email with the investigation report."],
+              ].map(([label,prompt])=><button key={label} type="button" disabled={disabled || !selected} onClick={()=>send(prompt)} className="rounded-full border border-[#d5d0c5] bg-white px-2 py-1 text-[10px] hover:bg-zinc-100 disabled:opacity-40">{label}</button>)}</div>
+            </div>
             {/* Conversation Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 scrollbar-thin scrollbar-thumb-zinc-400/50 hover:scrollbar-thumb-zinc-500/70">
+              {workflow && selected && <MuseDocumentWorkspace key={`${getClientSessionId()}:${selected}`} incidentId={selected} initial={workflow} onClose={()=>setWorkflow(null)} />}
               {/* Empty State: Matching the Deskwright Aesthetic in Screenshot */}
-              {!messages.length && !busy && (
+              {!messages.length && !busy && !workflow && (
                 <div className="flex flex-col items-center justify-center text-center h-full min-h-[300px] px-2 space-y-4 my-auto select-none">
                   <div className="space-y-1.5 mt-8">
                     <h2 className="text-2xl font-serif text-black dark:text-black tracking-tight font-semibold">
@@ -457,7 +490,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                     <div className="flex flex-wrap gap-2 justify-center">
                       <button
                         type="button"
-                        onClick={() => send("Show me the latest incident and explain what happened.")}
+                        onClick={() => send("Explain what happened in this selected incident.")}
                         className="flex items-center gap-1.5 text-[11px] font-semibold px-3.5 py-1.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-xs"
                       >
                         <span>🎓</span>
@@ -563,9 +596,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                   <div className="rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs bg-[#F2ECE1] border border-[#DDD6C8] text-black dark:text-black shadow-2xs">
                     <AITextLoading
                       texts={[
-                        "Reading evidence bundle...",
-                        "Correlating candidate frames...",
-                        "Grounding forensic report...",
+                        "Waiting for the grounded assistant response…",
                       ]}
                       interval={1400}
                       className="text-black dark:text-black text-xs font-semibold"
