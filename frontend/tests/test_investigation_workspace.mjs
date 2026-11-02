@@ -47,3 +47,14 @@ test('real frame component renders unavailable state without requesting an image
  assert.equal(nodes(tree).filter(n=>n.type==='img').length,0);
  assert.ok(nodes(tree).some(n=>n.props?.children==='No recorded frame location available.'));
 });
+
+test('white confirmed highlight requires backend boolean true, never a similarity threshold',()=>{
+ const {InvestigationWorkspace}=loadWorkspace();
+ for(const [confirmed,expected] of [[true,true],[false,false],[undefined,false]]) {
+  const pairs=exports.buildEvidencePairs({...incident,frame_matches:[{...frame,best_match:{...candidate,match_confirmed:confirmed,confidence_score:100,visual_similarity_score:100},top_candidates:[]}]});
+  const tree=InvestigationWorkspace({pairs,selectedIndex:0,onSelect:()=>{}});
+  const viewer=nodes(tree).find(n=>n.props?.['aria-label']==='Side-by-side recorded frames');
+  assert.equal(viewer.props['data-backend-confirmed'],expected);
+  assert.equal(viewer.props.className.includes('shadow-['),expected);
+ }
+});

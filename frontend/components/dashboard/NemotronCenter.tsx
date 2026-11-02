@@ -26,7 +26,6 @@ import {
   FileCheck,
   Eye,
   EyeOff,
-  Layers,
 } from "lucide-react";
 import {
   MatchAnalysisResult,
@@ -61,7 +60,6 @@ import {
 } from "@/lib/api";
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
-import { ForensicEvidenceExperience } from "@/components/dashboard/ForensicEvidenceExperience";
 
 const nemotronInvestigationStepsConfig = [
   {
@@ -295,7 +293,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const [retryEmailAddress, setRetryEmailAddress] = useState("");
   const [retryEmailResult, setRetryEmailResult] = useState<SendEmailResult | null>(null);
   const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
-  const [centerView, setCenterView] = useState<"EVIDENCE_EXPERIENCE" | "DOCUMENT_DRAFT">("EVIDENCE_EXPERIENCE");
+  const [showIncidentList, setShowIncidentList] = useState(!preselectedIncident?.incident_id);
 
   // Animated KokonutUI AI Loading Steps (Phase 3.5)
   const isInvestigationActive = refreshingInvestigation || reportLoading;
@@ -336,6 +334,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   useEffect(() => {
     if (preselectedIncident?.incident_id) {
       setSelectedIncidentId(preselectedIncident.incident_id);
+      setShowIncidentList(false);
     }
   }, [preselectedIncident]);
 
@@ -486,6 +485,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
 
   // Safely switch between incidents with draft context isolation
   const handleSelectIncident = (incId: string) => {
+    setShowIncidentList(false);
     if (incId === selectedIncidentId) return;
 
     // Cache current draft edits if present
@@ -1013,15 +1013,16 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
       </div>
 
       {/* ─── MAIN TWO-COLUMN WORKSPACE: Selector + Workspace ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ─── SECTION B: Investigation Selector (4 Cols) ─── */}
+      <div className="space-y-6">
+        {/* Full-width incident selection, matching the incident list workflow. */}
+        {showIncidentList && (
         <div
           style={{
             background: "#171615",
             borderRadius: 16,
             border: "1px solid rgba(238, 231, 219, 0.08)",
           }}
-          className="lg:col-span-4 p-4 space-y-4"
+          className="p-4 space-y-4"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-[14px] font-bold text-[#f4efe6] m-0 flex items-center gap-2">
@@ -1066,7 +1067,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
           </div>
 
           {/* Incidents List */}
-          <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {incidentsLoading ? (
               <div role="status" className="text-center py-10 text-[12px] text-[#8e887d]">Loading incidents…</div>
             ) : incidentsError ? (
@@ -1134,75 +1135,14 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
           </div>
         </div>
 
-        {/* ─── SECTION C & D: Workspace & Action Area (8 Cols) ─── */}
-        <div className="lg:col-span-8 space-y-6">
+        )}
+        {!showIncidentList && <div className="space-y-6">
           {selectedIncident ? (
             <>
-              {/* Primary View Mode Switcher */}
-              <div
-                style={{
-                  background: "#171615",
-                  borderRadius: 12,
-                  border: "1px solid rgba(238, 231, 219, 0.08)",
-                }}
-                className="p-1.5 flex items-center justify-between gap-2 flex-wrap"
-              >
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setCenterView("EVIDENCE_EXPERIENCE")}
-                    style={{
-                      background: centerView === "EVIDENCE_EXPERIENCE" ? "#242220" : "transparent",
-                      color: centerView === "EVIDENCE_EXPERIENCE" ? "#f4efe6" : "#aba497",
-                      border: centerView === "EVIDENCE_EXPERIENCE" ? "1px solid #48C7B5" : "1px solid transparent",
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Layers size={14} className={centerView === "EVIDENCE_EXPERIENCE" ? "text-teal-400" : ""} />
-                    <span>Forensic Evidence & Provenance</span>
-                  </button>
-                  <button
-                    onClick={() => setCenterView("DOCUMENT_DRAFT")}
-                    style={{
-                      background: centerView === "DOCUMENT_DRAFT" ? "#242220" : "transparent",
-                      color: centerView === "DOCUMENT_DRAFT" ? "#f4efe6" : "#aba497",
-                      border: centerView === "DOCUMENT_DRAFT" ? "1px solid #48C7B5" : "1px solid transparent",
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Scale size={14} className={centerView === "DOCUMENT_DRAFT" ? "text-teal-400" : ""} />
-                    <span>Notice & Settlement Drafter</span>
-                  </button>
-                </div>
-
-                {onNavigateToIncidents && (
-                  <button
-                    onClick={() => onNavigateToIncidents(selectedIncident)}
-                    style={{
-                      background: "#1c1b1a",
-                      border: "1px solid rgba(238, 231, 219, 0.1)",
-                      color: "#ded7cb",
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg hover:bg-[#262422] text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                  >
-                    <span>Full Incident Inspection</span>
-                    <ExternalLink size={12} />
-                  </button>
-                )}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button type="button" onClick={() => setShowIncidentList(true)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#ded7cb]">← Back to incidents</button>
+                {onNavigateToIncidents && <button type="button" onClick={() => onNavigateToIncidents(selectedIncident)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-teal-300">Open CV / SAM investigation ↗</button>}
               </div>
-
-              {centerView === "EVIDENCE_EXPERIENCE" ? (
-                <ForensicEvidenceExperience
-                  incident={selectedIncident}
-                  latestReport={latestReport}
-                  detailedReport={activeDetailedReport}
-                  onRefreshReport={handleRefreshReport}
-                  refreshingReport={refreshingInvestigation}
-                  onGenerateDetailedReport={handleGenerateDetailedReport}
-                  generatingDetailedReport={detailedReportState === "GENERATING"}
-                  detailedReportError={detailedReportError}
-                />
-              ) : (
-                <>
               {/* Incident Header & Evidence Telemetry */}
               <div
                 style={{
@@ -2396,8 +2336,6 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   </div>
                 </div>
               )}
-                </>
-              )}
             </>
           ) : (
             <div
@@ -2411,11 +2349,11 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               <Shield size={32} className="mx-auto mb-2 text-[#5a554c]" />
               <div className="text-[14px] font-bold text-[#f4efe6]">No Incident Selected</div>
               <p className="text-[12px] max-w-sm mx-auto mt-1">
-                Select an investigated incident from the left panel to load its forensic evidence telemetry and draft actions.
+                Choose an incident to load its Muse analysis, reports and draft actions.
               </p>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* ─── SECTION F: Email Composition & Dispatch Modal ─── */}

@@ -12,7 +12,7 @@ export interface EvidencePair {
   suspectAssetId: string; suspectFilename: string; referenceFilename: string;
   l2Distance: number | null; visualSimilarity: number | null; phashDistance: number | null;
   status: string; origin: string; vision: MatchCandidate['vision_verification'];
-  sam: boolean;
+  sam: boolean; confirmed?: boolean;
 }
 /** Preserve original frame index/rank and recorded filenames. Never infer coordinates or timestamps. */
 export function buildEvidencePairs(incident: MatchAnalysisResult, report?: DetailedReportRecord | null): EvidencePair[] {
@@ -35,7 +35,7 @@ export function buildEvidencePairs(incident: MatchAnalysisResult, report?: Detai
         l2Distance: measured(candidate.l2_distance), visualSimilarity: measured(candidate.visual_similarity_score ?? candidate.confidence_score),
         phashDistance: measured(candidate.phash_evidence?.hamming_distance ?? (candidate as MatchCandidate & {phash_distance?: number}).phash_distance),
         status: (candidate as MatchCandidate & {similarity_status?: string}).similarity_status || (candidate.match_confirmed === true ? 'CV threshold passed' : 'Candidate; not confirmed'),
-        origin: 'Recorded CV candidate', vision: candidate.vision_verification,
+        origin: 'Recorded CV candidate', vision: candidate.vision_verification, confirmed: candidate.match_confirmed === true,
         sam: !!(candidate.sam_segmentation || candidate.ref_sam_segmentation || (candidate === frame.best_match && (frame.sam_segmentation || frame.ref_sam_segmentation))),
       });
     }

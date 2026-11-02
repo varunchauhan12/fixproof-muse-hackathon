@@ -335,6 +335,8 @@ class MetaSAMProvider(BaseSegmentationProvider):
                 "latency_ms": latency_ms,
                 "token_usage": usage,
                 "objects_detected": len(parsed_objects),
+                "original_dimensions": {"width": orig_w, "height": orig_h},
+                "prepared_dimensions": {"width": pil_img.width, "height": pil_img.height},
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )

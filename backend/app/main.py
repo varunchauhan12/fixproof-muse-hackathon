@@ -28,6 +28,8 @@ from app.voice_api import router as voice_router
 app.include_router(voice_router)
 from app.muse_conversation_api import router as muse_conversation_router, incident_router as muse_incident_router
 app.include_router(muse_conversation_router)
+from app.sam_workspace_api import router as sam_workspace_router
+app.include_router(sam_workspace_router)
 app.include_router(muse_incident_router)
 app.add_middleware(RequestProtectionMiddleware)
 
