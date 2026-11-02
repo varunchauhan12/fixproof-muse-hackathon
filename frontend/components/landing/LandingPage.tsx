@@ -148,39 +148,25 @@ export const CometCard = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const cometRef = useRef<HTMLDivElement>(null);
-  const rafId = useRef<number | null>(null);
-  const pos = useRef({ x: 0, y: 0, active: false });
 
   const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardRef.current;
     if (!card) return;
     const rect = card.getBoundingClientRect();
-    pos.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      active: true,
-    };
-    if (!rafId.current) {
-      const tick = () => {
-        const comet = cometRef.current;
-        if (comet && pos.current.active) {
-          comet.style.left = `${pos.current.x}px`;
-          comet.style.top = `${pos.current.y}px`;
-          comet.style.opacity = "1";
-        }
-        rafId.current = requestAnimationFrame(tick);
-      };
-      rafId.current = requestAnimationFrame(tick);
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    card.style.setProperty("--mx", `${x}px`);
+    card.style.setProperty("--my", `${y}px`);
+    const comet = cometRef.current;
+    if (comet) {
+      comet.style.left = `${x}px`;
+      comet.style.top = `${y}px`;
+      comet.style.opacity = "1";
     }
   }, []);
 
   const onLeave = useCallback(() => {
-    pos.current.active = false;
     if (cometRef.current) cometRef.current.style.opacity = "0";
-    if (rafId.current) {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = null;
-    }
   }, []);
 
   return (
@@ -210,19 +196,6 @@ export const CometCard = ({
         style={{
           background:
             "radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(0,158,145,0.05) 0%, transparent 60%)",
-        }}
-        ref={(el) => {
-          if (!el) return;
-          const card = cardRef.current;
-          if (!card) return;
-          const update = () => {
-            if (pos.current.active) {
-              el.style.setProperty("--mx", `${pos.current.x}px`);
-              el.style.setProperty("--my", `${pos.current.y}px`);
-            }
-            requestAnimationFrame(update);
-          };
-          update();
         }}
       />
       {children}
@@ -282,8 +255,8 @@ export const RippleGrid = ({
           return (
             <div
               key={`${key}-${idx}`}
-              className={`border border-[#DCD5C9]/50 hover:bg-[#009E91]/10 transition-colors duration-100 will-change-transform ${
-                clicked ? "animate-cell-ripple" : ""
+              className={`border border-[#DCD5C9]/50 hover:bg-[#009E91]/10 transition-colors duration-100 ${
+                clicked ? "animate-cell-ripple will-change-transform" : ""
               }`}
               style={
                 {

@@ -374,7 +374,7 @@ export default function HalftoneBackground({
     readTheme();
     canvas.style.opacity = "1";
     if (introStart === 0) {
-      introStart = performance.now();
+      introStart = loupe && !reduceMotion ? performance.now() : -1;
     }
 
     if (src) {

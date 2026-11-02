@@ -51,7 +51,7 @@ export function CultGlobe({
   const thetaOffsetRef = React.useRef(0);
   const isPausedRef = React.useRef(false);
 
-  const bufferSize = globeSize * 2;
+  const bufferSize = Math.round(globeSize * 1.25);
   const reactId = React.useId();
   const orbitPathId = `orbit-${reactId.replace(/:/g, "")}`;
 
@@ -111,7 +111,7 @@ export function CultGlobe({
     if (!canvasRef.current || !isInView) return;
 
     const canvas = canvasRef.current;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
     let globeInstance: any = null;
 
@@ -124,7 +124,7 @@ export function CultGlobe({
         theta: 0.24 + thetaOffsetRef.current,
         dark: 1,
         diffuse: 1.6,
-        mapSamples: 18000,
+        mapSamples: 11000,
         mapBrightness: 5.5,
         mapBaseBrightness: 0.05,
         baseColor: [0.03, 0.12, 0.12], // Deep teal charcoal

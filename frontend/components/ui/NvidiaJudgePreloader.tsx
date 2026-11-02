@@ -87,11 +87,10 @@ export function NvidiaJudgePreloader({
     }
 
     const startTime = performance.now();
-    const duration = 1600; // 1.6s duration
+    const duration = 1400; // 1.4s smooth intro
 
-    let animId: number;
-    const frame = (now: number) => {
-      const elapsed = now - startTime;
+    const timer = setInterval(() => {
+      const elapsed = performance.now() - startTime;
       const pct = Math.min(100, Math.round((elapsed / duration) * 100));
       setProgress(pct);
 
@@ -103,17 +102,13 @@ export function NvidiaJudgePreloader({
         }
       }
 
-      if (pct < 100) {
-        animId = requestAnimationFrame(frame);
-      } else {
-        // Short pause at 100% then exit
+      if (pct >= 100) {
+        clearInterval(timer);
         setTimeout(() => {
           handleFinish();
-        }, 220);
+        }, 180);
       }
-    };
-
-    animId = requestAnimationFrame(frame);
+    }, 40);
 
     // Hard fallback safety timer (2400ms max)
     const safetyTimer = setTimeout(() => {
@@ -121,7 +116,7 @@ export function NvidiaJudgePreloader({
     }, 2400);
 
     return () => {
-      cancelAnimationFrame(animId);
+      clearInterval(timer);
       clearTimeout(safetyTimer);
     };
   }, [isOpen, prefersReducedMotion, handleFinish]);
@@ -140,28 +135,30 @@ export function NvidiaJudgePreloader({
           role="dialog"
           aria-modal="true"
           aria-label="Welcome Meta Judges Preloader"
-          className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none bg-[#090908]"
+          className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none bg-[#090908] will-change-transform"
+          style={{ transform: "translate3d(0, 0, 0)" }}
           initial={{ y: 0, opacity: 1 }}
           exit={{
             y: prefersReducedMotion ? 0 : "-100%",
             opacity: prefersReducedMotion ? 0 : 1,
           }}
           transition={{
-            duration: prefersReducedMotion ? 0.2 : 0.65,
+            duration: prefersReducedMotion ? 0.2 : 0.6,
             ease: [0.76, 0, 0.24, 1], // cinematic shutter/curtain ease
           }}
         >
-          {/* ─── Dual Shining Moving Radial Glows (Framer Web-Preload Style) ─── */}
+          {/* ─── Dual Shining Moving Radial Glows (Framer Web-Preload Style, Hardware-Accelerated) ─── */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {/* Glow 1: NVIDIA Signature Electric Green (#76B900) */}
             <motion.div
-              className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full"
+              className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(118, 185, 0, 0.26) 0%, rgba(118, 185, 0, 0.08) 45%, transparent 70%)",
-                filter: "blur(60px)",
+                  "radial-gradient(circle, rgba(118, 185, 0, 0.24) 0%, rgba(118, 185, 0, 0.08) 35%, transparent 68%)",
                 left: "-10%",
                 top: "15%",
+                willChange: "transform",
+                transform: "translate3d(0, 0, 0)",
               }}
               animate={
                 prefersReducedMotion
@@ -169,7 +166,7 @@ export function NvidiaJudgePreloader({
                   : {
                       x: [0, 80, -40, 0],
                       y: [0, -50, 40, 0],
-                      scale: [1, 1.15, 0.95, 1],
+                      scale: [1, 1.12, 0.96, 1],
                     }
               }
               transition={{
@@ -181,13 +178,14 @@ export function NvidiaJudgePreloader({
 
             {/* Glow 2: Cyber Teal / Turquoise (#48C7B5 / #009E91) */}
             <motion.div
-              className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full"
+              className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(72, 199, 181, 0.22) 0%, rgba(0, 158, 145, 0.07) 50%, transparent 70%)",
-                filter: "blur(70px)",
+                  "radial-gradient(circle, rgba(72, 199, 181, 0.20) 0%, rgba(0, 158, 145, 0.06) 40%, transparent 68%)",
                 right: "-10%",
                 bottom: "10%",
+                willChange: "transform",
+                transform: "translate3d(0, 0, 0)",
               }}
               animate={
                 prefersReducedMotion
@@ -195,7 +193,7 @@ export function NvidiaJudgePreloader({
                   : {
                       x: [0, -70, 50, 0],
                       y: [0, 60, -40, 0],
-                      scale: [1, 0.92, 1.12, 1],
+                      scale: [1, 0.94, 1.1, 1],
                     }
               }
               transition={{
@@ -296,13 +294,12 @@ export function NvidiaJudgePreloader({
             >
               {/* Progress Track */}
               <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-[#76B900] via-[#48C7B5] to-[#76B900] rounded-full"
+                <div
+                  className="h-full bg-gradient-to-r from-[#76B900] via-[#48C7B5] to-[#76B900] rounded-full transition-all duration-75 ease-out"
                   style={{
                     width: `${progress}%`,
                     boxShadow: "0 0 12px rgba(118, 185, 0, 0.65)",
                   }}
-                  transition={{ ease: "easeOut" }}
                 />
               </div>
 
