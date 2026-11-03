@@ -18,12 +18,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Pass NEXT_PUBLIC_API_URL so it is embedded into client bundles at build time
-ARG NEXT_PUBLIC_API_URL=https://fixproofbackendv2-1097663016023.europe-west1.run.app
+ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 RUN test -n "$NEXT_PUBLIC_API_URL" || (echo 'NEXT_PUBLIC_API_URL build argument is required' >&2; exit 1)
+RUN node -e 'try { const u = new URL(process.env.NEXT_PUBLIC_API_URL); if (u.protocol !== "https:" || (["localhost", "0.0.0.0", "[::1]"].includes(u.hostname) || u.hostname.startsWith("127.") || u.hostname.endsWith(".localhost")) || u.username || u.password || u.search || u.hash || u.pathname !== "/") throw new Error(); } catch { console.error("NEXT_PUBLIC_API_URL must be an HTTPS backend service origin, without credentials, path, query, or fragment"); process.exit(1); }'
 RUN npm run build
 
 # Stage 3: Production runner

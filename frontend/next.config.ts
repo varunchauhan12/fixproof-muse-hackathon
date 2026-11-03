@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const apiTarget = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
   /* config options here */
   output: "standalone",
@@ -12,11 +14,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `${apiTarget}/api/:path*`,
       },
       {
         source: "/health",
-        destination: "http://127.0.0.1:8000/health",
+        destination: `${apiTarget}/health`,
       },
     ];
   },

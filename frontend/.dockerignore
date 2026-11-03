@@ -18,3 +18,7 @@ yarn-error.log*
 
 # Ignore tests and test fixtures
 tests/
+*.tsbuildinfo
+.cache/
+*.pem
+*.key
