@@ -14,11 +14,9 @@ from PIL import Image
 
 from app.providers import get_vision_provider, get_reasoning_provider
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
-from app.providers.nemotron import NemotronVisionProvider, NemotronReasoningProvider
-from app.providers.muse import MuseVisionProvider, MuseReasoningProvider
 from app.matcher import compute_image_entropy, MIN_IMAGE_ENTROPY
 from app.url_screener import extract_public_video_metadata
-from app.vision_verifier import (
+from app.vision_support import (
     compute_pair_cache_key,
     get_cached_verification,
     store_cached_verification,
@@ -27,45 +25,6 @@ from app.vision_verifier import (
 from app.registry import load_incidents, save_incident
 
 
-class TestPhase31ProviderAbstraction(unittest.TestCase):
-    """Verifies the provider abstraction layer and factory resolution."""
-
-    def test_default_providers_are_nemotron(self):
-        vp = get_vision_provider()
-        rp = get_reasoning_provider()
-
-        self.assertIsInstance(vp, BaseVisionProvider)
-        self.assertIsInstance(vp, NemotronVisionProvider)
-        self.assertEqual(vp.provider_name, "nemotron")
-        self.assertEqual(vp.model_id, "nvidia/Nemotron-3.5-Super-VL")
-
-        self.assertIsInstance(rp, BaseReasoningProvider)
-        self.assertIsInstance(rp, NemotronReasoningProvider)
-        self.assertEqual(rp.provider_name, "nemotron")
-        self.assertEqual(rp.model_id, "nvidia/Nemotron-3_5-Lightning")
-
-    def test_muse_scaffold_raises_not_implemented(self):
-        # Legacy scaffold remains import-compatible; factory now selects Stage A adapters.
-        vp = MuseVisionProvider()
-        rp = MuseReasoningProvider()
-
-        self.assertIsInstance(vp, MuseVisionProvider)
-        self.assertIsInstance(rp, MuseReasoningProvider)
-        self.assertEqual(vp.provider_name, "muse")
-        self.assertEqual(rp.provider_name, "muse")
-
-        with self.assertRaises(NotImplementedError):
-            vp.verify_candidate_pair(b"suspect", b"ref")
-
-        with self.assertRaises(NotImplementedError):
-            rp.generate_investigation_report(None)
-
-    def test_invalid_provider_name_raises_value_error(self):
-        with self.assertRaises(ValueError):
-            get_vision_provider("invalid-provider-xyz")
-
-        with self.assertRaises(ValueError):
-            get_reasoning_provider("invalid-provider-xyz")
 
 
 class TestPhase31StoryboardExtraction(unittest.TestCase):

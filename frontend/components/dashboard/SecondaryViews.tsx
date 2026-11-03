@@ -7,13 +7,13 @@ import { MatchAnalysisResult, AssetRecord } from "@/lib/types";
 interface SecondaryProps {
   incidents: MatchAnalysisResult[];
   assets: AssetRecord[];
-  onNavigateToNemotron?: (
+  onNavigateToMuse?: (
     incident: MatchAnalysisResult,
     docType: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER"
   ) => void;
 }
 
-export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigateToNemotron }) => {
+export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigateToMuse }) => {
   const matchIncidents = incidents.filter((i) => i.candidate_matches_found > 0);
 
   return (
@@ -81,8 +81,8 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigat
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    if (onNavigateToNemotron) {
-                      onNavigateToNemotron(inc, "COPYRIGHT_NOTICE");
+                    if (onNavigateToMuse) {
+                      onNavigateToMuse(inc, "COPYRIGHT_NOTICE");
                     } else {
                       alert(`Notice drafted for review: ${inc.suspect_filename}`);
                     }
@@ -93,8 +93,8 @@ export const EnforcementView: React.FC<SecondaryProps> = ({ incidents, onNavigat
                 </button>
                 <button
                   onClick={() => {
-                    if (onNavigateToNemotron) {
-                      onNavigateToNemotron(inc, "REVENUE_SHARE_OFFER");
+                    if (onNavigateToMuse) {
+                      onNavigateToMuse(inc, "REVENUE_SHARE_OFFER");
                     } else {
                       alert(`Licensing contract drafted for: ${inc.suspect_filename}`);
                     }

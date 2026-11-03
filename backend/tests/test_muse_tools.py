@@ -253,7 +253,7 @@ class TestRegistryStrictReads(unittest.TestCase):
         # Execute actual retrieval definitions without legacy module-level mkdir/dotenv.
         source = Path(__file__).resolve().parents[1] / "app" / "registry.py"
         tree = ast.parse(source.read_text())
-        names = {"load_incidents", "get_incident_by_id", "load_nemotron_reports", "get_nemotron_reports_for_incident"}
+        names = {"load_incidents", "get_incident_by_id", "load_investigation_reports", "get_investigation_reports_for_incident"}
         cls.functions = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names], type_ignores=[])
 
     def setUp(self):
@@ -309,21 +309,21 @@ class TestRegistryStrictReads(unittest.TestCase):
         adapter.get_reports("incident-a")
         module.load_incidents.assert_called_once_with(session_id="session-a", exact_session=True)
         module.get_incident_by_id.assert_called_once_with("incident-a", strict_read=True)
-        module.get_nemotron_reports_for_incident.assert_called_once_with("incident-a", strict_read=True)
+        module.get_investigation_reports_for_incident.assert_called_once_with("incident-a", strict_read=True)
         self.assertEqual(len(module.mock_calls), 3)
 
     def test_strict_report_file_errors_and_legacy_behavior(self):
-        self.ns["NEMOTRON_REPORTS_FILE"] = Mock()
-        self.ns["NEMOTRON_REPORTS_FILE"].exists.return_value = True
+        self.ns["INVESTIGATION_REPORTS_FILE"] = Mock()
+        self.ns["INVESTIGATION_REPORTS_FILE"].exists.return_value = True
         with patch("builtins.open", mock_open(read_data="invalid json")):
             with self.assertRaises(ValueError):
-                self.ns["load_nemotron_reports"](strict_read=True)
-            self.assertEqual(self.ns["load_nemotron_reports"](), [])
+                self.ns["load_investigation_reports"](strict_read=True)
+            self.assertEqual(self.ns["load_investigation_reports"](), [])
 
     def test_actual_report_retrieval_filters_association_and_propagates_strict(self):
         loader = Mock(return_value=[{"incident_id": "incident-a", "report_id": "report-a"},
                                     {"incident_id": "incident-b", "report_id": "report-b"}])
-        self.ns["load_nemotron_reports"] = loader
-        reports = self.ns["get_nemotron_reports_for_incident"]("incident-a", strict_read=True)
+        self.ns["load_investigation_reports"] = loader
+        reports = self.ns["get_investigation_reports_for_incident"]("incident-a", strict_read=True)
         self.assertEqual([r["report_id"] for r in reports], ["report-a"])
         loader.assert_called_once_with(strict_read=True)

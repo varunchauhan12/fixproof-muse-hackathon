@@ -52,7 +52,7 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
   // Check real backend health
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/nemotron/status`, {
+      const res = await fetch(`${API_BASE}/api/muse/status`, {
         method: "GET",
         headers: { Accept: "application/json" },
       });

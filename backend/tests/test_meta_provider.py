@@ -13,7 +13,6 @@ from PIL import Image
 from app.providers import factory, meta_client
 from app.providers.base import BaseVisionProvider, BaseReasoningProvider
 from app.providers.meta import MetaVisionProvider, MetaReasoningProvider
-from app.providers.nemotron import NemotronReasoningProvider
 from app.evidence_models import InvestigationInput
 
 
@@ -57,7 +56,7 @@ class TestMetaProvider(unittest.TestCase):
         return buffer.getvalue()
 
     def vision(self):
-        with patch("app.vision_verifier.get_cached_verification", return_value=None), patch("app.vision_verifier.store_cached_verification"):
+        with patch("app.vision_support.get_cached_verification", return_value=None), patch("app.vision_support.store_cached_verification"):
             return MetaVisionProvider().verify_candidate_pair(self.image(), self.image(), {"timestamp_sec": 3}, {"timestamp_sec": 5, "asset_id": "ref"})
 
     def investigation(self):
@@ -127,9 +126,9 @@ class TestMetaProvider(unittest.TestCase):
         self.assertNotIn("dummy-meta-secret", json.dumps(result))
 
     def test_vision_cache_is_model_and_prompt_isolated(self):
-        from app.vision_verifier import compute_pair_cache_key
+        from app.vision_support import compute_pair_cache_key
         self.assertNotEqual(compute_pair_cache_key(b"s", b"r", "muse-spark-1.3", "meta-vision-v1"), compute_pair_cache_key(b"s", b"r", "nvidia/Nemotron-3.5-Super-VL", "v1.1-forensic"))
-        with patch("app.vision_verifier.get_cached_verification", return_value={"visual_correspondence": "UNRELATED_SCENE", "model_id": "muse-spark-1.3"}):
+        with patch("app.vision_support.get_cached_verification", return_value={"visual_correspondence": "UNRELATED_SCENE", "model_id": "muse-spark-1.3"}):
             result = MetaVisionProvider().verify_candidate_pair(self.image(), self.image())
             self.assertTrue(result["cached"])
         self.assertEqual(self.calls, [])
@@ -160,13 +159,15 @@ class TestMetaProvider(unittest.TestCase):
                 MetaReasoningProvider().create_text_completion(request, options)
         self.assertEqual(self.calls, [])
 
-    def test_factory_opt_in_and_rollback(self):
+    def test_factory_muse_only(self):
         with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "muse"}):
             self.assertIsInstance(factory.get_vision_provider(), MetaVisionProvider)
             self.assertIsInstance(factory.get_reasoning_provider(), MetaReasoningProvider)
         with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "nemotron"}):
-            self.assertIsInstance(factory.get_reasoning_provider(), NemotronReasoningProvider)
-        self.assertEqual(factory._DEFAULT_PROVIDER, "nemotron")
+            with self.assertRaises(ValueError):
+                factory.get_reasoning_provider()
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsInstance(factory.get_reasoning_provider(), MetaReasoningProvider)
 
     def test_provider_signatures_preserved(self):
         for base, adapter, method in ((BaseVisionProvider, MetaVisionProvider, "verify_candidate_pair"), (BaseReasoningProvider, MetaReasoningProvider, "generate_investigation_report"), (BaseReasoningProvider, MetaReasoningProvider, "create_text_completion")):

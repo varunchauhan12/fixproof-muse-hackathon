@@ -8,7 +8,7 @@ import { ThreatHunter } from "@/components/dashboard/ThreatHunter";
 import { IncidentResponse } from "@/components/dashboard/IncidentResponse";
 import { Overview } from "@/components/dashboard/Overview";
 import { Intelligence } from "@/components/dashboard/Intelligence";
-import { NemotronCenter } from "@/components/dashboard/NemotronCenter";
+import { MuseCenter } from "@/components/dashboard/MuseCenter";
 import {
   EnforcementView,
   SwarmLogsView,
@@ -32,7 +32,7 @@ const PAGE_TITLES: Record<NavTab, string> = {
   vault: "Digital Asset Vault",
   hunter: "Sentinel Threat Hunter",
   incidents: "Incident Response",
-  nemotron: "Muse Intelligence & Action Center",
+  muse: "Muse Intelligence & Action Center",
   intelligence: "Intelligence & Analytics",
   enforcer: "Enforcement & Licensing",
   notifications: "Forensics Swarm Logs",
@@ -186,9 +186,9 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
     loadBackendState();
   }, [loadBackendState]);
 
-  const [nemotronPreselectedIncident, setNemotronPreselectedIncident] =
+  const [musePreselectedIncident, setMusePreselectedIncident] =
     useState<MatchAnalysisResult | null>(null);
-  const [nemotronPreselectedDocType, setNemotronPreselectedDocType] = useState<
+  const [musePreselectedDocType, setMusePreselectedDocType] = useState<
     "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER" | null
   >(null);
 
@@ -200,26 +200,26 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
   }
 
   useEffect(() => {
-    const inc = selectedIncidentForInspection || nemotronPreselectedIncident;
+    const inc = selectedIncidentForInspection || musePreselectedIncident;
     const incId = inc?.incident_id || null;
     const incSess = inc?.session_id || null;
     if (incId && activityContext?.setActiveIncidentId) {
       activityContext.setActiveIncidentId(incId, incSess);
     }
-  }, [selectedIncidentForInspection, nemotronPreselectedIncident, activityContext]);
+  }, [selectedIncidentForInspection, musePreselectedIncident, activityContext]);
 
   const handleNavigateToIncidents = (incident: MatchAnalysisResult) => {
     setSelectedIncidentForInspection(incident);
     setActiveTab("incidents");
   };
 
-  const handleNavigateToNemotron = (
+  const handleNavigateToMuse = (
     incident?: MatchAnalysisResult,
     docType?: "COPYRIGHT_NOTICE" | "REVENUE_SHARE_OFFER"
   ) => {
-    if (incident) setNemotronPreselectedIncident(incident);
-    if (docType) setNemotronPreselectedDocType(docType);
-    setActiveTab("nemotron");
+    if (incident) setMusePreselectedIncident(incident);
+    if (docType) setMusePreselectedDocType(docType);
+    setActiveTab("muse");
   };
 
   const currentTitle = PAGE_TITLES[activeTab] || "Command Center";
@@ -363,19 +363,19 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
                 setActiveTab("vault");
               }}
               onNavigateToHunter={() => setActiveTab("hunter")}
-              onNavigateToNemotron={handleNavigateToNemotron}
+              onNavigateToMuse={handleNavigateToMuse}
               onRefresh={loadBackendState}
             />
           )}
 
-          {activeTab === "nemotron" && (
-            <NemotronCenter
+          {activeTab === "muse" && (
+            <MuseCenter
               incidents={incidents}
               assets={assets}
               incidentsLoading={initialLoading || refreshing}
               incidentsError={incidentsError}
-              preselectedIncident={nemotronPreselectedIncident}
-              preselectedDocType={nemotronPreselectedDocType}
+              preselectedIncident={musePreselectedIncident}
+              preselectedDocType={musePreselectedDocType}
               onNavigateToIncidents={handleNavigateToIncidents}
             />
           )}
@@ -394,7 +394,7 @@ export const DashboardConsole: React.FC<DashboardConsoleProps> = ({
             <EnforcementView
               incidents={incidents}
               assets={assets}
-              onNavigateToNemotron={handleNavigateToNemotron}
+              onNavigateToMuse={handleNavigateToMuse}
             />
           )}
 

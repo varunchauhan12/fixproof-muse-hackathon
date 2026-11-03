@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { downloadDetailedReportPdf, draftNemotronDocument, emailDetailedReport, generateDetailedReport, getClientSessionId, getDetailedReport, getDetailedReportsForIncident, getEmailStatus } from '@/lib/api';
+import { downloadDetailedReportPdf, draftMuseDocument, emailDetailedReport, generateDetailedReport, getClientSessionId, getDetailedReport, getDetailedReportsForIncident, getEmailStatus } from '@/lib/api';
 import type { DetailedReportRecord } from '@/lib/types';
 import type { MuseWorkflow } from '@/lib/muse-assistant';
 
@@ -84,7 +84,7 @@ export function DocumentBody({incidentId, initial='report', onClose, session}: {
       const result = await generateDetailedReport({incident_id:incidentId}); // Deliberately omit recipient.
       if(alive.current) {applyReport(result.report);setNotice(result.report.ai_synthesized ? 'Report and PDF prepared using the configured reasoning provider. Review its interpretation.' : 'Report and PDF prepared by the deterministic fallback. Live model synthesis was unavailable; no AI success is claimed.');}
     } else {
-      const result = await draftNemotronDocument({incident_id:incidentId,document_type:kind==='copyright'?'COPYRIGHT_NOTICE':'REVENUE_SHARE_OFFER',rights_holder:sender || undefined,contact_email:senderEmail || undefined,work_title:work || undefined,recipient_email:recipient || undefined,commercial_terms:terms || undefined,rev_share_pct:share.trim() ? Number(share) : undefined,use_ai_synthesis:false});
+      const result = await draftMuseDocument({incident_id:incidentId,document_type:kind==='copyright'?'COPYRIGHT_NOTICE':'REVENUE_SHARE_OFFER',rights_holder:sender || undefined,contact_email:senderEmail || undefined,work_title:work || undefined,recipient_email:recipient || undefined,commercial_terms:terms || undefined,rev_share_pct:share.trim() ? Number(share) : undefined,use_ai_synthesis:false});
       if(alive.current) {setBody(result.body);setSubject(result.subject);setMissing(result.missing_fields);setNotice('Evidence-based template draft prepared. No model inference, sending or legal finding occurred.');setReviewed(false);}
     }
   });

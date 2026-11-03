@@ -244,7 +244,7 @@ class TestEvidencePackage(unittest.TestCase):
         self.assertTrue(any("path traversal detected" in e.lower() for e in result["errors"]))
 
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_reports_for_incident")
+    @patch("app.main.get_investigation_reports_for_incident")
     def test_09_export_endpoint_success(self, mock_reports, mock_incident):
         """1. Export endpoint returns 200 with ZIP download and proper headers."""
         mock_incident.return_value = self.incident_data
@@ -275,7 +275,7 @@ class TestEvidencePackage(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_reports_for_incident")
+    @patch("app.main.get_investigation_reports_for_incident")
     def test_12_verify_package_endpoint(self, mock_reports, mock_incident):
         """5. Verify endpoint accepts uploaded ZIP and returns 200 with verification result."""
         mock_incident.return_value = self.incident_data
@@ -320,7 +320,7 @@ class TestEvidencePackage(unittest.TestCase):
             get_signing_key()
 
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_reports_for_incident")
+    @patch("app.main.get_investigation_reports_for_incident")
     @patch("app.main.provider_factory.get_reasoning_provider")
     def test_15_zero_model_invocation_on_export_and_verify(self, mock_generate, mock_reports, mock_incident):
         """11. Exporting and verifying a package never calls the AI reasoning model."""

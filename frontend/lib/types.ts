@@ -256,7 +256,7 @@ export interface PackageVerificationResult {
   verified_at: string;
 }
 
-export interface NemotronStatus {
+export interface MuseStatus {
   status: "ready" | "degraded";
   provider?: string;
   vision_provider?: string;

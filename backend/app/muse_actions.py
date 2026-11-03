@@ -69,7 +69,7 @@ def registered_email():
 
 
 def existing_services():
-    from app import detailed_report as reports, nemotron_action as documents
+    from app import detailed_report as reports, document_actions as documents
     return reports, documents
 
 

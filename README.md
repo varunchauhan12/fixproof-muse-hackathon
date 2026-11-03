@@ -1,3 +1,5 @@
+> Current Muse-only deployment requirements and verification: [Muse-only release readiness](docs/MUSE_ONLY_RELEASE_READINESS.md). Older milestone results below are historical.
+
 # FixProof
 <img width="2048" height="1152" alt="COVERIMAGENVIDIA" src="https://github.com/user-attachments/assets/e4fef6a2-49f7-404d-bd67-257868f1f28b" />
 
@@ -214,9 +216,9 @@ Visual similarity scores are heuristic signals, not calibrated probabilities of 
 | `SUPABASE_DB_URL` | Supabase PostgreSQL connection |
 | `SUPABASE_URL` | Supabase service endpoint |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend object-storage access |
-| `NEBIUS_API_KEY` | Nebius Token Factory authentication |
-| `NEBIUS_MODEL` | Optional primary reasoning model override |
-| `DETAILED_REPORT_MODEL` | Optional detailed-report model override |
+| `MODEL_API_KEY` | Server-side Meta Model API credential |
+| `MUSE_REASONING_MODEL` | Optional Muse reasoning model override |
+| `MUSE_VISION_MODEL` | Optional Muse vision model override |
 | `FIXPROOF_SIGNING_KEY_HEX` | Ed25519 signing-key configuration |
 | `RESEND_API_KEY` | Optional email dispatch integration |
 | `FROM_EMAIL` | Outgoing email sender address |

@@ -59,9 +59,9 @@ from reportlab.platypus import (
 from app.registry import (
     get_incident_by_id,
     list_registered_assets,
-    get_nemotron_reports_for_incident,
+    get_investigation_reports_for_incident,
 )
-from app.nemotron_action import (
+from app.document_actions import (
     get_email_config,
     save_email_audit_entry,
     EMAIL_REGEX,
@@ -77,8 +77,7 @@ SAFE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 _active_reasoning = provider_factory.get_reasoning_provider()
 _active_vision = provider_factory.get_vision_provider()
-DEFAULT_DETAILED_MODEL = os.getenv("DETAILED_REPORT_MODEL", _active_reasoning.model_id)
-FALLBACK_DETAILED_MODEL = _active_reasoning.model_id
+DEFAULT_DETAILED_MODEL = _active_reasoning.model_id
 VISION_MODEL_ID = _active_vision.model_id
 
 
@@ -472,7 +471,7 @@ def build_evidence_bundle(incident_id: str, client_session_id: Optional[str] = N
         })
 
     # Historical short reports
-    prior_reports = get_nemotron_reports_for_incident(incident_id)
+    prior_reports = get_investigation_reports_for_incident(incident_id)
 
     # Reconstruct or pull timeline intervals
     timeline_intervals = []
@@ -521,7 +520,7 @@ def build_evidence_bundle(incident_id: str, client_session_id: Optional[str] = N
     }
 
 
-# ─── 2. Nebius Detailed Report Synthesis ─────────────────────────────────────
+# ─── 2. Muse Detailed Report Synthesis ─────────────────────────────────────
 
 def synthesize_detailed_report(
     bundle: Dict[str, Any],
@@ -529,12 +528,11 @@ def synthesize_detailed_report(
 ) -> Dict[str, Any]:
     """
     Synthesizes a structured, evidence-backed detailed forensic report using
-    configured AI reasoning provider (Meta Muse / Nemotron).
+    configured AI reasoning provider (Meta Muse).
     Enforces strict non-adjudication, factual consistency, and structured output.
     """
     provider = provider_factory.get_reasoning_provider()
-    is_muse = provider.provider_name == "muse"
-    model_to_use = model_override or (provider.model_id if is_muse else os.getenv("DETAILED_REPORT_MODEL", DEFAULT_DETAILED_MODEL))
+    model_to_use = model_override or provider.model_id
     api_key = provider_factory.reasoning_is_configured(provider)
 
     is_clean = bundle["candidate_matches_found"] == 0 or bundle["overall_status"] == "CLEAN"
@@ -601,22 +599,20 @@ def synthesize_detailed_report(
     synthesis_failure = None if api_key else "NOT_CONFIGURED"
 
     if api_key:
-        # Try primary model first, fallback to Lightning if primary encounters issues
+        # Exactly one selected Muse model attempt; no provider/model fallback.
         models_to_try = [model_to_use]
-        if not is_muse and model_to_use != FALLBACK_DETAILED_MODEL:
-            models_to_try.append(FALLBACK_DETAILED_MODEL)
 
         for candidate_model in models_to_try:
             try:
                 from app.providers.meta import schema_format
-                response_format = schema_format("detailed_report", DetailedSynthesis.model_json_schema()) if is_muse else {"type": "json_object"}
+                response_format = schema_format("detailed_report", DetailedSynthesis.model_json_schema())
                 resp = provider.create_text_completion(dict(
                     model=candidate_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    max_tokens=min(16384, max(1500, int(os.getenv("MUSE_MAX_TOKENS", "16384")))) if is_muse else 4000,
+                    max_tokens=min(16384, max(1500, int(os.getenv("MUSE_MAX_TOKENS", "16384")))),
                     temperature=0.15,
                     response_format=response_format,
                 ))
@@ -740,9 +736,7 @@ def synthesize_detailed_report(
                         if c.get("vision_verification", {}).get("model_id") and c.get("vision_verification", {}).get("model_id") != "not-recorded"
                     }
                     else (
-                        provider_factory.get_vision_provider().model_id
-                        if is_muse and any("nemotron" in str(c.get("vision_verification", {}).get("model_id", "")).lower() for c in bundle["frame_correlations"])
-                        else ", ".join(sorted({
+                        ", ".join(sorted({
                             c.get("vision_verification", {}).get("model_id")
                             for c in bundle["frame_correlations"]
                             if c.get("vision_verification", {}).get("model_id") and c.get("vision_verification", {}).get("model_id") != "not-recorded"
@@ -754,8 +748,8 @@ def synthesize_detailed_report(
                 "vector_store": "FAISS IndexFlatL2",
                 "timestamp": now_iso,
                 "validation_status": "PROVIDER_VALIDATED" if ai_synthesized else "DETERMINISTIC_FALLBACK",
-                "reasoning_provider": "meta" if is_muse else provider.provider_name,
-                "vision_provider": "meta" if is_muse else "nemotron",
+                "reasoning_provider": "meta",
+                "vision_provider": "recorded-evidence",
                 "sam_provider": "meta",
             },
         },
@@ -1385,7 +1379,7 @@ def generate_detailed_report_pdf(
     # ─── SECTION 11: COMPREHENSIVE MODEL PROVENANCE & ARCHITECTURE ───
     elements.append(Paragraph("11. Comprehensive Model Provenance & Pipeline Architecture", sec_h1_style))
     synth_model = prov.get("synthesizer_model") or model_id
-    vis_model = prov.get("vision_verifier_model", VISION_MODEL_ID)
+    vis_model = prov.get("vision_verifier_model") or "not-recorded"
     sam_model = prov.get("sam_model", "sam-3.1")
     emb_model = prov.get("embedding_model", "MobileNetV3-Small (576-dim L2-normalized)")
     vec_store = prov.get("vector_store", "FAISS IndexFlatL2")
@@ -1510,7 +1504,7 @@ def generate_short_summary_download(incident_id: str) -> Tuple[str, bytes]:
     if not incident:
         raise ValueError(f"Incident {incident_id} not found.")
 
-    reports = get_nemotron_reports_for_incident(incident_id)
+    reports = get_investigation_reports_for_incident(incident_id)
     latest_report = reports[0] if reports else None
 
     filename = f"fixproof-summary-{incident_id[:8]}.txt"
@@ -1532,7 +1526,7 @@ def generate_short_summary_download(incident_id: str) -> Tuple[str, bytes]:
     ]
 
     provider = provider_factory.get_reasoning_provider()
-    provider_label = "MUSE" if provider.provider_name == "muse" else "NEMOTRON"
+    provider_label = "MUSE"
 
     if latest_report:
         lines.extend([
@@ -1649,7 +1643,7 @@ def resolve_detailed_report_pdf(
     1. Direct report_id matching report_<id>.pdf
     2. Direct report_id matching report_<id>.json (with PDF in same directory)
     3. Direct incident_id resolving the latest report deterministically
-    4. Nemotron/Investigation report ID mapped to incident via registry
+    4. Investigation report ID mapped to incident via registry
     5. Prefix match (>= 6 chars) for truncated download filenames
     
     Returns (pdf_bytes, report_record, resolved_report_id, incident_id) or None.
@@ -1760,15 +1754,15 @@ def resolve_detailed_report_pdf(
 
     # ── Strategy 4: Identifier is an investigation report ID from nemotron_reports ──
     try:
-        from app.registry import get_nemotron_report_by_id
-        nem_rep = get_nemotron_report_by_id(clean_id)
+        from app.registry import get_investigation_report_by_id
+        nem_rep = get_investigation_report_by_id(clean_id)
         if nem_rep and nem_rep.get("incident_id"):
             parent_inc_id = nem_rep["incident_id"]
             sub_res = resolve_detailed_report_pdf(parent_inc_id)
             if sub_res:
                 return sub_res
     except Exception as e:
-        logger.debug(f"[PDF Resolver] Nemotron report lookup failed: {e}")
+        logger.debug(f"[PDF Resolver] Investigation report lookup failed: {e}")
 
     # ── Strategy 5: Truncated prefix match (minimum 6 alphanumeric chars) ──
     if len(clean_id) >= 6:

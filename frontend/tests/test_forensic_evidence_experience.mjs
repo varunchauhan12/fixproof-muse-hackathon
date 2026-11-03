@@ -355,12 +355,12 @@ test("8. PDF download contract: URL builder and error handling", () => {
   const API_BASE = "http://localhost:8000";
 
   function getDetailedReportPdfUrl(reportId) {
-    return `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}/pdf`;
+    return `${API_BASE}/api/muse/detailed-report/${encodeURIComponent(reportId)}/pdf`;
   }
 
   const sampleReportId = "rep-1234-abcd";
   const url = getDetailedReportPdfUrl(sampleReportId);
-  assert.equal(url, "http://localhost:8000/api/nemotron/detailed-report/rep-1234-abcd/pdf");
+  assert.equal(url, "http://localhost:8000/api/muse/detailed-report/rep-1234-abcd/pdf");
 
   // Empty reportId rejection
   function assertValidReportId(reportId) {

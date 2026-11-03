@@ -9,14 +9,14 @@ from unittest.mock import patch
 import os
 import uuid
 
-from app.nemotron_action import (
+from app.document_actions import (
     get_email_config,
     load_email_audit_log,
     save_email_audit_entry,
     extract_incident_evidence_facts,
     generate_copyright_notice_draft,
     generate_rev_share_proposal_draft,
-    send_nemotron_document_email,
+    send_document_email,
 )
 
 
@@ -151,7 +151,7 @@ class TestNemotronActionCenter(unittest.TestCase):
     def test_send_email_safeguards_unconfirmed(self):
         # Attempting to send without user_confirmed must raise ValueError
         with self.assertRaises(ValueError) as ctx:
-            send_nemotron_document_email(
+            send_document_email(
                 incident_id="test-inc-4891a",
                 document_type="COPYRIGHT_NOTICE",
                 recipient_email="dmca@example.com",
@@ -165,7 +165,7 @@ class TestNemotronActionCenter(unittest.TestCase):
     def test_send_copyright_notice_safeguards_undeclared(self):
         # Attempting to send copyright notice without rights declaration confirmation must raise ValueError
         with self.assertRaises(ValueError) as ctx:
-            send_nemotron_document_email(
+            send_document_email(
                 incident_id="test-inc-4891a",
                 document_type="COPYRIGHT_NOTICE",
                 recipient_email="dmca@example.com",
@@ -179,7 +179,7 @@ class TestNemotronActionCenter(unittest.TestCase):
     def test_send_email_safely_unconfigured(self):
         # With confirmations but without RESEND_API_KEY, must return NOT_CONFIGURED without crashing or lying
         with patch.dict(os.environ, {"RESEND_API_KEY": ""}, clear=False):
-            result = send_nemotron_document_email(
+            result = send_document_email(
                 incident_id="test-inc-4891a",
                 document_type="REVENUE_SHARE_OFFER",
                 recipient_email="partner@example.com",
@@ -245,7 +245,7 @@ class TestNemotronActionCenter(unittest.TestCase):
 
     def test_send_email_invalid_document_type(self):
         with self.assertRaises(ValueError) as ctx:
-            send_nemotron_document_email(
+            send_document_email(
                 incident_id="test-inc-4891a",
                 document_type="INVALID_TYPE",
                 recipient_email="dmca@example.com",
@@ -258,7 +258,7 @@ class TestNemotronActionCenter(unittest.TestCase):
 
     def test_send_email_invalid_recipient_format(self):
         with self.assertRaises(ValueError) as ctx:
-            send_nemotron_document_email(
+            send_document_email(
                 incident_id="test-inc-4891a",
                 document_type="COPYRIGHT_NOTICE",
                 recipient_email="not-an-email",
@@ -271,7 +271,7 @@ class TestNemotronActionCenter(unittest.TestCase):
 
     def test_send_email_empty_incident_id(self):
         with self.assertRaises(ValueError) as ctx:
-            send_nemotron_document_email(
+            send_document_email(
                 incident_id="",
                 document_type="COPYRIGHT_NOTICE",
                 recipient_email="dmca@example.com",

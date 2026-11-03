@@ -6,7 +6,7 @@ if 'app.main' not in sys.modules:
 from unittest.mock import patch, Mock
 from fastapi.testclient import TestClient
 from app.main import app, DraftDocumentRequest
-from app.nemotron_action import generate_rev_share_proposal_draft
+from app.document_actions import generate_rev_share_proposal_draft
 from app.detailed_report import send_detailed_report_email, build_evidence_bundle
 
 
@@ -56,7 +56,7 @@ class CopilotWorkflows(unittest.TestCase):
         record={'incident_id':'demo','frame_matches':[{'submitted_frame':{'frame_index':17},'best_match':{'source_asset_id':'asset-a','l2_distance':.2,'match_confirmed':True}}]}
         with patch('app.detailed_report.get_incident_by_id',return_value=record), \
              patch('app.detailed_report.list_registered_assets',return_value=[]), \
-             patch('app.detailed_report.get_nemotron_reports_for_incident',return_value=[]):
+             patch('app.detailed_report.get_investigation_reports_for_incident',return_value=[]):
             result=build_evidence_bundle('demo')
         self.assertIsNone(result['frame_correlations'][0]['suspect_timestamp_sec'])
         self.assertIsNone(result['frame_correlations'][0]['source_timestamp_sec'])

@@ -91,10 +91,10 @@ from app.registry import (
     load_incidents,
     save_incident,
     get_incident_by_id,
-    save_nemotron_report,
-    get_nemotron_report_by_id,
-    get_nemotron_reports_for_incident,
-    get_nemotron_report_history,
+    save_investigation_report,
+    get_investigation_report_by_id,
+    get_investigation_reports_for_incident,
+    get_investigation_report_history,
     list_active_sessions,
     is_cloud_mode,
 )
@@ -110,19 +110,15 @@ from app.evidence_package import (
     PackageVerificationError,
 )
 from app.timeline import cluster_frame_matches
-from app.nemotron_engine import (
-    get_allowed_models,
-    normalize_model_override,
-    DEFAULT_MODEL,
-)
+from app.investigation_support import normalize_model_override
 from app.providers import factory as provider_factory
-from app.nemotron_action import (
+from app.document_actions import (
     get_email_config,
     load_email_audit_log,
     extract_incident_evidence_facts,
     generate_copyright_notice_draft,
     generate_rev_share_proposal_draft,
-    send_nemotron_document_email,
+    send_document_email,
 )
 from app.detailed_report import (
     build_evidence_bundle,
@@ -134,8 +130,6 @@ from app.detailed_report import (
     get_detailed_report_pdf_bytes,
     list_detailed_reports_for_incident,
     send_detailed_report_email,
-    DEFAULT_DETAILED_MODEL,
-    FALLBACK_DETAILED_MODEL,
 )
 from typing import Optional, Dict, Any
 
@@ -1047,7 +1041,7 @@ def investigate_threat_incident(
     x_client_session_id: Optional[str] = Header(None),
 ):
     """
-    Executes a bounded, evidence-grounded Nemotron investigation for an incident.
+    Executes a bounded, evidence-grounded Muse investigation for an incident.
     Clusters CV frame matches into coherent timeline intervals and generates
     a structured investigation report with verified evidence references.
     """
@@ -1060,8 +1054,7 @@ def investigate_threat_incident(
     # Normalize Swagger placeholder ('string') and empty strings
     normalized_model = normalize_model_override(raw_model)
     provider = provider_factory.get_reasoning_provider()
-    is_muse = provider.provider_name == "muse"
-    allowed_models = {provider.model_id} if is_muse else get_allowed_models()
+    allowed_models = {provider.model_id}
     if normalized_model is not None and normalized_model not in allowed_models:
         raise HTTPException(
             status_code=400,
@@ -1071,7 +1064,7 @@ def investigate_threat_incident(
             ),
         )
 
-    target_model = normalized_model or (provider.model_id if is_muse else os.getenv("NEBIUS_MODEL", DEFAULT_MODEL))
+    target_model = normalized_model or provider.model_id
 
     incident = get_incident_by_id(incident_id)
     if not incident:
@@ -1088,12 +1081,12 @@ def investigate_threat_incident(
 
     # Check for existing valid report if not forcing refresh
     if not force_refresh:
-        existing_reports = get_nemotron_reports_for_incident(incident_id)
+        existing_reports = get_investigation_reports_for_incident(incident_id)
         valid_reports = [
             r
             for r in existing_reports
             if is_valid_completed_report(r) and (normalized_model is None or r.get("model_id") == target_model)
-            and (not is_muse or r.get("model_id") == target_model)
+            and r.get("model_id") == target_model
         ]
         if valid_reports:
             return valid_reports[0]
@@ -1103,17 +1096,15 @@ def investigate_threat_incident(
     investigation_input = build_investigation_input_from_incident(incident, intervals)
 
     frame_images = None
-    if is_muse:
-        try:
-            from app.temporal_selector import (
-                select_investigation_keyframes,
-                build_multimodal_frame_items,
-            )
-            selected_pairs = select_investigation_keyframes(incident, max_pairs=3)
-            frame_images = build_multimodal_frame_items(selected_pairs, incident_id=incident_id, max_items=6)
-        except Exception as sel_err:
-            logger.warning(f"[Investigation] Temporal keyframe selection encountered non-fatal error: {sel_err}")
-
+    try:
+        from app.temporal_selector import (
+            select_investigation_keyframes,
+            build_multimodal_frame_items,
+        )
+        selected_pairs = select_investigation_keyframes(incident, max_pairs=3)
+        frame_images = build_multimodal_frame_items(selected_pairs, incident_id=incident_id, max_items=6)
+    except Exception as sel_err:
+        logger.warning(f"[Investigation] Temporal keyframe selection encountered non-fatal error: {sel_err}")
     inv_kwargs = {"model_override": normalized_model}
     if frame_images:
         inv_kwargs["frame_images"] = frame_images
@@ -1123,7 +1114,7 @@ def investigate_threat_incident(
         **inv_kwargs,
     )
     try:
-        saved_record = save_nemotron_report(report)
+        saved_record = save_investigation_report(report)
         return saved_record
     except Exception as e:
         # Document persistence error in operational metadata and return
@@ -1137,7 +1128,7 @@ def get_incident_latest_report(
     incident_id: str,
     x_client_session_id: Optional[str] = Header(None),
 ):
-    """Retrieves the latest generated Nemotron report for a threat incident."""
+    """Retrieves the latest generated Muse report for a threat incident."""
     if not SAFE_ID_REGEX.match(incident_id):
         raise HTTPException(status_code=400, detail="Invalid incident ID format.")
     incident = get_incident_by_id(incident_id)
@@ -1147,7 +1138,7 @@ def get_incident_latest_report(
     if not is_demo_mode():
         if inc_sess and inc_sess != "demo-showcase" and inc_sess != x_client_session_id:
             raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
-    reports = get_nemotron_reports_for_incident(incident_id)
+    reports = get_investigation_reports_for_incident(incident_id)
     if not reports:
         raise HTTPException(status_code=404, detail="No investigation report found for this incident.")
     return reports[0]
@@ -1175,7 +1166,7 @@ def get_incident_reports_history(
             raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
-        return get_nemotron_report_history(incident_id)
+        return get_investigation_report_history(incident_id)
     except Exception as e:
         logger.error(f"[API] Error loading report history for incident {incident_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load report history: {e}")
@@ -1183,10 +1174,10 @@ def get_incident_reports_history(
 
 @app.get("/api/threats/reports/{report_id}")
 def get_report_by_id_endpoint(report_id: str):
-    """Retrieves a specific Nemotron investigation report by report_id."""
+    """Retrieves a specific Muse investigation report by report_id."""
     if not SAFE_ID_REGEX.match(report_id):
         raise HTTPException(status_code=400, detail="Invalid report ID format.")
-    report = get_nemotron_report_by_id(report_id)
+    report = get_investigation_report_by_id(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found.")
     return report
@@ -1218,7 +1209,7 @@ def export_incident_evidence_package_endpoint(
             )
             raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
-    reports = get_nemotron_reports_for_incident(incident_id)
+    reports = get_investigation_reports_for_incident(incident_id)
 
     try:
         zip_bytes, manifest = create_evidence_package(incident, reports)
@@ -1339,12 +1330,7 @@ async def verify_evidence_package_endpoint(file: UploadFile = File(...)):
 @app.post("/diagnose")
 def diagnose(request: DiagnoseRequest):
     provider = provider_factory.get_reasoning_provider()
-    is_muse = provider.provider_name == "muse"
-    api_key = None if is_muse else os.getenv("NEBIUS_API_KEY")
-    model = provider.model_id if is_muse else os.getenv(
-        "NEBIUS_MODEL",
-        provider.model_id,
-    )
+    model = provider.model_id
 
     if not provider_factory.reasoning_is_configured(provider):
         raise HTTPException(
@@ -1374,7 +1360,7 @@ def diagnose(request: DiagnoseRequest):
             ],
             max_tokens=500,
             temperature=0.1),
-            client_options=None if is_muse else {"base_url": "https://api.tokenfactory.nebius.com/v1/", "api_key": api_key},
+            client_options=None,
         )
 
         return {
@@ -1382,7 +1368,7 @@ def diagnose(request: DiagnoseRequest):
                 response.choices[0].message.content or ""
             ),
             "model": model,
-            "provider": "Meta Model API" if is_muse else "Nebius Token Factory",
+            "provider": "Meta Model API",
         }
 
     except Exception:
@@ -1393,29 +1379,28 @@ def diagnose(request: DiagnoseRequest):
 
 
 # ==============================================================================
-# Phase 3.5: Nemotron Intelligence & Action Center Endpoints
+# Phase 3.5: Muse Intelligence & Action Center Endpoints
 # ==============================================================================
 
-@app.get("/api/nemotron/status")
-def get_nemotron_status_endpoint():
+@app.get("/api/nemotron/status", include_in_schema=False)
+@app.get("/api/muse/status")
+def get_muse_status_endpoint():
     """Returns selected-provider configuration status and email dispatch availability."""
     configured, _, from_email = get_email_config()
     vision_provider = provider_factory.get_vision_provider()
-    vision_key_name = "MODEL_API_KEY" if vision_provider.provider_name == "muse" else "NEBIUS_API_KEY"
-    vision_available = bool(os.getenv(vision_key_name, "").strip())
+    vision_available = bool(os.getenv("MODEL_API_KEY", "").strip())
     provider = provider_factory.get_reasoning_provider()
     available = provider_factory.reasoning_is_configured(provider)
-    is_muse = provider.provider_name == "muse"
     return {
         "status": "ready" if available else "degraded",
         "provider": provider.provider_name,
         "vision_provider": vision_provider.provider_name,
         "status_scope": "configuration",
         "db_mode": get_db_config().mode.value,
-        "configured_model": provider.model_id if is_muse else DEFAULT_MODEL,
+        "configured_model": provider.model_id,
         "vision_model": vision_provider.model_id,
         "sam_model": provider_factory.get_segmentation_provider().model_id,
-        "detailed_report_model": provider.model_id if is_muse else DEFAULT_DETAILED_MODEL,
+        "detailed_report_model": provider.model_id,
         "text_reasoning_available": available,
         "vision_verification_available": vision_available,
         "segmentation_available": vision_available,
@@ -1427,14 +1412,15 @@ def get_nemotron_status_endpoint():
     }
 
 
-@app.post("/api/nemotron/draft-document")
-def draft_nemotron_document_endpoint(
+@app.post("/api/nemotron/draft-document", include_in_schema=False)
+@app.post("/api/muse/draft-document")
+def draft_document_endpoint(
     req: DraftDocumentRequest,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
     """
     Generates an evidence-grounded draft document (Copyright Notice or Rev-Share Offer)
-    using verified incident facts, user-supplied declarations, and optional Nemotron AI polishing.
+    using verified incident facts, user-supplied declarations, and optional Muse AI polishing.
     """
     if not SAFE_ID_REGEX.match(req.incident_id):
         raise HTTPException(status_code=400, detail="Invalid incident ID format.")
@@ -1484,12 +1470,13 @@ def draft_nemotron_document_endpoint(
             )
         return draft
     except Exception as e:
-        logger.error(f"[NemotronAction] Error drafting document: {e}")
+        logger.error(f"[MuseAction] Error drafting document: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to draft document: {e}")
 
 
-@app.post("/api/nemotron/send-email")
-def send_nemotron_email_endpoint(
+@app.post("/api/nemotron/send-email", include_in_schema=False)
+@app.post("/api/muse/send-email")
+def send_document_email_endpoint(
     req: SendDocumentEmailRequest,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
@@ -1514,7 +1501,7 @@ def send_nemotron_email_endpoint(
             raise HTTPException(status_code=403, detail="Access denied: incident belongs to a different session.")
 
     try:
-        result = send_nemotron_document_email(
+        result = send_document_email(
             incident_id=req.incident_id,
             document_type=req.document_type,
             recipient_email=req.recipient_email,
@@ -1529,11 +1516,12 @@ def send_nemotron_email_endpoint(
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.error(f"[NemotronAction] Exception sending email: {e}")
+        logger.error(f"[MuseAction] Exception sending email: {e}")
         raise HTTPException(status_code=500, detail=f"Email dispatch error: {e}")
 
 
-@app.get("/api/nemotron/email-status")
+@app.get("/api/nemotron/email-status", include_in_schema=False)
+@app.get("/api/muse/email-status")
 def get_email_status_endpoint():
     """Returns server-side email dispatch configuration status."""
     configured, _, from_email = get_email_config()
@@ -1544,7 +1532,8 @@ def get_email_status_endpoint():
     }
 
 
-@app.get("/api/nemotron/email-audit-log")
+@app.get("/api/nemotron/email-audit-log", include_in_schema=False)
+@app.get("/api/muse/email-audit-log")
 def get_email_audit_log_endpoint(
     incident_id: Optional[str] = None,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
@@ -1560,14 +1549,15 @@ def get_email_audit_log_endpoint(
 
 # ── Detailed Report, PDF Download & Email Delivery Endpoints ─────────────────
 
-@app.post("/api/nemotron/detailed-report")
+@app.post("/api/nemotron/detailed-report", include_in_schema=False)
+@app.post("/api/muse/detailed-report")
 def generate_detailed_report_endpoint(
     req: DetailedReportRequest,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
 ):
     """
-    Synthesizes a comprehensive forensic investigation report using Nebius Token Factory,
-    incorporating verified Nemotron Vision findings, generates an executive-grade ReportLab PDF,
+    Synthesizes a comprehensive forensic investigation report using Meta Model API,
+    incorporating verified Muse Vision findings, generates an executive-grade ReportLab PDF,
     and optionally emails the PDF attachment to the specified recipient.
     """
     if not SAFE_ID_REGEX.match(req.incident_id):
@@ -1587,7 +1577,7 @@ def generate_detailed_report_endpoint(
 
     recipient = req.recipient_email.strip() if req.recipient_email else None
     if recipient:
-        from app.nemotron_action import EMAIL_REGEX
+        from app.document_actions import EMAIL_REGEX
         if not EMAIL_REGEX.match(recipient):
             raise HTTPException(status_code=400, detail=f"Invalid recipient email address format: '{recipient}'.")
 
@@ -1611,7 +1601,7 @@ def generate_detailed_report_endpoint(
         return {
             "success": True,
             "report": report_data,
-            "pdf_url": f"/api/nemotron/detailed-report/{report_data['report_id']}/pdf",
+            "pdf_url": f"/api/muse/detailed-report/{report_data['report_id']}/pdf",
             "email_status": email_status,
         }
     except ValueError as ve:
@@ -1622,7 +1612,8 @@ def generate_detailed_report_endpoint(
 
 
 @app.get("/api/reports/{report_id}")
-@app.get("/api/nemotron/detailed-report/{report_id}")
+@app.get("/api/nemotron/detailed-report/{report_id}", include_in_schema=False)
+@app.get("/api/muse/detailed-report/{report_id}")
 def get_detailed_report_endpoint(
     report_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
@@ -1650,7 +1641,8 @@ def get_detailed_report_endpoint(
 
 
 @app.get("/api/reports/{report_id}/pdf")
-@app.get("/api/nemotron/detailed-report/{report_id}/pdf")
+@app.get("/api/nemotron/detailed-report/{report_id}/pdf", include_in_schema=False)
+@app.get("/api/muse/detailed-report/{report_id}/pdf")
 def get_detailed_report_pdf_endpoint(
     report_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
@@ -1686,7 +1678,8 @@ def get_detailed_report_pdf_endpoint(
     )
 
 
-@app.get("/api/nemotron/detailed-reports/{incident_id}")
+@app.get("/api/nemotron/detailed-reports/{incident_id}", include_in_schema=False)
+@app.get("/api/muse/detailed-reports/{incident_id}")
 def list_detailed_reports_endpoint(
     incident_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
@@ -1707,7 +1700,8 @@ def list_detailed_reports_endpoint(
     return list_detailed_reports_for_incident(incident_id)
 
 
-@app.post("/api/nemotron/email-detailed-report")
+@app.post("/api/nemotron/email-detailed-report", include_in_schema=False)
+@app.post("/api/muse/email-detailed-report")
 def email_detailed_report_endpoint(
     req: EmailDetailedReportRequest,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),
@@ -1740,7 +1734,7 @@ def email_detailed_report_endpoint(
     if not pdf_bytes:
         raise HTTPException(status_code=404, detail="PDF binary file not found on disk.")
 
-    from app.nemotron_action import EMAIL_REGEX
+    from app.document_actions import EMAIL_REGEX
     if not req.recipient_email or not EMAIL_REGEX.match(req.recipient_email.strip()):
         raise HTTPException(status_code=400, detail=f"Invalid recipient email address format: '{req.recipient_email}'.")
 
@@ -1763,7 +1757,8 @@ def email_detailed_report_endpoint(
         raise HTTPException(status_code=500, detail=f"Email dispatch error: {e}")
 
 
-@app.get("/api/nemotron/summary-download/{incident_id}")
+@app.get("/api/nemotron/summary-download/{incident_id}", include_in_schema=False)
+@app.get("/api/muse/summary-download/{incident_id}")
 def download_summary_endpoint(
     incident_id: str,
     x_client_session_id: Optional[str] = Header(None, alias="X-Client-Session-Id"),

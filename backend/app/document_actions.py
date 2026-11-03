@@ -1,5 +1,5 @@
 """
-Nemotron Action Center & Document Generation Module for FixProof (Phase 3.5).
+Document Action Center & Document Generation Module for FixProof (Phase 3.5).
 Provides evidence-grounded drafting for copyright notices and commercial revenue-sharing proposals,
 coupled with human-in-the-loop review, Resend email dispatch, and audit logging.
 
@@ -22,7 +22,6 @@ import uuid
 import requests
 
 from app.registry import get_incident_by_id, is_cloud_mode
-from app.nemotron_engine import DEFAULT_MODEL, resolve_model_id
 from app.providers import factory as provider_factory
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ def load_email_audit_log() -> List[Dict[str, Any]]:
         with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        logger.warning(f"[NemotronAction] Failed to read email audit log: {e}")
+        logger.warning(f"[DocumentAction] Failed to read email audit log: {e}")
         return []
 
 
@@ -61,7 +60,7 @@ def save_email_audit_entry(entry: Dict[str, Any]) -> None:
         with open(AUDIT_LOG_FILE, "w", encoding="utf-8") as f:
             json.dump(logs, f, indent=2)
     except Exception as e:
-        logger.error(f"[NemotronAction] Failed to persist email audit entry: {e}")
+        logger.error(f"[DocumentAction] Failed to persist email audit entry: {e}")
 
 
 def extract_incident_evidence_facts(incident: Dict[str, Any]) -> Dict[str, Any]:
@@ -240,10 +239,9 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
     # AI Enhancement if requested and API key available
     ai_enhanced = False
     provider = provider_factory.get_reasoning_provider()
-    is_muse = provider.provider_name == "muse"
     if use_ai_synthesis and provider_factory.reasoning_is_configured(provider):
         try:
-            model_id = provider.model_id if is_muse else resolve_model_id()
+            model_id = provider.model_id
             prompt = (
                 f"You are a professional intellectual property paralegal assistant. "
                 f"Review this draft notice and polish the introductory and evidence explanation sections. "
@@ -265,7 +263,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
                 body_template = polished.strip()
                 ai_enhanced = True
         except Exception as e:
-            logger.warning(f"[NemotronAction] AI enhancement skipped due to: {e}")
+            logger.warning(f"[DocumentAction] AI enhancement skipped due to: {e}")
 
     if is_clean:
         draft_status = "UNVERIFIED_EVIDENCE"
@@ -289,7 +287,7 @@ FixProof Forensic Incident Reference: {evidence['incident_id']}
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
         "ai_enhanced": ai_enhanced,
-        "model_id": (model_id if is_muse else DEFAULT_MODEL) if ai_enhanced else "deterministic-template-v1.0",
+        "model_id": model_id if ai_enhanced else "deterministic-template-v1.0",
         "declarations_required": [
             "I have reviewed the identified suspect material and verified ownership of the claimed work.",
             "I declare in good faith that this notice is accurate and that I am authorized to act on behalf of the rights holder.",
@@ -399,10 +397,9 @@ Forensic Record ID: {evidence['incident_id']}
 
     ai_enhanced = False
     provider = provider_factory.get_reasoning_provider()
-    is_muse = provider.provider_name == "muse"
     if use_ai_synthesis and provider_factory.reasoning_is_configured(provider):
         try:
-            model_id = provider.model_id if is_muse else resolve_model_id()
+            model_id = provider.model_id
             prompt = (
                 f"You are a professional digital media partnership and licensing manager. "
                 f"Polish this commercial revenue-sharing proposal email to make it professional, engaging, and collaborative. "
@@ -424,7 +421,7 @@ Forensic Record ID: {evidence['incident_id']}
                 body_template = polished.strip()
                 ai_enhanced = True
         except Exception as e:
-            logger.warning(f"[NemotronAction] AI commercial enhancement skipped due to: {e}")
+            logger.warning(f"[DocumentAction] AI commercial enhancement skipped due to: {e}")
 
     return {
         "document_id": str(uuid.uuid4()),
@@ -437,7 +434,7 @@ Forensic Record ID: {evidence['incident_id']}
         "user_inputs": user_inputs,
         "missing_fields": missing_fields,
         "ai_enhanced": ai_enhanced,
-        "model_id": (model_id if is_muse else DEFAULT_MODEL) if ai_enhanced else "deterministic-template-v1.0",
+        "model_id": model_id if ai_enhanced else "deterministic-template-v1.0",
         "declarations_required": [
             "I confirm that I am authorized to represent the rights holder in commercial licensing discussions.",
             "I understand that this proposal is an invitation to treat and not an executed contract.",
@@ -446,7 +443,7 @@ Forensic Record ID: {evidence['incident_id']}
     }
 
 
-def send_nemotron_document_email(
+def send_document_email(
     incident_id: str,
     document_type: str,
     recipient_email: str,
@@ -580,7 +577,7 @@ def send_nemotron_document_email(
 
     except Exception as e:
         err_str = str(e)
-        logger.error(f"[NemotronAction] Exception dispatching email via Resend: {err_str}")
+        logger.error(f"[DocumentAction] Exception dispatching email via Resend: {err_str}")
         save_email_audit_entry({
             "audit_id": audit_id,
             "timestamp": now_iso,

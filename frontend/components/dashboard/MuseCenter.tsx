@@ -31,7 +31,7 @@ import {
 import {
   MatchAnalysisResult,
   AssetRecord,
-  NemotronStatus,
+  MuseStatus,
   DraftDocumentPayload,
   DraftDocumentResult,
   SendEmailResult,
@@ -44,10 +44,10 @@ import {
 } from "@/lib/types";
 import { useActivity } from "@/context/ActivityContext";
 import {
-  getNemotronStatus,
+  getMuseStatus,
   fetchNoCache,
-  draftNemotronDocument,
-  sendNemotronEmail,
+  draftMuseDocument,
+  sendMuseEmail,
   getEmailAuditLog,
   getIncidentLatestReport,
   getIncidentReportHistory,
@@ -62,7 +62,7 @@ import {
 import { AnimatedDownloadButton } from "@/components/ui/AnimatedDownloadButton";
 import AILoadingState, { useAnimatedInvestigationSteps } from "@/components/kokonutui/ai-loading";
 
-const nemotronInvestigationStepsConfig = [
+const museInvestigationStepsConfig = [
   {
     id: "telemetry",
     label: "Retrieving forensic telemetry",
@@ -170,7 +170,7 @@ const documentDraftStepsConfig = [
   },
 ];
 
-interface NemotronCenterProps {
+interface MuseCenterProps {
   incidents: MatchAnalysisResult[];
   assets: AssetRecord[];
   incidentsLoading?: boolean;
@@ -180,7 +180,7 @@ interface NemotronCenterProps {
   onNavigateToIncidents?: (incident: MatchAnalysisResult) => void;
 }
 
-export const NemotronCenter: React.FC<NemotronCenterProps> = ({
+export const MuseCenter: React.FC<MuseCenterProps> = ({
   incidents,
   assets,
   incidentsLoading = false,
@@ -190,13 +190,13 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   onNavigateToIncidents,
 }) => {
   // Model & Service Status
-  const [nemotronStatus, setNemotronStatus] = useState<NemotronStatus | null>(null);
+  const [museStatus, setMuseStatus] = useState<MuseStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const providerLabel = nemotronStatus?.provider === "muse" ? "Meta Muse"
-    : nemotronStatus?.provider === "nemotron" ? "Nemotron" : "AI";
-  const providerTransport = nemotronStatus?.provider === "muse" ? "Meta Model API"
-    : nemotronStatus?.provider === "nemotron" ? "Nebius Token Factory" : "Provider not reported";
+  const providerLabel = museStatus?.provider === "muse" ? "Meta Muse"
+    : "AI";
+  const providerTransport = museStatus?.provider === "muse" ? "Meta Model API"
+    : "Provider not reported";
 
   // Selected Incident
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(
@@ -300,7 +300,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
   const isInvestigationActive = refreshingInvestigation || reportLoading;
   const investigationSteps = useAnimatedInvestigationSteps(
     isInvestigationActive,
-    nemotronInvestigationStepsConfig,
+    museInvestigationStepsConfig,
     {
       isError: !!investigationError,
       errorMsg: investigationError || undefined,
@@ -352,15 +352,15 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     }
   }, [preselectedDocType]);
 
-  // Load Nemotron status
+  // Load Muse status
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
     setStatusError(null);
     try {
-      const st = await getNemotronStatus();
-      setNemotronStatus(st);
+      const st = await getMuseStatus();
+      setMuseStatus(st);
     } catch {
-      setNemotronStatus(null);
+      setMuseStatus(null);
       setStatusError("Unable to load provider status. Check the backend connection and retry Refresh Service Status.");
     } finally {
       setStatusLoading(false);
@@ -447,7 +447,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
     }
   }, [selectedIncident?.incident_id, loadIncidentReports, loadDetailedReports]);
 
-  // Refresh Nemotron Report
+  // Refresh Muse Report
   const handleRefreshReport = async () => {
     if (!selectedIncident?.incident_id) return;
     setRefreshingInvestigation(true);
@@ -726,7 +726,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
         use_ai_synthesis: useAiSynthesis,
       };
 
-      const result = await draftNemotronDocument(payload);
+      const result = await draftMuseDocument(payload);
       setCurrentDraft(result);
       setEditedSubject(result.subject);
       setEditedBody(result.body);
@@ -798,7 +798,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
         ? modalCcEmail.split(",").map((c) => c.trim()).filter(Boolean)
         : undefined;
 
-      const res = await sendNemotronEmail({
+      const res = await sendMuseEmail({
         incident_id: selectedIncident.incident_id,
         document_type: activeDocType,
         recipient_email: modalRecipientEmail,
@@ -833,7 +833,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 text-[#ded7cb]">
-      {/* ─── SECTION A: Nemotron Capability Overview ─── */}
+      {/* ─── SECTION A: Muse Capability Overview ─── */}
       <div
         style={{
           background: "#171615",
@@ -865,12 +865,12 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                 <span
                   style={{
                     background:
-                      nemotronStatus?.status === "ready"
+                      museStatus?.status === "ready"
                         ? "rgba(72, 199, 181, 0.12)"
                         : "rgba(217, 164, 65, 0.12)",
-                    color: nemotronStatus?.status === "ready" ? "#48C7B5" : "#D9A441",
+                    color: museStatus?.status === "ready" ? "#48C7B5" : "#D9A441",
                     border: `1px solid ${
-                      nemotronStatus?.status === "ready"
+                      museStatus?.status === "ready"
                         ? "rgba(72, 199, 181, 0.28)"
                         : "rgba(217, 164, 65, 0.28)"
                     }`,
@@ -878,7 +878,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
                 >
                   {statusLoading ? "Loading status" : statusError ? "Status unavailable"
-                    : nemotronStatus?.status === "ready" ? "Credentials configured" : "Unconfigured"}
+                    : museStatus?.status === "ready" ? "Credentials configured" : "Unconfigured"}
                 </span>
               </div>
               <p className="text-[12px] text-[#8e887d] m-0 mt-0.5">
@@ -917,10 +917,10 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
         </div>
 
         {statusError && <p role="alert" className="mt-3 text-[12px] text-amber-300">{statusError}</p>}
-        {!statusLoading && nemotronStatus && (
+        {!statusLoading && museStatus && (
           <p className="mt-3 text-[12px] text-[#8e887d]">
             Configuration status only. Model access and email delivery have not been tested.
-            {nemotronStatus.db_mode === "local" && " Using the local database; incidents are scoped to this browser session."}
+            {museStatus.db_mode === "local" && " Using the local database; incidents are scoped to this browser session."}
           </p>
         )}
 
@@ -938,12 +938,12 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               <span>Text Reasoning</span>
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  nemotronStatus?.text_reasoning_available ? "bg-emerald-400" : "bg-amber-400"
+                  museStatus?.text_reasoning_available ? "bg-emerald-400" : "bg-amber-400"
                 }`}
               />
             </div>
             <div className="font-mono text-[11px] text-[#f4efe6] truncate">
-              {statusLoading ? "Loading…" : nemotronStatus?.configured_model || "Configuration unavailable"}
+              {statusLoading ? "Loading…" : museStatus?.configured_model || "Configuration unavailable"}
             </div>
             <div className="text-[10px] text-[#736d62] mt-0.5">{providerTransport}</div>
           </div>
@@ -960,12 +960,12 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               <span>Vision Verifier</span>
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  nemotronStatus?.vision_verification_available ? "bg-emerald-400" : "bg-amber-400"
+                  museStatus?.vision_verification_available ? "bg-emerald-400" : "bg-amber-400"
                 }`}
               />
             </div>
             <div className="font-mono text-[11px] text-[#f4efe6] truncate">
-              {statusLoading ? "Loading…" : nemotronStatus?.vision_model || "Configuration unavailable"}
+              {statusLoading ? "Loading…" : museStatus?.vision_model || "Configuration unavailable"}
             </div>
             <div className="text-[10px] text-[#736d62] mt-0.5">Frame Correspondence</div>
           </div>
@@ -982,16 +982,16 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               <span>Email Service</span>
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  nemotronStatus?.email_delivery_available ? "bg-emerald-400" : "bg-zinc-500"
+                  museStatus?.email_delivery_available ? "bg-emerald-400" : "bg-zinc-500"
                 }`}
               />
             </div>
             <div className="text-[11px] text-[#f4efe6] font-medium">
-              {statusLoading ? "Loading…" : !nemotronStatus ? "Status unavailable"
-                : nemotronStatus.email_delivery_available ? "Resend configured" : "Resend (Unconfigured)"}
+              {statusLoading ? "Loading…" : !museStatus ? "Status unavailable"
+                : museStatus.email_delivery_available ? "Resend configured" : "Resend (Unconfigured)"}
             </div>
             <div className="text-[10px] text-[#736d62] mt-0.5 truncate">
-              {nemotronStatus?.email_from || "RESEND_API_KEY required in .env"}
+              {museStatus?.email_from || "RESEND_API_KEY required in .env"}
             </div>
           </div>
 
@@ -1446,12 +1446,12 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                   <div className="flex items-center gap-2">
                     <span
                       style={{
-                        background: nemotronStatus?.email_delivery_available
+                        background: museStatus?.email_delivery_available
                           ? "rgba(20, 184, 166, 0.12)"
                           : "rgba(245, 158, 11, 0.12)",
-                        color: nemotronStatus?.email_delivery_available ? "#5eead4" : "#fbbf24",
+                        color: museStatus?.email_delivery_available ? "#5eead4" : "#fbbf24",
                         border: `1px solid ${
-                          nemotronStatus?.email_delivery_available
+                          museStatus?.email_delivery_available
                             ? "rgba(20, 184, 166, 0.25)"
                             : "rgba(245, 158, 11, 0.25)"
                         }`,
@@ -1460,7 +1460,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                     >
                       <Mail size={11} />
                       <span>
-                        {nemotronStatus?.email_delivery_available
+                        {museStatus?.email_delivery_available
                           ? "Email Service Configured (Resend)"
                           : "Email Unconfigured (Download Only)"}
                       </span>
@@ -1473,7 +1473,7 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
                       }}
                       className="px-2.5 py-1 rounded-md text-[10px] font-mono"
                     >
-                      Model: {nemotronStatus?.detailed_report_model || "Configuration unavailable"}
+                      Model: {museStatus?.detailed_report_model || "Configuration unavailable"}
                     </span>
                   </div>
                 </div>
@@ -2389,11 +2389,11 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
             {/* Provider Configuration Notice */}
             <div
               style={{
-                background: nemotronStatus?.email_delivery_available
+                background: museStatus?.email_delivery_available
                   ? "rgba(34, 197, 94, 0.08)"
                   : "rgba(234, 179, 8, 0.08)",
                 border: `1px solid ${
-                  nemotronStatus?.email_delivery_available
+                  museStatus?.email_delivery_available
                     ? "rgba(34, 197, 94, 0.2)"
                     : "rgba(234, 179, 8, 0.2)"
                 }`,
@@ -2401,12 +2401,12 @@ export const NemotronCenter: React.FC<NemotronCenterProps> = ({
               }}
               className="p-3 text-[11px]"
             >
-              {nemotronStatus?.email_delivery_available ? (
+              {museStatus?.email_delivery_available ? (
                 <div className="text-emerald-300 flex items-center gap-2">
                   <CheckCircle size={14} />
                   <span>
                     Resend API service configured. Outgoing address:{" "}
-                    <strong>{nemotronStatus.email_from}</strong>
+                    <strong>{museStatus.email_from}</strong>
                   </span>
                 </div>
               ) : (

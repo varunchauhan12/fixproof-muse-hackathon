@@ -15,34 +15,31 @@ class TestReasoningMigration(test_meta_provider.TestMetaProvider):
         super().setUp()
         self.selection = patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "muse", "NEBIUS_API_KEY": ""})
         self.selection.start()
-        self.nebius = patch("app.nemotron_engine.get_openai_client", side_effect=AssertionError("Nebius must not initialize"))
-        self.nebius.start()
         from app.main import app
         self.api = TestClient(app)
         self.incident = {"incident_id": "stageb-incident", "investigation_type": "FULL_VIDEO_SCAN", "overall_status": "CLEAN", "candidate_matches_found": 0, "frame_matches": [], "suspect_filename": "clip.mp4", "session_id": None}
 
     def tearDown(self):
-        self.nebius.stop()
         self.selection.stop()
         super().tearDown()
 
     def bundle(self):
         from app.detailed_report import build_evidence_bundle
-        with patch("app.detailed_report.get_incident_by_id", return_value=self.incident), patch("app.detailed_report.list_registered_assets", return_value=[]), patch("app.detailed_report.get_nemotron_reports_for_incident", return_value=[]):
+        with patch("app.detailed_report.get_incident_by_id", return_value=self.incident), patch("app.detailed_report.list_registered_assets", return_value=[]), patch("app.detailed_report.get_investigation_reports_for_incident", return_value=[]):
             return build_evidence_bundle("stageb-incident")
 
     def invoke(self, operation):
-        from app import main, nemotron_action as action, detailed_report as detailed
+        from app import main, document_actions as action, detailed_report as detailed
         if operation == "diagnose":
             response = self.api.post("/diagnose", json={"issue_description": "Explain a loop"})
             return response.status_code, response.json()
         if operation == "investigate":
-            with patch.object(main, "get_incident_by_id", return_value=self.incident), patch.object(main, "get_nemotron_reports_for_incident", return_value=[]), patch.object(main, "save_nemotron_report", side_effect=lambda report: report.model_dump(mode="json")):
+            with patch.object(main, "get_incident_by_id", return_value=self.incident), patch.object(main, "get_investigation_reports_for_incident", return_value=[]), patch.object(main, "save_investigation_report", side_effect=lambda report: report.model_dump(mode="json")):
                 response = self.api.post("/api/threats/stageb-incident/investigate", json={"force_refresh": True})
                 return response.status_code, response.json()
         if operation in ("copyright", "revshare"):
             function = action.generate_copyright_notice_draft if operation == "copyright" else action.generate_rev_share_proposal_draft
-            with patch.object(action, "send_nemotron_document_email") as email:
+            with patch.object(action, "send_document_email") as email:
                 result = function(self.incident, {"rights_holder_name": "Example", "work_title": "Test", "contact_email": "owner@example.com"})
                 email.assert_not_called()
                 return 200, result
@@ -118,7 +115,7 @@ class TestReasoningMigration(test_meta_provider.TestMetaProvider):
         from app import main
         self.content = json.dumps(self.report_payload())
         old = {"model_id": "nvidia/Nemotron-3_5-Lightning", "operational_metadata": {"validation_status": "VALIDATED"}, "summary": "Legacy report"}
-        with patch.object(main, "get_incident_by_id", return_value=self.incident), patch.object(main, "get_nemotron_reports_for_incident", return_value=[old]), patch.object(main, "save_nemotron_report", side_effect=lambda report: report.model_dump(mode="json")):
+        with patch.object(main, "get_incident_by_id", return_value=self.incident), patch.object(main, "get_investigation_reports_for_incident", return_value=[old]), patch.object(main, "save_investigation_report", side_effect=lambda report: report.model_dump(mode="json")):
             result = self.api.post("/api/threats/stageb-incident/investigate", json={"force_refresh": False})
             self.assertEqual(result.json()["model_id"], "muse-spark-1.3")
             self.assertEqual(len(self.calls), 1)

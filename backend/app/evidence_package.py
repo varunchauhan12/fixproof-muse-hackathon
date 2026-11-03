@@ -196,7 +196,7 @@ def build_chain_of_custody(
             "sequence": idx,
             "timestamp": rep_ts,
             "event_type": "INVESTIGATION_REPORT_SAVED",
-            "actor": f"Nemotron Forensic Engine ({rep.get('model_id') or 'nvidia/Nemotron-3_5-Lightning'})",
+            "actor": f"FixProof Forensic Engine ({rep.get('model_id') or 'not-recorded'})",
             "incident_id": str(incident.get("incident_id")),
             "report_id": str(rep.get("report_id")),
             "details": {
@@ -721,7 +721,7 @@ def create_evidence_package(
         report_inventory.append({
             "report_id": rid,
             "created_at": _get_ts(rep),
-            "model_id": str(rep.get("model_id") or "nvidia/Nemotron-3_5-Lightning"),
+            "model_id": str(rep.get("model_id") or "not-recorded"),
             "validation_status": str(val_status),
             "recommended_action": str(rep.get("recommended_action") or "NEEDS_FULL_VIDEO_REVIEW"),
             "confidence_assessment": str(rep.get("confidence_assessment") or "INCONCLUSIVE_DATA"),

@@ -1,4 +1,4 @@
-"""Opt-in Meta adapters preserving the existing FixProof provider interfaces."""
+"""Meta adapters preserving the existing FixProof provider interfaces."""
 import base64
 from datetime import datetime, timezone
 import io
@@ -18,7 +18,6 @@ from app.providers.base import BaseVisionProvider, BaseReasoningProvider
 from app.providers.meta_client import (
     MuseClient,
     MetaAPIError,
-    DEFAULT_MODEL,
     DEFAULT_REASONING_MODEL,
     DEFAULT_VISION_MODEL,
 )
@@ -53,7 +52,7 @@ class MetaVisionProvider(BaseVisionProvider):
         reference_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # Reuse only deterministic image preparation and model-keyed cache utilities.
-        from app import vision_verifier as verifier
+        from app import vision_support as verifier
         suspect, reference = suspect_metadata or {}, reference_metadata or {}
         context = {"candidate_pair_index": suspect.get("candidate_pair_index", 0),
                    "suspect_timestamp_sec": suspect.get("timestamp_sec", 0.0),
@@ -150,7 +149,7 @@ class MetaReasoningProvider(BaseReasoningProvider):
                 f"ceiling {ceiling}; bounded to first {ceiling} items."
             )
 
-        from app import vision_verifier as verifier
+        from app import vision_support as verifier
         from PIL import Image
         import base64
         import io
@@ -204,7 +203,7 @@ class MetaReasoningProvider(BaseReasoningProvider):
         request: Dict[str, Any],
         client_options: Optional[Dict[str, Any]] = None,
     ) -> Any:
-        # Never forward legacy Nebius keys/endpoints or silently substitute model IDs.
+        # Never forward unapproved credentials/endpoints or silently substitute model IDs.
         if client_options is not None:
             raise MetaAPIError("UNSUPPORTED_CLIENT_OPTIONS")
         payload = dict(request)
@@ -236,7 +235,7 @@ class MetaReasoningProvider(BaseReasoningProvider):
         frame_images: Optional[List[Dict[str, Any]]] = None,
     ) -> Any:
         from app.evidence_models import InvestigationReport, validate_report_evidence_references
-        from app.nemotron_engine import build_user_prompt, build_failed_report, SYSTEM_PROMPT
+        from app.investigation_support import build_user_prompt, build_failed_report, SYSTEM_PROMPT
         model = model_override or self.model_id
         def failure(category):
             report = build_failed_report(investigation_input, model, category, f"Meta investigation unavailable ({category}).")

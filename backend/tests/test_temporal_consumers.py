@@ -41,7 +41,7 @@ class TemporalConsumers(unittest.TestCase):
         namespace = {'__file__':str(path), 'Dict':Dict, 'List':List, 'Any':Any, 'Path':Path,
                      'Optional':Optional,'datetime':datetime,'timezone':timezone,'logger':logging.getLogger(__name__),
                      'get_incident_by_id':lambda _:record,'list_registered_assets':lambda *a:[],
-                     'get_nemotron_reports_for_incident':lambda _:[{'timeline_intervals':[{'median_offset_sec':999}]}]}
+                     'get_investigation_reports_for_incident':lambda _:[{'timeline_intervals':[{'median_offset_sec':999}]}]}
         exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
         with patch.dict('sys.modules', {'app.vault':vault, 'app.temporal_selector':selector}), \
              patch('socket.socket.connect', side_effect=AssertionError('Network forbidden')):

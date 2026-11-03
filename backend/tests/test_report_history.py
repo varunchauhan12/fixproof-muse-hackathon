@@ -3,7 +3,7 @@ Comprehensive Test Suite for FixProof Phase 1.4:
 Report History & Investigation Versioning.
 
 Verifies:
-1. get_nemotron_report_history function:
+1. get_investigation_report_history function:
    - Returns compact metadata records.
    - Strictly enforces incident isolation.
    - Orders history newest-first based on timestamps.
@@ -32,10 +32,10 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.main import app
 from app.registry import (
-    save_nemotron_report,
-    get_nemotron_report_by_id,
-    get_nemotron_reports_for_incident,
-    get_nemotron_report_history,
+    save_investigation_report,
+    get_investigation_report_by_id,
+    get_investigation_reports_for_incident,
+    get_investigation_report_history,
 )
 
 
@@ -118,13 +118,13 @@ class TestReportHistory(unittest.TestCase):
             },
         }
 
-    @patch("app.registry.load_nemotron_reports")
-    def test_get_nemotron_report_history_isolation_and_ordering(self, mock_load):
+    @patch("app.registry.load_investigation_reports")
+    def test_get_investigation_report_history_isolation_and_ordering(self, mock_load):
         """Verifies report history is strictly isolated to incident and ordered newest first."""
         # Provide reports in arbitrary order
         mock_load.return_value = [self.report_a1, self.report_b1, self.report_a2]
 
-        history_a = get_nemotron_report_history(self.incident_a)
+        history_a = get_investigation_report_history(self.incident_a)
         self.assertEqual(len(history_a), 2)
 
         # Newest first ordering: rep-a2-new (t_new) must come before rep-a1-old (t_old)
@@ -138,16 +138,16 @@ class TestReportHistory(unittest.TestCase):
         self.assertNotIn("rep-b1-mid", report_ids_a)
 
         # Query Incident B
-        history_b = get_nemotron_report_history(self.incident_b)
+        history_b = get_investigation_report_history(self.incident_b)
         self.assertEqual(len(history_b), 1)
         self.assertEqual(history_b[0]["report_id"], "rep-b1-mid")
 
-    @patch("app.registry.load_nemotron_reports")
+    @patch("app.registry.load_investigation_reports")
     def test_compact_history_fields(self, mock_load):
         """Verifies all required compact metadata fields are present."""
         mock_load.return_value = [self.report_a2]
 
-        history = get_nemotron_report_history(self.incident_a)
+        history = get_investigation_report_history(self.incident_a)
         item = history[0]
 
         expected_fields = {
@@ -166,7 +166,7 @@ class TestReportHistory(unittest.TestCase):
         self.assertFalse(item["human_review_required"])
 
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_report_history")
+    @patch("app.main.get_investigation_report_history")
     def test_api_get_reports_history_success(self, mock_history, mock_get_inc):
         """Verifies GET /api/threats/{incident_id}/reports returns 200 with history list."""
         mock_get_inc.return_value = {"incident_id": self.incident_a}
@@ -203,7 +203,7 @@ class TestReportHistory(unittest.TestCase):
         self.assertEqual(data[1]["report_id"], "rep-a1-old")
 
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_report_history")
+    @patch("app.main.get_investigation_report_history")
     def test_api_get_reports_history_empty(self, mock_history, mock_get_inc):
         """Verifies GET /api/threats/{incident_id}/reports returns 200 [] when no reports exist."""
         mock_get_inc.return_value = {"incident_id": self.incident_a}
@@ -228,10 +228,10 @@ class TestReportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("Invalid incident ID format", resp.json()["detail"])
 
-    @patch("app.nemotron_engine.generate_nemotron_report")
+    @patch("app.providers.meta.MetaReasoningProvider.generate_investigation_report")
     @patch("app.main.get_incident_by_id")
-    @patch("app.main.get_nemotron_report_history")
-    @patch("app.main.get_nemotron_report_by_id")
+    @patch("app.main.get_investigation_report_history")
+    @patch("app.main.get_investigation_report_by_id")
     def test_zero_model_invocation_on_history_or_selection(
         self, mock_get_by_id, mock_history, mock_get_inc, mock_generate
     ):

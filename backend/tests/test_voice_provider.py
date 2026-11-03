@@ -126,7 +126,7 @@ class TestVoiceProvider(unittest.TestCase):
             self.assertEqual(result.model_id, "configured-voice-model")
         with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "nemotron"}):
             with self.assertRaises(ValueError): factory.get_voice_provider()
-            self.assertEqual(factory.get_vision_provider().provider_name, "nemotron")
+            with self.assertRaises(ValueError): factory.get_vision_provider()
 
     def test_language_bias_uses_documented_multipart_field(self):
         MetaVoiceProvider().transcribe(wav(rate=24000),language_bias=['Hindi','English'])

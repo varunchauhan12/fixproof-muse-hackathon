@@ -1,13 +1,19 @@
 /**
- * Integration verification test for Nemotron Intelligence & Action Center (Phase 3.5).
+ * Integration verification test for Muse Intelligence & Action Center (Phase 3.5).
  * Validates backend endpoints against live server on port 8000.
  */
+
+// Live backend integrations may create reports, exports or email side effects.
+// Enable only for a separately authorized live run, never for offline regression.
+if (process.env.FIXPROOF_ALLOW_LIVE_TESTS !== "1") {
+  throw new Error("Live integration disabled. Explicit authorization and FIXPROOF_ALLOW_LIVE_TESTS=1 are required.");
+}
 
 const BASE_URL = process.env.API_URL || "http://127.0.0.1:8000";
 
 async function runTests() {
   console.log(`\n======================================================`);
-  console.log(`Phase 3.5 Nemotron Action Center Integration Test`);
+  console.log(`Phase 3.5 Muse Action Center Integration Test`);
   console.log(`Target: ${BASE_URL}`);
   console.log(`======================================================\n`);
 
@@ -24,10 +30,10 @@ async function runTests() {
     }
   }
 
-  // 1. Check Nemotron status
-  console.log(`[1] Testing GET /api/nemotron/status...`);
+  // 1. Check Muse status
+  console.log(`[1] Testing GET /api/muse/status...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/status`);
+    const res = await fetch(`${BASE_URL}/api/muse/status`);
     assert(res.status === 200, `Status code is 200 (got ${res.status})`);
     const data = await res.json();
     assert(data.configured_model === "muse-wonder-1.0", `Configured model is muse-wonder-1.0`);
@@ -74,7 +80,7 @@ async function runTests() {
   }
 
   // 3. Draft Copyright Notice
-  console.log(`\n[3] Testing POST /api/nemotron/draft-document (COPYRIGHT_NOTICE)...`);
+  console.log(`\n[3] Testing POST /api/muse/draft-document (COPYRIGHT_NOTICE)...`);
   try {
     const payload = {
       incident_id: testIncidentId,
@@ -88,7 +94,7 @@ async function runTests() {
       jurisdiction: "US_DMCA",
       use_ai_synthesis: false,
     };
-    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+    const res = await fetch(`${BASE_URL}/api/muse/draft-document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -118,7 +124,7 @@ async function runTests() {
       jurisdiction: "US_DMCA",
       use_ai_synthesis: false,
     };
-    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+    const res = await fetch(`${BASE_URL}/api/muse/draft-document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -134,7 +140,7 @@ async function runTests() {
   }
 
   // 5. Draft Revenue-Sharing Proposal
-  console.log(`\n[5] Testing POST /api/nemotron/draft-document (REVENUE_SHARE_OFFER)...`);
+  console.log(`\n[5] Testing POST /api/muse/draft-document (REVENUE_SHARE_OFFER)...`);
   try {
     const payload = {
       incident_id: testIncidentId,
@@ -149,7 +155,7 @@ async function runTests() {
       response_deadline_days: 14,
       use_ai_synthesis: false,
     };
-    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+    const res = await fetch(`${BASE_URL}/api/muse/draft-document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -168,7 +174,7 @@ async function runTests() {
   // 6. Test Email Safeguards: Unconfirmed user
   console.log(`\n[6] Testing send-email safeguard: user_confirmed=false...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
+    const res = await fetch(`${BASE_URL}/api/muse/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -192,7 +198,7 @@ async function runTests() {
   // 7. Test Email Safeguards: Undeclared copyright notice
   console.log(`\n[7] Testing send-email safeguard: rights_declaration_confirmed=false on notice...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
+    const res = await fetch(`${BASE_URL}/api/muse/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -218,12 +224,12 @@ async function runTests() {
   let testAuditId = null;
   let isEmailConfigured = false;
   try {
-    const statusRes = await fetch(`${BASE_URL}/api/nemotron/email-status`);
+    const statusRes = await fetch(`${BASE_URL}/api/muse/email-status`);
     const statusData = await statusRes.json();
     isEmailConfigured = Boolean(statusData.configured);
     console.log(`  Current email provider configuration status: configured=${isEmailConfigured}`);
 
-    const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
+    const res = await fetch(`${BASE_URL}/api/muse/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -252,9 +258,9 @@ async function runTests() {
   }
 
   // 9. Verify Email Audit Log
-  console.log(`\n[9] Testing GET /api/nemotron/email-audit-log...`);
+  console.log(`\n[9] Testing GET /api/muse/email-audit-log...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/email-audit-log?incident_id=${testIncidentId}`);
+    const res = await fetch(`${BASE_URL}/api/muse/email-audit-log?incident_id=${testIncidentId}`);
     assert(res.status === 200, `Audit log returns 200`);
     const logs = await res.json();
     assert(Array.isArray(logs) && logs.length > 0, `Returned ${logs.length} audit log entries`);
@@ -289,7 +295,7 @@ async function runTests() {
       recipient_email: "dmca@host.example",
       use_ai_synthesis: false,
     };
-    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+    const res = await fetch(`${BASE_URL}/api/muse/draft-document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -305,9 +311,9 @@ async function runTests() {
   }
 
   // 11. Invalid Document Type Rejection
-  console.log(`\n[11] Testing POST /api/nemotron/draft-document with invalid document_type...`);
+  console.log(`\n[11] Testing POST /api/muse/draft-document with invalid document_type...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/draft-document`, {
+    const res = await fetch(`${BASE_URL}/api/muse/draft-document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -322,9 +328,9 @@ async function runTests() {
   }
 
   // 12. Invalid Email Format Rejection on Send
-  console.log(`\n[12] Testing POST /api/nemotron/send-email with invalid recipient format...`);
+  console.log(`\n[12] Testing POST /api/muse/send-email with invalid recipient format...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/send-email`, {
+    const res = await fetch(`${BASE_URL}/api/muse/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

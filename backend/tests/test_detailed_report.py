@@ -305,7 +305,7 @@ class TestDetailedReportWorkflow(unittest.TestCase):
         self.assertIn("report", gen_data)
         rep_id = gen_data["report"]["report_id"]
         pdf_url = gen_data["pdf_url"]
-        self.assertTrue(pdf_url.endswith(f"/api/nemotron/detailed-report/{rep_id}/pdf"))
+        self.assertTrue(pdf_url.endswith(f"/api/muse/detailed-report/{rep_id}/pdf"))
 
         # 4. Stream PDF endpoint
         pdf_res = self.client.get(f"/api/nemotron/detailed-report/{rep_id}/pdf")

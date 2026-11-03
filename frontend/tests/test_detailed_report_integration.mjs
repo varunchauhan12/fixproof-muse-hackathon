@@ -4,6 +4,12 @@
  * Validates backend endpoints against live server on port 8000.
  */
 
+// Live backend integrations may create reports, exports or email side effects.
+// Enable only for a separately authorized live run, never for offline regression.
+if (process.env.FIXPROOF_ALLOW_LIVE_TESTS !== "1") {
+  throw new Error("Live integration disabled. Explicit authorization and FIXPROOF_ALLOW_LIVE_TESTS=1 are required.");
+}
+
 const BASE_URL = process.env.API_URL || "http://127.0.0.1:8000";
 
 async function runDetailedReportIntegrationTests() {
@@ -26,9 +32,9 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 1. Status endpoint checks
-  console.log(`[1] Testing GET /api/nemotron/status...`);
+  console.log(`[1] Testing GET /api/muse/status...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/status`);
+    const res = await fetch(`${BASE_URL}/api/muse/status`);
     assert(res.status === 200, `Status code is 200`);
     const data = await res.json();
     assert(!!data.detailed_report_model, `detailed_report_model is exposed: ${data.detailed_report_model}`);
@@ -62,9 +68,9 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 3. Test Short Summary Download (Zero Model Invocation)
-  console.log(`\n[3] Testing GET /api/nemotron/summary-download/${targetIncidentId}...`);
+  console.log(`\n[3] Testing GET /api/muse/summary-download/${targetIncidentId}...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/summary-download/${targetIncidentId}`);
+    const res = await fetch(`${BASE_URL}/api/muse/summary-download/${targetIncidentId}`);
     assert(res.status === 200, `Summary download returned 200`);
     const cType = res.headers.get("content-type") || "";
     assert(cType.includes("text/plain"), `Content-Type is text/plain (got ${cType})`);
@@ -78,9 +84,9 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 4. Test Invalid Email Rejection on Detailed Report
-  console.log(`\n[4] Testing invalid email validation on /api/nemotron/detailed-report...`);
+  console.log(`\n[4] Testing invalid email validation on /api/muse/detailed-report...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/detailed-report`, {
+    const res = await fetch(`${BASE_URL}/api/muse/detailed-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -95,12 +101,12 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 5. Test Generate Detailed Report & PDF
-  console.log(`\n[5] Testing POST /api/nemotron/detailed-report...`);
+  console.log(`\n[5] Testing POST /api/muse/detailed-report...`);
   let generatedReportId = null;
   let pdfUrl = null;
   try {
     const startTime = Date.now();
-    const res = await fetch(`${BASE_URL}/api/nemotron/detailed-report`, {
+    const res = await fetch(`${BASE_URL}/api/muse/detailed-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -158,9 +164,9 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 7. Test List Detailed Reports for Incident
-  console.log(`\n[7] Testing GET /api/nemotron/detailed-reports/${targetIncidentId}...`);
+  console.log(`\n[7] Testing GET /api/muse/detailed-reports/${targetIncidentId}...`);
   try {
-    const res = await fetch(`${BASE_URL}/api/nemotron/detailed-reports/${targetIncidentId}`);
+    const res = await fetch(`${BASE_URL}/api/muse/detailed-reports/${targetIncidentId}`);
     assert(res.status === 200, `Report listing returned 200`);
     const list = await res.json();
     assert(Array.isArray(list) && list.length > 0, `Listed ${list.length} detailed report(s)`);
@@ -172,10 +178,10 @@ async function runDetailedReportIntegrationTests() {
   }
 
   // 8. Test Email Retry / Dispatch Endpoint
-  console.log(`\n[8] Testing POST /api/nemotron/email-detailed-report...`);
+  console.log(`\n[8] Testing POST /api/muse/email-detailed-report...`);
   try {
     // 8a. Invalid recipient email
-    const errRes = await fetch(`${BASE_URL}/api/nemotron/email-detailed-report`, {
+    const errRes = await fetch(`${BASE_URL}/api/muse/email-detailed-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -187,7 +193,7 @@ async function runDetailedReportIntegrationTests() {
     assert(errRes.status === 400, `Email retry rejects invalid address with HTTP 400 (got ${errRes.status})`);
 
     // 8b. Mismatched report ID
-    const mismatchRes = await fetch(`${BASE_URL}/api/nemotron/email-detailed-report`, {
+    const mismatchRes = await fetch(`${BASE_URL}/api/muse/email-detailed-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Client-Session-ID": "integration-test-session" },
       body: JSON.stringify({
@@ -203,7 +209,7 @@ async function runDetailedReportIntegrationTests() {
     // Confirmation gate: without explicit user_confirmed the endpoint must refuse (400)
     // and must not dispatch. Live dispatch itself is covered by the offline harness
     // (backend/tests/run_copilot_offline.py) so no real email is sent from tests.
-    const gateRes = await fetch(`${BASE_URL}/api/nemotron/email-detailed-report`, {
+    const gateRes = await fetch(`${BASE_URL}/api/muse/email-detailed-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Client-Session-ID": "integration-test-session" },
       body: JSON.stringify({

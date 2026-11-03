@@ -139,7 +139,7 @@ class TestPdfRetrievalStabilization(unittest.TestCase):
                 "created_at": "2026-11-01T09:00:00Z",
             }
 
-            with patch("app.registry.get_nemotron_report_by_id", return_value=mock_nem_report):
+            with patch("app.registry.get_investigation_report_by_id", return_value=mock_nem_report):
                 res = resolve_detailed_report_pdf(nem_report_id)
                 self.assertIsNotNone(res)
                 self.assertEqual(res[0], self.dummy_pdf_1)

@@ -1,6 +1,6 @@
 /**
  * Automated test suite for FixProof Milestone 6C.6C.1:
- * Frontend Integration for Nemotron Investigation Reports.
+ * Frontend Integration for Muse Investigation Reports.
  *
  * Verifies:
  * 1. API helper behavior for getIncidentLatestReport (200, 404, 500).
@@ -9,6 +9,12 @@
  * 4. Resilient handling of empty findings, empty timeline intervals, and FAILED_VALIDATION reports.
  * 5. Safe clipboard fallback logic that never crashes the UI on permission failure.
  */
+
+// Live backend integrations may create reports, exports or email side effects.
+// Enable only for a separately authorized live run, never for offline regression.
+if (process.env.FIXPROOF_ALLOW_LIVE_TESTS !== "1") {
+  throw new Error("Live integration disabled. Explicit authorization and FIXPROOF_ALLOW_LIVE_TESTS=1 are required.");
+}
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -101,7 +107,7 @@ test("1. getIncidentLatestReport: returns report on 200 OK", async () => {
   const mockReport = {
     report_id: "rep-1234",
     incident_id: "inc-abcd",
-    model_id: "nvidia/Nemotron-3_5-Lightning",
+    model_id: "nvidia/Muse-3_5-Lightning",
     prompt_version: "v1.0",
     summary: "Forensic analysis completed.",
     recommended_action: "MONITOR_ACCOUNT",
@@ -182,7 +188,7 @@ test("4. getReportById: fetches report by report_id", async () => {
   const mockReport = {
     report_id: "rep-9999",
     incident_id: "inc-7777",
-    model_id: "nvidia/Nemotron-3_5-Lightning",
+    model_id: "nvidia/Muse-3_5-Lightning",
     summary: "Retrieved by direct ID.",
     operational_metadata: { validation_status: "VALIDATED" },
   };
@@ -238,7 +244,7 @@ test("6. UI Data Contract: empty arrays and FAILED_VALIDATION reports render saf
   const emptyReport = {
     report_id: "rep-empty",
     incident_id: "inc-empty",
-    model_id: "nvidia/Nemotron-3_5-Lightning",
+    model_id: "nvidia/Muse-3_5-Lightning",
     prompt_version: "v1.0",
     summary: "Investigation complete with zero candidates.",
     recommended_action: "NEEDS_FULL_VIDEO_REVIEW",
@@ -310,7 +316,7 @@ test("8. getIncidentReportHistory: returns list of compact report metadata on 20
       validation_status: "VALIDATED",
       recommended_action: "TAKEDOWN_NOTICE",
       confidence_assessment: "HIGH_CONFIDENCE_MATCH",
-      model_id: "nvidia/Nemotron-3_5-Lightning",
+      model_id: "nvidia/Muse-3_5-Lightning",
     },
     {
       report_id: "rep-older-111",
@@ -319,7 +325,7 @@ test("8. getIncidentReportHistory: returns list of compact report metadata on 20
       validation_status: "VALIDATED",
       recommended_action: "MONITOR_ACCOUNT",
       confidence_assessment: "MEDIUM_CONFIDENCE",
-      model_id: "nvidia/Nemotron-3_5-Lightning",
+      model_id: "nvidia/Muse-3_5-Lightning",
     },
   ];
 

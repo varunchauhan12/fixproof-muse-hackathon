@@ -23,7 +23,7 @@ VIDEOS_DIR = STORAGE_ROOT / "videos"
 FRAMES_DIR = STORAGE_ROOT / "frames"
 ASSETS_META_FILE = STORAGE_ROOT / "assets_metadata.json"
 INCIDENTS_FILE = STORAGE_ROOT / "incidents.json"
-NEMOTRON_REPORTS_FILE = STORAGE_ROOT / "nemotron_reports.json"
+INVESTIGATION_REPORTS_FILE = STORAGE_ROOT / "nemotron_reports.json"
 
 # Ensure directories exist
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
@@ -810,8 +810,8 @@ def get_incident_by_id(incident_id: str, *, strict_read: bool = False) -> Option
     return None
 
 
-def load_nemotron_reports(*, strict_read: bool = False) -> List[Dict[str, Any]]:
-    """Loads all persisted Nemotron reports from local JSON or Supabase PostgreSQL."""
+def load_investigation_reports(*, strict_read: bool = False) -> List[Dict[str, Any]]:
+    """Loads all persisted investigation reports from local JSON or Supabase PostgreSQL."""
     if is_cloud_mode():
         try:
             rows = default_db_manager.fetch_all(
@@ -853,25 +853,25 @@ def load_nemotron_reports(*, strict_read: bool = False) -> List[Dict[str, Any]]:
                     })
             return reports
         except Exception as e:
-            logger.error(f"[Registry] Failed to load nemotron reports from cloud DB: {e}")
+            logger.error(f"[Registry] Failed to load investigation reports from cloud DB: {e}")
             raise
 
     # Local mode: read from nemotron_reports.json
-    if not NEMOTRON_REPORTS_FILE.exists():
+    if not INVESTIGATION_REPORTS_FILE.exists():
         return []
     try:
-        with open(NEMOTRON_REPORTS_FILE, "r", encoding="utf-8") as f:
+        with open(INVESTIGATION_REPORTS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         if strict_read:
             raise
-        logger.error(f"[Registry] Failed to read {NEMOTRON_REPORTS_FILE}: {e}")
+        logger.error(f"[Registry] Failed to read {INVESTIGATION_REPORTS_FILE}: {e}")
         return []
 
 
-def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
+def save_investigation_report(report_data: Any) -> Dict[str, Any]:
     """
-    Persists a validated Nemotron investigation report in local JSON or Supabase PostgreSQL.
+    Persists a validated investigation investigation report in local JSON or Supabase PostgreSQL.
     
     Guarantees:
     - Never masks database errors; explicitly raises on persistence failure.
@@ -896,8 +896,7 @@ def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
             record["operational_metadata"].setdefault("created_at", record["created_at"])
 
     if is_cloud_mode():
-        from app.providers import factory as provider_factory
-        default_model = provider_factory.get_reasoning_provider().model_id
+        default_model = "not-recorded"
         model_id = str(record.get("model_id") or default_model)
         prompt_ver = str(record.get("prompt_version") or "v1.0")
         summary = str(record.get("summary") or "")
@@ -954,14 +953,14 @@ def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
                     created_at,
                 ),
             )
-            logger.info(f"[Registry] Saved Nemotron report {rid} for incident {iid} in Supabase DB.")
+            logger.info(f"[Registry] Saved investigation report {rid} for incident {iid} in Supabase DB.")
             return record
         except Exception as e:
-            logger.error(f"[Registry] Failed to save Nemotron report {rid} in cloud DB: {e}")
+            logger.error(f"[Registry] Failed to save investigation report {rid} in cloud DB: {e}")
             raise
 
     # Local mode: persist to storage/nemotron_reports.json
-    reports = load_nemotron_reports()
+    reports = load_investigation_reports()
     # Replace existing report if same report_id, or prepend
     replaced = False
     for idx, rep in enumerate(reports):
@@ -973,27 +972,27 @@ def save_nemotron_report(report_data: Any) -> Dict[str, Any]:
         reports.insert(0, record)
 
     try:
-        with open(NEMOTRON_REPORTS_FILE, "w", encoding="utf-8") as f:
+        with open(INVESTIGATION_REPORTS_FILE, "w", encoding="utf-8") as f:
             json.dump(reports, f, indent=2)
-        logger.info(f"[Registry] Persisted Nemotron report {rid} to {NEMOTRON_REPORTS_FILE}.")
+        logger.info(f"[Registry] Persisted investigation report {rid} to {INVESTIGATION_REPORTS_FILE}.")
         return record
     except Exception as e:
-        logger.error(f"[Registry] Failed to write {NEMOTRON_REPORTS_FILE}: {e}")
+        logger.error(f"[Registry] Failed to write {INVESTIGATION_REPORTS_FILE}: {e}")
         raise
 
 
-def get_nemotron_report_by_id(report_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieves a single Nemotron report by its report_id."""
-    for rep in load_nemotron_reports():
+def get_investigation_report_by_id(report_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single investigation report by its report_id."""
+    for rep in load_investigation_reports():
         if rep.get("report_id") == str(report_id):
             return rep
     return None
 
 
-def get_nemotron_reports_for_incident(incident_id: str, *, strict_read: bool = False) -> List[Dict[str, Any]]:
-    """Retrieves all Nemotron reports generated for a specific incident, ordered newest first."""
+def get_investigation_reports_for_incident(incident_id: str, *, strict_read: bool = False) -> List[Dict[str, Any]]:
+    """Retrieves all investigation reports generated for a specific incident, ordered newest first."""
     matching = []
-    for rep in (load_nemotron_reports(strict_read=True) if strict_read else load_nemotron_reports()):
+    for rep in (load_investigation_reports(strict_read=True) if strict_read else load_investigation_reports()):
         if rep.get("incident_id") == str(incident_id):
             matching.append(rep)
 
@@ -1004,15 +1003,14 @@ def get_nemotron_reports_for_incident(incident_id: str, *, strict_read: bool = F
     return matching
 
 
-def get_nemotron_report_history(incident_id: str) -> List[Dict[str, Any]]:
+def get_investigation_report_history(incident_id: str) -> List[Dict[str, Any]]:
     """
     Returns compact report history records for an incident, ordered newest first.
     Guarantees strict incident isolation.
     """
-    reports = get_nemotron_reports_for_incident(incident_id)
+    reports = get_investigation_reports_for_incident(incident_id)
     history = []
-    from app.providers import factory as provider_factory
-    default_model = provider_factory.get_reasoning_provider().model_id
+    default_model = "not-recorded"
     for rep in reports:
         # Guarantee incident isolation
         if str(rep.get("incident_id")) != str(incident_id):

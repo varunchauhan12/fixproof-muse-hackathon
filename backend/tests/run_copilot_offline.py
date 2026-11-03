@@ -23,7 +23,7 @@ def main():
          patch('socket.socket.connect', side_effect=AssertionError('Live network forbidden')), \
          patch('requests.post', side_effect=AssertionError('Live email forbidden')):
         registry = ModuleType('app.registry')
-        for name, default in [('get_incident_by_id',None),('list_registered_assets',[]),('get_nemotron_reports_for_incident',[])]:
+        for name, default in [('get_incident_by_id',None),('list_registered_assets',[]),('get_investigation_reports_for_incident',[])]:
             setattr(registry,name,Mock(return_value=default))
         registry.is_cloud_mode=lambda:False
         vault = ModuleType('app.vault');vault.default_vault=object()
@@ -36,11 +36,11 @@ def main():
              patch.object(factory,'get_vision_provider',return_value=provider), \
              patch.object(factory,'reasoning_is_configured',return_value=False), \
              patch('pathlib.Path.mkdir'):
-            from app import detailed_report, nemotron_action
+            from app import detailed_report, document_actions
         detailed_report.__file__=str(Path(temp)/'backend/app/detailed_report.py')
         detailed_report.DETAILED_REPORTS_DIR=Path(temp)/'detailed_reports'
         detailed_report.LEGACY_REPORTS_DIR=Path(temp)/'legacy_reports'
-        nemotron_action.AUDIT_LOG_FILE=Path(temp)/'email_audit_log.json'
+        document_actions.AUDIT_LOG_FILE=Path(temp)/'email_audit_log.json'
         # Route functions and models are the actual source, with no startup/import chain.
         main_module=ModuleType('app.main')
         main_module.__dict__.update({'app':FastAPI(),'BaseModel':BaseModel,'Field':Field,'Optional':Optional,
@@ -50,7 +50,7 @@ def main():
             'get_incident_by_id':registry.get_incident_by_id,'provider_factory':factory,
             'get_db_config':lambda:SimpleNamespace(mode=SimpleNamespace(value='offline')),
             'DEFAULT_MODEL':'offline','DEFAULT_DETAILED_MODEL':'offline'})
-        for module in (detailed_report,nemotron_action):
+        for module in (detailed_report,document_actions):
             for name,value in vars(module).items():
                 if callable(value):main_module.__dict__.setdefault(name,value)
         sys.modules['app.main']=main_module
@@ -58,9 +58,9 @@ def main():
         app.main=main_module
         tree=ast.parse((Path(__file__).parents[1]/'app/main.py').read_text())
         names={'DetailedReportRequest','EmailDetailedReportRequest','DraftDocumentRequest',
-               'get_nemotron_status_endpoint','generate_detailed_report_endpoint','get_detailed_report_endpoint',
+               'get_muse_status_endpoint','generate_detailed_report_endpoint','get_detailed_report_endpoint',
                'get_detailed_report_pdf_endpoint','list_detailed_reports_endpoint','email_detailed_report_endpoint',
-               'download_summary_endpoint','draft_nemotron_document_endpoint'}
+               'download_summary_endpoint','draft_document_endpoint'}
         nodes=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.ClassDef)) and n.name in names]
         exec(compile(ast.Module(body=nodes,type_ignores=[]),'<isolated actual report routes>','exec'), main_module.__dict__)
         with patch.object(factory,'get_reasoning_provider',return_value=provider), \
@@ -68,7 +68,7 @@ def main():
              patch.object(factory,'get_segmentation_provider',return_value=provider), \
              patch.object(factory,'reasoning_is_configured',return_value=False):
             suite=unittest.defaultTestLoader.loadTestsFromNames([
-                'tests.test_detailed_report','tests.test_nemotron_action','tests.test_forensic_report_pdf',
+                'tests.test_detailed_report','tests.test_document_actions','tests.test_forensic_report_pdf',
                 'tests.test_copilot_workflows'])
             result=unittest.TextTestRunner(verbosity=1).run(suite)
         return 0 if result.wasSuccessful() else 1

@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw
 from tests import test_meta_provider as fixtures
 from app.providers import factory, meta_client
 from app.providers.meta import MetaVisionProvider, VISION_PROMPT_VERSION
-from app import vision_verifier as verifier
+from app import vision_support as verifier
 
 
 class TestVisionMigration(unittest.TestCase):
@@ -25,10 +25,8 @@ class TestVisionMigration(unittest.TestCase):
         fixtures.TestMetaProvider.setUp(self)
         self.addCleanup(fixtures.TestMetaProvider.tearDown, self)
         for target, kwargs in (
-            ("app.vision_verifier.get_cached_verification", {"return_value": None}),
-            ("app.vision_verifier.store_cached_verification", {}),
-            ("app.vision_verifier.openai.OpenAI", {"side_effect": AssertionError("Nebius vision initialized")}),
-            ("app.nemotron_engine.get_openai_client", {"side_effect": AssertionError("Nebius reasoning initialized")}),
+            ("app.vision_support.get_cached_verification", {"return_value": None}),
+            ("app.vision_support.store_cached_verification", {}),
         ):
             patcher = patch(target, **kwargs)
             mock = patcher.start()
@@ -157,15 +155,6 @@ class TestVisionMigration(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.store.assert_called_once()
 
-    def test_explicit_nemotron_rollback_uses_original_engine_only(self):
-        expected = {"visual_correspondence": "UNVERIFIED", "model_id": verifier.VISION_MODEL_ID}
-        with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "nemotron"}), patch.object(verifier, "verify_candidate_pair", return_value=expected) as legacy:
-            result = self.verify()
-            self.assertEqual(result, expected)
-            legacy.assert_called_once()
-            self.assertEqual(legacy.call_args.kwargs["suspect_timestamp_sec"], 3.5)
-            self.assertEqual(factory.get_vision_provider().model_id, verifier.VISION_MODEL_ID)
-        self.assertEqual(self.calls, [])
 
     def test_matcher_selected_meta_max_three_and_unchanged_cv_on_failure(self):
         from app.vault import ReferenceVault
@@ -239,34 +228,18 @@ class TestVisionMigration(unittest.TestCase):
             self.assertEqual(v["model_id"], "muse-spark-1.3")
             self.assertEqual(len(self.calls), 2)
 
-    def test_status_tracks_selected_provider_without_inference(self):
-        from app.main import get_nemotron_status_endpoint
-        for provider, key, expected_model in (("muse", "MODEL_API_KEY", "muse-spark-1.3"),
-                                               ("nemotron", "NEBIUS_API_KEY", verifier.VISION_MODEL_ID)):
-            with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": provider, key: "dummy-key"}):
-                status = get_nemotron_status_endpoint()
-                self.assertEqual(status["provider"], provider)
-                self.assertEqual(status["vision_provider"], provider)
-                self.assertEqual(status["status_scope"], "configuration")
-                self.assertEqual(status["db_mode"], "local")
-                self.assertEqual(status["vision_model"], expected_model)
-                self.assertTrue(status["vision_verification_available"])
-            with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": provider, key: ""}):
-                self.assertFalse(get_nemotron_status_endpoint()["vision_verification_available"])
-        self.assertEqual(self.calls, [])
 
     def test_report_uses_recorded_models_not_current_provider(self):
         from app import detailed_report as reports
         incident = {"incident_id": "test", "frame_matches": [{"best_match": {
-            "match_confirmed": True, "vision_verification": {**self.payload, "model_id": verifier.VISION_MODEL_ID}}}]}
-        with patch.object(reports, "get_incident_by_id", return_value=incident), patch.object(reports, "list_registered_assets", return_value=[]), patch.object(reports, "get_nemotron_reports_for_incident", return_value=[]):
+            "match_confirmed": True, "vision_verification": {**self.payload, "model_id": "historical-vision-model"}}}]}
+        with patch.object(reports, "get_incident_by_id", return_value=incident), patch.object(reports, "list_registered_assets", return_value=[]), patch.object(reports, "get_investigation_reports_for_incident", return_value=[]):
             bundle = reports.build_evidence_bundle("test")
-            self.assertEqual(bundle["frame_correlations"][0]["vision_verification"]["model_id"], verifier.VISION_MODEL_ID)
-            incident["frame_matches"][0]["best_match"]["vision_verification"]["model_id"] = "muse-spark-1.3"
+            self.assertEqual(bundle["frame_correlations"][0]["vision_verification"]["model_id"], "historical-vision-model")
             bundle = reports.build_evidence_bundle("test")
             with patch.dict(os.environ, {"MODEL_API_KEY": ""}):
                 report = reports.synthesize_detailed_report(bundle)
-            self.assertEqual(report["sections"]["provenance"]["vision_verifier_model"], "muse-spark-1.3")
+            self.assertEqual(report["sections"]["provenance"]["vision_verifier_model"], "historical-vision-model")
             del incident["frame_matches"][0]["best_match"]["vision_verification"]["model_id"]
             bundle = reports.build_evidence_bundle("test")
             self.assertEqual(bundle["frame_correlations"][0]["vision_verification"]["model_id"], "not-recorded")

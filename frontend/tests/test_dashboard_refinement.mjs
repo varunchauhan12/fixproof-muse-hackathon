@@ -76,7 +76,7 @@ const expectedTabs = [
   "vault",
   "hunter",
   "incidents",
-  "nemotron",
+  "muse",
   "intelligence",
   "enforcer",
   "notifications",

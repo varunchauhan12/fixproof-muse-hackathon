@@ -84,7 +84,7 @@ interface IncidentResponseProps {
   incidents?: MatchAnalysisResult[];
   onNavigateToVault: (assetId?: string) => void;
   onNavigateToHunter: () => void;
-  onNavigateToNemotron?: (incident: MatchAnalysisResult) => void;
+  onNavigateToMuse?: (incident: MatchAnalysisResult) => void;
   onRefresh?: () => void;
 }
 
@@ -94,7 +94,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
   incidents: propIncidents,
   onNavigateToVault,
   onNavigateToHunter,
-  onNavigateToNemotron,
+  onNavigateToMuse,
   onRefresh,
 }) => {
   const [incidents, setIncidents] = useState<MatchAnalysisResult[]>(propIncidents || []);
@@ -811,12 +811,12 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2 pl-2">
-                      {onNavigateToNemotron && (
+                      {onNavigateToMuse && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNavigateToNemotron(inc);
+                            onNavigateToMuse(inc);
                           }}
                           style={{
                             background: "#1c1b1a",
@@ -1059,9 +1059,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 </button>
               </div>
 
-              {onNavigateToNemotron && (
+              {onNavigateToMuse && (
                 <button
-                  onClick={() => onNavigateToNemotron(selectedIncident)}
+                  onClick={() => onNavigateToMuse(selectedIncident)}
                   style={{
                     background: "#1c1b1a",
                     border: "1px solid rgba(238, 231, 219, 0.1)",
@@ -1080,7 +1080,7 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                 incident={selectedIncident}
                 detailedReport={activeDetailedReport}
                 onRefreshReport={onRefresh}
-                onNavigateToNemotron={onNavigateToNemotron}
+                onNavigateToMuse={onNavigateToMuse}
                 onIncidentUpdated={(updated) => {
                   setSelectedIncident(updated);
                   onRefresh?.();
@@ -1203,9 +1203,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                       </button>
 
                       {/* Direct Bridge to Muse Center */}
-                      {onNavigateToNemotron && (
+                      {onNavigateToMuse && (
                         <button
-                          onClick={() => onNavigateToNemotron(selectedIncident)}
+                          onClick={() => onNavigateToMuse(selectedIncident)}
                           style={{
                             background: "#eee7db",
                             color: "#141312",
@@ -2055,9 +2055,9 @@ export const IncidentResponse: React.FC<IncidentResponseProps> = ({
                         </p>
                       </div>
                       <div className="pt-2">
-                        {onNavigateToNemotron ? (
+                        {onNavigateToMuse ? (
                           <button
-                            onClick={() => onNavigateToNemotron(selectedIncident)}
+                            onClick={() => onNavigateToMuse(selectedIncident)}
                             style={{
                               background: "#eee7db",
                               color: "#141312",

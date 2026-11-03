@@ -133,7 +133,7 @@ export const SwarmLogsView: React.FC<SwarmLogsViewProps> = ({
           targetType: "incident",
           incidentRef: inc,
           payload: {
-            event_type: "NEMOTRON_SYNTHESIS_EVALUATION",
+            event_type: "MUSE_SYNTHESIS_EVALUATION",
             incident_id: inc.incident_id,
             model_id: "See recorded investigation report provenance",
             recommended_action: inc.recommended_action,

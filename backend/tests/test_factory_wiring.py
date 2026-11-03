@@ -53,7 +53,7 @@ class TestFactoryWiring(unittest.TestCase):
             ("url_screener.py", "get_vision_provider", "verify_candidate_pair"),
             ("main.py", "get_reasoning_provider", "generate_investigation_report"),
             ("detailed_report.py", "get_reasoning_provider", "create_text_completion"),
-            ("nemotron_action.py", "get_reasoning_provider", "create_text_completion"),
+            ("document_actions.py", "get_reasoning_provider", "create_text_completion"),
         ):
             tree = ast.parse((root / name).read_text())
             calls = [n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
@@ -69,7 +69,7 @@ class TestFactoryWiring(unittest.TestCase):
         from app import main
         incident = {"incident_id": "test-provider-incident", "frame_matches": []}
         saved = {"report_id": "test-report", "validation_status": "FAILED_VALIDATION"}
-        with patch.object(main, "get_incident_by_id", return_value=incident), patch.object(main, "get_nemotron_reports_for_incident", return_value=[]), patch.object(main, "build_investigation_input_from_incident", return_value="input"), patch.object(main, "save_nemotron_report", return_value=saved), patch.object(main.provider_factory, "get_reasoning_provider") as getter:
+        with patch.object(main, "get_incident_by_id", return_value=incident), patch.object(main, "get_investigation_reports_for_incident", return_value=[]), patch.object(main, "build_investigation_input_from_incident", return_value="input"), patch.object(main, "save_investigation_report", return_value=saved), patch.object(main.provider_factory, "get_reasoning_provider") as getter:
             response = TestClient(app).post("/api/threats/test-provider-incident/investigate", json={"force_refresh": True})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), saved)

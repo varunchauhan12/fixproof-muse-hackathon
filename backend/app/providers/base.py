@@ -39,13 +39,13 @@ class BaseVisionProvider(ABC):
     @property
     @abstractmethod
     def provider_name(self) -> str:
-        """Returns the identifier name of this provider (e.g. 'nemotron', 'muse')."""
+        """Returns the identifier name of this provider ('muse')."""
         pass
 
     @property
     @abstractmethod
     def model_id(self) -> str:
-        """Returns the specific model identifier (e.g. 'nvidia/Nemotron-3.5-Super-VL')."""
+        """Returns the specific model identifier (e.g. 'muse-spark-1.3')."""
         pass
 
     @abstractmethod

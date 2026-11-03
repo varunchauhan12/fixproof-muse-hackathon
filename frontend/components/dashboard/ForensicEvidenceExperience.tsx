@@ -42,7 +42,7 @@ interface ForensicEvidenceExperienceProps {
   onGenerateDetailedReport?: () => void;
   generatingDetailedReport?: boolean;
   detailedReportError?: string | null;
-  onNavigateToNemotron?: (incident: MatchAnalysisResult) => void;
+  onNavigateToMuse?: (incident: MatchAnalysisResult) => void;
   onIncidentUpdated?: (updatedIncident: MatchAnalysisResult) => void;
 }
 
@@ -60,7 +60,7 @@ const ForensicInvestigationRoom: React.FC<ForensicEvidenceExperienceProps> = ({
   onGenerateDetailedReport,
   generatingDetailedReport = false,
   detailedReportError,
-  onNavigateToNemotron,
+  onNavigateToMuse,
 }) => {
   const [samOpened, setSamOpened] = useState(false);
   const [investigationTab, setInvestigationTab] = useState<'cv' | 'sam' | 'temporal'>('cv');
@@ -256,9 +256,9 @@ const ForensicInvestigationRoom: React.FC<ForensicEvidenceExperienceProps> = ({
               </button>
             )}
 
-            {onNavigateToNemotron && (
+            {onNavigateToMuse && (
               <button
-                onClick={() => onNavigateToNemotron(incident)}
+                onClick={() => onNavigateToMuse(incident)}
                 style={{
                   background: "#1c1b1a",
                   border: "1px solid rgba(72, 199, 181, 0.35)",

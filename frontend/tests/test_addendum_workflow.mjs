@@ -8,6 +8,12 @@
  * 5. Animated Download Button endpoint contracts (PDF, Summary, Signed Evidence ZIP)
  */
 
+// Live backend integrations may create reports, exports or email side effects.
+// Enable only for a separately authorized live run, never for offline regression.
+if (process.env.FIXPROOF_ALLOW_LIVE_TESTS !== "1") {
+  throw new Error("Live integration disabled. Explicit authorization and FIXPROOF_ALLOW_LIVE_TESTS=1 are required.");
+}
+
 // FixProof Addendum Workflow Test Suite
 // Uses native global fetch available in Node.js v18+
 
@@ -35,8 +41,8 @@ async function runTests() {
   // ─── [1] Status Island Health Contract ───
   console.log("[1] Testing Status Island Backend Health Contract...");
   try {
-    const res = await fetch(`${API_BASE}/api/nemotron/status`);
-    assert(res.status === 200, `GET /api/nemotron/status returns 200 (got ${res.status})`);
+    const res = await fetch(`${API_BASE}/api/muse/status`);
+    assert(res.status === 200, `GET /api/muse/status returns 200 (got ${res.status})`);
     const data = await res.json();
     assert(data.status === "ok" || data.status === "ready", `Backend status reports operational (${data.status})`);
     assert(Boolean(data.configured_model || data.email_provider), `Provider/Model identified: ${data.configured_model || data.email_provider}`);
@@ -168,7 +174,7 @@ async function runTests() {
   if (targetIncidentId) {
     // 5.1 Short Summary Download Endpoint
     try {
-      const sumRes = await fetch(`${API_BASE}/api/nemotron/summary-download/${encodeURIComponent(targetIncidentId)}`);
+      const sumRes = await fetch(`${API_BASE}/api/muse/summary-download/${encodeURIComponent(targetIncidentId)}`);
       assert(sumRes.status === 200, `Summary download endpoint returned HTTP 200 (got ${sumRes.status})`);
       const sumText = await sumRes.text();
       assert(sumText.toUpperCase().includes("FIXPROOF") || sumText.toUpperCase().includes("FORENSIC"), "Summary text contains genuine forensic headers");
@@ -194,7 +200,7 @@ async function runTests() {
   // 5.3 Error handling when requesting non-existent detailed report PDF
   try {
     const fakeId = "00000000-0000-0000-0000-000000000000";
-    const nonExistentRes = await fetch(`${API_BASE}/api/nemotron/detailed-report/${fakeId}/pdf`);
+    const nonExistentRes = await fetch(`${API_BASE}/api/muse/detailed-report/${fakeId}/pdf`);
     assert(nonExistentRes.status === 404, `Requesting non-existent PDF correctly returns 404 (got ${nonExistentRes.status})`);
   } catch (err) {
     assert(false, `404 check error: ${err.message}`);

@@ -1,3 +1,5 @@
+> Historical validation record. Current release checks and safety restrictions: [Muse-only release readiness](docs/MUSE_ONLY_RELEASE_READINESS.md). Do not run live integration scripts as offline tests.
+
 # FixProof — Testing and Validation Report
 
 > **Document version:** 1.0.0  

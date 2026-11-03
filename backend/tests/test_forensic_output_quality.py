@@ -62,13 +62,12 @@ from app.url_screener import (
     SCREENING_LIMITATIONS,
 )
 from app.vault import ReferenceVault
-from app.vision_verifier import (
+from app.vision_support import (
     MAX_CANDIDATE_PAIRS,
     VISION_MODEL_ID,
     _MEMORY_CACHE,
     compute_pair_cache_key,
     resize_image_for_verification,
-    verify_candidate_pair,
 )
 
 
@@ -465,92 +464,6 @@ class TestForensicOutputQuality(unittest.TestCase):
     # -------------------------------------------------------------------------
     # 9. Vision Provider Failures & Malformed Responses
     # -------------------------------------------------------------------------
-    def test_case_9_vision_provider_failures(self):
-        """
-        Scenario 9: Vision Model Failures.
-        - Subcase A: Provider timeout / connection error.
-        - Subcase B: Malformed non-JSON response from model.
-        - Subcase C: Response missing required schema keys.
-        - Subcase D: Missing API key.
-        - All subcases must safely produce UNVERIFIED without crashing.
-        """
-        img_s = create_deterministic_pattern(seed_id=98761, size=(100, 100))
-        img_r = create_deterministic_pattern(seed_id=98762, size=(100, 100))
-
-        with patch("app.vision_verifier.get_cached_verification", return_value=None):
-            # Subcase A: Provider Timeout
-            with patch.dict(os.environ, {"NEBIUS_API_KEY": "mock_api_key"}):
-                with patch("openai.OpenAI") as mock_openai_cls:
-                    mock_client = MagicMock()
-                    mock_client.chat.completions.create.side_effect = TimeoutError("API request timed out after 15s")
-                    mock_openai_cls.return_value = mock_client
-
-                    res_timeout = verify_candidate_pair(
-                        img_s,
-                        img_r,
-                        suspect_timestamp_sec=5.0,
-                        reference_timestamp_sec=2.0,
-                        source_asset_id="asset_test",
-                    )
-                    self.assertEqual(res_timeout["visual_correspondence"], "UNVERIFIED")
-                    self.assertEqual(res_timeout["validation_status"], "VERIFICATION_UNAVAILABLE")
-                    self.assertIn("timed out", res_timeout["reasoning"])
-
-            # Subcase B: Malformed non-JSON response
-            with patch.dict(os.environ, {"NEBIUS_API_KEY": "mock_api_key"}):
-                with patch("openai.OpenAI") as mock_openai_cls:
-                    mock_client = MagicMock()
-                    mock_choice = MagicMock()
-                    mock_choice.message.content = "Here is my thoughts: the images look quite similar, not JSON!"
-                    mock_response = MagicMock()
-                    mock_response.choices = [mock_choice]
-                    mock_client.chat.completions.create.return_value = mock_response
-                    mock_openai_cls.return_value = mock_client
-
-                    res_malformed = verify_candidate_pair(
-                        img_s,
-                        img_r,
-                        suspect_timestamp_sec=5.0,
-                        reference_timestamp_sec=2.0,
-                        source_asset_id="asset_test",
-                    )
-                    self.assertEqual(res_malformed["visual_correspondence"], "UNVERIFIED")
-                    self.assertIn(res_malformed["validation_status"], ("FAILED", "VERIFICATION_UNAVAILABLE"))
-                    self.assertIn("not valid JSON", res_malformed["reasoning"])
-
-            # Subcase C: JSON missing required keys
-            with patch.dict(os.environ, {"NEBIUS_API_KEY": "mock_api_key"}):
-                with patch("openai.OpenAI") as mock_openai_cls:
-                    mock_client = MagicMock()
-                    mock_choice = MagicMock()
-                    mock_choice.message.content = json.dumps({"unrelated_field": "val"})
-                    mock_response = MagicMock()
-                    mock_response.choices = [mock_choice]
-                    mock_client.chat.completions.create.return_value = mock_response
-                    mock_openai_cls.return_value = mock_client
-
-                    res_bad_schema = verify_candidate_pair(
-                        img_s,
-                        img_r,
-                        suspect_timestamp_sec=5.0,
-                        reference_timestamp_sec=2.0,
-                        source_asset_id="asset_test",
-                    )
-                    self.assertEqual(res_bad_schema["visual_correspondence"], "UNVERIFIED")
-                    self.assertEqual(res_bad_schema["validation_status"], "SCHEMA_VIOLATION")
-
-            # Subcase D: Missing API key
-            with patch.dict(os.environ, {"NEBIUS_API_KEY": ""}):
-                res_no_key = verify_candidate_pair(
-                    img_s,
-                    img_r,
-                    suspect_timestamp_sec=5.0,
-                    reference_timestamp_sec=2.0,
-                    source_asset_id="asset_test",
-                )
-                self.assertEqual(res_no_key["visual_correspondence"], "UNVERIFIED")
-                self.assertEqual(res_no_key["validation_status"], "VERIFICATION_UNAVAILABLE")
-                self.assertIn("Nebius API key not configured", res_no_key["reasoning"])
 
     # -------------------------------------------------------------------------
     # 10. URL Screening: Single-Thumbnail vs Multi-Preview

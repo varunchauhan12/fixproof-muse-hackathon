@@ -23,7 +23,7 @@ export type NavTab =
   | "vault"
   | "hunter"
   | "incidents"
-  | "nemotron"
+  | "muse"
   | "intelligence"
   | "enforcer"
   | "notifications"
@@ -51,7 +51,7 @@ export const NAV_ITEMS: {
   { id: "vault", label: "Asset Vault", icon: Database },
   { id: "hunter", label: "Threat Hunter", icon: Search },
   { id: "incidents", label: "Incidents", icon: ShieldAlert },
-  { id: "nemotron", label: "Muse", icon: Cpu },
+  { id: "muse", label: "Muse", icon: Cpu },
   { id: "intelligence", label: "Intelligence", icon: BarChart3 },
   { id: "enforcer", label: "Enforce & License", icon: Gavel },
   { id: "notifications", label: "Swarm Logs", icon: Bell },

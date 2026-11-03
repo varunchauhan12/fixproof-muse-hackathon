@@ -30,7 +30,7 @@ class TestMuseDemo(unittest.TestCase):
         self.inc_rec = incident()
         self.registry.load_incidents.return_value = [self.inc_rec]
         self.registry.get_incident_by_id.return_value = self.inc_rec
-        self.registry.get_nemotron_reports_for_incident.return_value = []
+        self.registry.get_investigation_reports_for_incident.return_value = []
         self.ns = {"DatabaseManager": Database, "registry": self.registry, "get_db_config": lambda: object(),
             "ConversationManager": ConversationManager, "MuseAssistant": MuseAssistant, "MuseToolRegistry": MuseToolRegistry,
             "RegistryReadStore": RegistryReadStore, "FastAPI": FastAPI, "router": router, "incident_router": incident_router,

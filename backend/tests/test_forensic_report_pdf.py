@@ -395,7 +395,7 @@ class TestForensicReportPDF(unittest.TestCase):
             self.assertEqual(prov["sam_model"], "sam-3.1")
             self.assertEqual(prov["validation_status"], "PROVIDER_VALIDATED")
             self.assertEqual(prov["reasoning_provider"], "meta")
-            self.assertEqual(prov["vision_provider"], "meta")
+            self.assertEqual(prov["vision_provider"], "recorded-evidence")
             self.assertEqual(prov["sam_provider"], "meta")
             self.assertEqual(prov["vector_store"], "FAISS IndexFlatL2")
 

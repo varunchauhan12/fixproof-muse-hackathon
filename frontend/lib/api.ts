@@ -6,7 +6,7 @@ import {
   InvestigateIncidentPayload,
   ReportHistoryItem,
   PackageVerificationResult,
-  NemotronStatus,
+  MuseStatus,
   DraftDocumentPayload,
   DraftDocumentResult,
   SendEmailPayload,
@@ -388,18 +388,18 @@ export function getAssetThumbnailUrl(thumbnailUrl?: string | null): string {
   return `${API_BASE}${cleanPath}`;
 }
 
-export async function getNemotronStatus(): Promise<NemotronStatus> {
-  const res = await fetchNoCache(`${API_BASE}/api/nemotron/status`);
+export async function getMuseStatus(): Promise<MuseStatus> {
+  const res = await fetchNoCache(`${API_BASE}/api/muse/status`);
   if (!res.ok) {
     throw new Error(`Failed to fetch AI service status (${res.status})`);
   }
   return res.json();
 }
 
-export async function draftNemotronDocument(
+export async function draftMuseDocument(
   payload: DraftDocumentPayload
 ): Promise<DraftDocumentResult> {
-  const res = await fetch(`${API_BASE}/api/nemotron/draft-document`, {
+  const res = await fetch(`${API_BASE}/api/muse/draft-document`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -414,10 +414,10 @@ export async function draftNemotronDocument(
   return res.json();
 }
 
-export async function sendNemotronEmail(
+export async function sendMuseEmail(
   payload: SendEmailPayload
 ): Promise<SendEmailResult> {
-  const res = await fetch(`${API_BASE}/api/nemotron/send-email`, {
+  const res = await fetch(`${API_BASE}/api/muse/send-email`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -437,7 +437,7 @@ export async function getEmailStatus(): Promise<{
   provider: string;
   from_email: string | null;
 }> {
-  const res = await fetchNoCache(`${API_BASE}/api/nemotron/email-status`);
+  const res = await fetchNoCache(`${API_BASE}/api/muse/email-status`);
   if (!res.ok) {
     throw new Error(`Failed to fetch email status (${res.status})`);
   }
@@ -448,7 +448,7 @@ export async function getEmailAuditLog(
   incidentId?: string
 ): Promise<EmailAuditEntry[]> {
   const q = incidentId ? `?incident_id=${encodeURIComponent(incidentId)}` : "";
-  const res = await fetchNoCache(`${API_BASE}/api/nemotron/email-audit-log${q}`);
+  const res = await fetchNoCache(`${API_BASE}/api/muse/email-audit-log${q}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch email audit log (${res.status})`);
   }
@@ -458,7 +458,7 @@ export async function getEmailAuditLog(
 export async function generateDetailedReport(
   payload: DetailedReportPayload
 ): Promise<DetailedReportResponse> {
-  const res = await fetch(`${API_BASE}/api/nemotron/detailed-report`, {
+  const res = await fetch(`${API_BASE}/api/muse/detailed-report`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -474,7 +474,7 @@ export async function generateDetailedReport(
 }
 
 export function getDetailedReportPdfUrl(reportId: string): string {
-  return `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}/pdf`;
+  return `${API_BASE}/api/muse/detailed-report/${encodeURIComponent(reportId)}/pdf`;
 }
 
 export async function downloadDetailedReportPdf(reportId: string): Promise<Blob> {
@@ -490,7 +490,7 @@ export async function getDetailedReport(
   reportId: string
 ): Promise<DetailedReportRecord> {
   const res = await fetchNoCache(
-    `${API_BASE}/api/nemotron/detailed-report/${encodeURIComponent(reportId)}`
+    `${API_BASE}/api/muse/detailed-report/${encodeURIComponent(reportId)}`
   );
   if (!res.ok) {
     throw new Error(`Failed to fetch detailed report (${res.status})`);
@@ -502,7 +502,7 @@ export async function getDetailedReportsForIncident(
   incidentId: string
 ): Promise<DetailedReportListItem[]> {
   const res = await fetchNoCache(
-    `${API_BASE}/api/nemotron/detailed-reports/${encodeURIComponent(incidentId)}`
+    `${API_BASE}/api/muse/detailed-reports/${encodeURIComponent(incidentId)}`
   );
   if (!res.ok) {
     throw new Error(`Failed to fetch detailed reports (${res.status})`);
@@ -513,7 +513,7 @@ export async function getDetailedReportsForIncident(
 export async function emailDetailedReport(
   payload: EmailDetailedReportPayload
 ): Promise<SendEmailResult> {
-  const res = await fetch(`${API_BASE}/api/nemotron/email-detailed-report`, {
+  const res = await fetch(`${API_BASE}/api/muse/email-detailed-report`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -529,7 +529,7 @@ export async function emailDetailedReport(
 }
 
 export function getSummaryDownloadUrl(incidentId: string): string {
-  return `${API_BASE}/api/nemotron/summary-download/${encodeURIComponent(incidentId)}`;
+  return `${API_BASE}/api/muse/summary-download/${encodeURIComponent(incidentId)}`;
 }
 
 export function getAnnotatedFrameUrl(

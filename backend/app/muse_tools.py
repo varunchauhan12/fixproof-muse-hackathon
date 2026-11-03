@@ -78,7 +78,7 @@ class RegistryReadStore:
         return self.registry.get_incident_by_id(incident_id, strict_read=True)
 
     def get_reports(self, incident_id):
-        return self.registry.get_nemotron_reports_for_incident(incident_id, strict_read=True)
+        return self.registry.get_investigation_reports_for_incident(incident_id, strict_read=True)
 
 
 def text(value, limit=500):

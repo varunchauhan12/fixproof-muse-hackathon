@@ -16,7 +16,7 @@ function mount() {
   const api={getClientSessionId:()=> 'session-a',getEmailStatus:async()=>({configured:true}),
     getDetailedReportsForIncident:async()=>[{report_id:'report-a'}],getDetailedReport:async()=>report,
     generateDetailedReport:async p=>{calls.push(['generate',p]);return {success:true,report};},
-    draftNemotronDocument:async p=>{calls.push(['draft',p]);return {body:'[To be proposed]',subject:'Proposal',missing_fields:['rights_holder_name']};},
+    draftMuseDocument:async p=>{calls.push(['draft',p]);return {body:'[To be proposed]',subject:'Proposal',missing_fields:['rights_holder_name']};},
     emailDetailedReport:async p=>{calls.push(['email',p]);return {success:true,status:'ACCEPTED'};},downloadDetailedReportPdf:async()=>new Blob(['%PDF-test'])};
   const hooks={useState(initial){const i=cursor++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(initial){const i=cursor++;if(!(i in slots))slots[i]={current:initial};return slots[i];},useEffect(fn){const i=cursor++;if(!(i in slots)){slots[i]=true;effects.push(fn);}}};
   const exports={};vm.runInNewContext(compile('../components/muse/MuseDocumentWorkspace.tsx'),{exports,require:name=>name==='react'?hooks:name==='react/jsx-runtime'?require(name):api,Blob,URL,setTimeout,window:{addEventListener(){},removeEventListener(){}},navigator:{clipboard:{writeText:async()=>{}}}});
