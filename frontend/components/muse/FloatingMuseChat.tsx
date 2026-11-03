@@ -7,13 +7,14 @@ import { getClientSessionId } from "@/lib/api";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import {
   listMuseIncidents,
-  workflowForText,
   type MuseWorkflow,
   MuseConversationClient,
   transcribeRecording,
   type MuseIncident,
   type MuseMessage,
 } from "@/lib/muse-assistant";
+import { MuseApprovalCard } from "./MuseApprovalCard";
+import { MuseArtifactView } from "./MuseArtifactView";
 import { MuseDocumentWorkspace } from "./MuseDocumentWorkspace";
 import { useActivity } from "@/context/ActivityContext";
 import AITextLoading from "@/components/kokonutui/ai-text-loading";
@@ -30,32 +31,15 @@ function extractText(val: unknown): string {
   return "";
 }
 
-/** Animated audio equalizer bars indicating live voice recording */
-function AudioEqualizerBars({ active }: { active: boolean }) {
-  const bars = [8, 20, 14, 28, 18, 32, 12, 26, 16, 22];
+/** Heights come only from the microphone analyser; silence stays flat. */
+export function AudioEqualizerBars({ levels = [] }: { levels?: readonly number[] }) {
   return (
     <div className="flex items-center gap-1 h-7 px-1.5 select-none" aria-hidden="true">
-      {bars.map((maxH, i) => (
-        <motion.span
-          key={i}
-          animate={
-            active
-              ? {
-                  height: [4, maxH, 6, Math.round(maxH * 0.7), 4],
-                  opacity: [0.65, 1, 0.8, 1, 0.65],
-                }
-              : { height: 4, opacity: 0.35 }
-          }
-          transition={{
-            duration: 0.38 + (i % 4) * 0.08,
-            repeat: Infinity,
-            repeatType: "mirror",
-            ease: "easeInOut",
-            delay: i * 0.04,
-          }}
-          className="w-1 rounded-full bg-rose-600 block origin-bottom shadow-xs"
-        />
-      ))}
+      {Array.from({length: 10}, (_, i) => {
+        const level = Math.max(0, Math.min(1, levels[i] || 0));
+        return <span key={i} style={{height: 4 + level * 24, opacity: 0.35 + level * 0.65}}
+          className="w-1 rounded-full bg-rose-600 block transition-[height,opacity] duration-75 motion-reduce:transition-none" />;
+      })}
     </div>
   );
 }
@@ -65,12 +49,7 @@ export interface FloatingMuseChatProps {
 }
 
 export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingMuseChatProps = {}) {
-  let activityContext: ReturnType<typeof useActivity> | null = null;
-  try {
-    activityContext = useActivity();
-  } catch {
-    // Graceful fallback outside ActivityProvider
-  }
+  const activityContext = useActivity();
   const contextActiveIncidentId = activityContext?.activeIncidentId;
   const effectiveActiveIncident = propIncidentId !== undefined ? propIncidentId : contextActiveIncidentId;
 
@@ -87,10 +66,13 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   const [contextIncident, setContextIncident] = useState<string | null>(effectiveActiveIncident || null);
   const [pendingText, setPendingText] = useState("");
   const [isHolding, setIsHolding] = useState(false);
+  const [transcriptReview, setTranscriptReview] = useState("");
+  const [unread, setUnread] = useState(false);
   const [workflow, setWorkflow] = useState<MuseWorkflow | null>(null);
+  const [artifactEdits, setArtifactEdits] = useState<Record<string, {subject:string;body:string}>>({});
 
   const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  useEffect(() => {selectedRef.current = selected;}, [selected]);
 
   const client = useRef<MuseConversationClient | null>(null);
   const epoch = useRef(0);
@@ -99,11 +81,14 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   const autoSendRef = useRef(false);
   const transcribingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const transcriptionAbort = useRef<AbortController | null>(null);
 
   const shouldReduceMotion = useReducedMotion();
   const capture = useVoiceRecorder(busy || transcribing);
   const discardRef = useRef(capture.discard);
-  discardRef.current = capture.discard;
+  useEffect(() => {discardRef.current = capture.discard;}, [capture.discard]);
 
   // Initialize client and incident list ONCE on mount or session change
   useEffect(() => {
@@ -111,12 +96,15 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     function initialize() {
       epoch.current++;
       sending.current = false;
-      setWorkflow(null);
+      setWorkflow(null); setArtifactEdits({});
       lookup?.abort();
+      transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false; autoSendRef.current=false; isHoldingRef.current=false; setIsHolding(false); setTranscriptReview("");
       discardRef.current?.();
 
       const session = getClientSessionId();
-      const initialActive = selectedRef.current || effectiveActiveIncident || null;
+      const changedSession=client.current && client.current.session!==session;
+      const initialActive = changedSession ? null : selectedRef.current || effectiveActiveIncident || null;
+      selectedRef.current=initialActive || "";
       client.current = new MuseConversationClient(session, initialActive);
       setDraft("");
       setMessages([]);
@@ -160,7 +148,8 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
       const newInc = typeof detail === "string" ? detail : (detail?.incident_id || "");
       const newSess = (typeof detail === "object" && detail?.session_id) ? detail.session_id : getClientSessionId();
       if (newInc && (newInc !== selectedRef.current || client.current?.selectedIncident !== newInc)) {
-        epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null);
+        transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false; autoSendRef.current=false;isHoldingRef.current=false; discardRef.current?.(); setIsHolding(false);setTranscribing(false);setTranscriptReview("");
+      epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null); setArtifactEdits({});
         selectedRef.current = newInc;
         setSelected(newInc);
         setContextIncident(newInc);
@@ -175,7 +164,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
 
     return () => {
       epoch.current++;
-      lookup?.abort();
+      lookup?.abort(); transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false;autoSendRef.current=false;isHoldingRef.current=false;discardRef.current?.();
       window.removeEventListener("fixproof_session_changed", initialize);
       window.removeEventListener("fixproof_open_muse", handleOpen);
       window.removeEventListener("fixproof_muse_select_incident", handleSelect);
@@ -186,7 +175,8 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   useEffect(() => {
     const targetInc = effectiveActiveIncident || "";
     if (targetInc && (targetInc !== selectedRef.current || client.current?.selectedIncident !== targetInc)) {
-      epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null);
+      transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false;autoSendRef.current=false;isHoldingRef.current=false;discardRef.current?.();setIsHolding(false);setTranscribing(false);setTranscriptReview("");
+      epoch.current++; sending.current = false; setBusy(false); setPendingText(""); setWorkflow(null); setArtifactEdits({});
       selectedRef.current = targetInc;
       setSelected(targetInc);
       setContextIncident(targetInc);
@@ -196,14 +186,12 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     }
   }, [effectiveActiveIncident]);
 
-  // Auto-scroll on new messages
+  // Only follow updates while the reader is already near the bottom.
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: shouldReduceMotion ? "auto" : "smooth",
-      });
+    if (isOpen && nearBottom.current && scrollRef.current) {
+      scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
     }
-  }, [messages, busy, isOpen, shouldReduceMotion]);
+  }, [messages, busy, isOpen]);
 
   // Focus input when opened
   useEffect(() => {
@@ -220,12 +208,6 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     const active = client.current;
     if (!active || sending.current || !textToSend) return;
 
-    const requestedWorkflow = workflowForText(textToSend);
-    if (requestedWorkflow) {
-      if (!selectedRef.current) { setError("Select an incident before opening a document workflow."); return; }
-      setWorkflow(requestedWorkflow); setDraft(""); setError("");
-      return; // UI navigation only; Generate and Send remain separate human actions.
-    }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -236,10 +218,13 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     const incidentToUse = selected || effectiveActiveIncident || client.current?.selectedIncident || (incidents.length > 0 ? incidents[0].incident_id : null);
 
     try {
-      const reply = await active.send(textToSend, incidentToUse || null);
+      const emailArtifact = [...messages].reverse().flatMap(m=>m.metadata?.artifacts || []).find(a=>a.kind==='email' && a.incident_id===incidentToUse && a.report_id);
+      const emailDraft = emailArtifact?.report_id ? {report_id:emailArtifact.report_id,...(artifactEdits[emailArtifact.artifact_id] || {subject:emailArtifact.title,body:emailArtifact.body})} : undefined;
+      const reply = await active.send(textToSend, incidentToUse || null, emailDraft);
       if (ticket !== epoch.current) return;
       setDraft("");
       setMessages(active.conversation?.messages || []);
+      setUnread(!nearBottom.current);
       setContextIncident(
         active.selectedIncident || reply.citations[0]?.incident_id || null
       );
@@ -260,85 +245,80 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
         setPendingText("");
       }
     }
-  }, [draft, selected, effectiveActiveIncident, incidents]);
+  }, [draft, selected, effectiveActiveIncident, incidents, messages, artifactEdits]);
 
   // Reset conversation to start fresh
   const handleNewChat = useCallback(() => {
+    epoch.current++;sending.current=false;setBusy(false);setTranscribing(false);setIsHolding(false);setTranscriptReview("");
+    transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false;autoSendRef.current=false;isHoldingRef.current=false;discardRef.current?.();nearBottom.current=true;
     const session = getClientSessionId();
     const activeToSet = selected || (incidents.length > 0 ? incidents[0].incident_id : null);
     client.current = new MuseConversationClient(session, activeToSet);
     setMessages([]);
-    setWorkflow(null);
+    setWorkflow(null); setArtifactEdits({});
     setDraft("");
     setError("");
     setPendingText("");
   }, [selected, incidents]);
 
-  // Push-To-Talk Voice Bubble Handlers (Hold to speak, release to send)
-  const handleHoldStart = useCallback(async (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    if (busy || transcribing || isHoldingRef.current) return;
-    setError("");
-    isHoldingRef.current = true;
-    autoSendRef.current = true;
-    setIsHolding(true);
-    await capture.startRecording();
-  }, [busy, transcribing, capture]);
+  const sendRef=useRef(send);
+  useEffect(()=>{sendRef.current=send;},[send]);
 
-  const handleHoldEnd = useCallback((e: React.SyntheticEvent) => {
-    e.preventDefault();
-    if (!isHoldingRef.current) return;
-    isHoldingRef.current = false;
-    setIsHolding(false);
-    capture.stopRecording();
-  }, [capture]);
-
-  // Auto-transcribe and automatically send once audio recording is converted
-  useEffect(() => {
-    if (autoSendRef.current && capture.captured && capture.file && !transcribingRef.current) {
-      autoSendRef.current = false;
-      transcribingRef.current = true;
-      const fileToTranscribe = capture.file;
-      const targetSession = client.current?.session || getClientSessionId();
-
-      setTranscribing(true);
-      setError("");
-
-      // Safety timeout guard (12s) so the UI never gets stuck on transcribing
-      const timeoutTimer = setTimeout(() => {
-        if (transcribingRef.current) {
-          transcribingRef.current = false;
-          setTranscribing(false);
-          capture.discard();
-          setError("Transcription timed out. Please hold and speak again.");
-        }
-      }, 12000);
-
-      (async () => {
-        let transcriptText = "";
-        let errorMsg = "";
-        try {
-          const result = await transcribeRecording(fileToTranscribe, targetSession);
-          transcriptText = result?.transcript?.trim() || "";
-        } catch (err) {
-          errorMsg = err instanceof Error ? err.message : "Voice transcription failed.";
-        } finally {
-          clearTimeout(timeoutTimer);
-          capture.discard();
-          transcribingRef.current = false;
-          setTranscribing(false);
-        }
-
-        if (errorMsg) {
-          setError(errorMsg);
-        } else if (transcriptText) {
-          void send(transcriptText);
-        } else {
-          setError("No speech was detected. Hold and speak again.");
-        }
-      })();
+  const cancelVoice=useCallback(()=>{
+    autoSendRef.current=false;isHoldingRef.current=false;transcriptionAbort.current?.abort();transcriptionAbort.current=null;transcribingRef.current=false;
+    transcribingRef.current=false;discardRef.current?.();setIsHolding(false);setTranscribing(false);
+  },[]);
+  useEffect(()=>{window.addEventListener('pagehide',cancelVoice);return()=>window.removeEventListener('pagehide',cancelVoice);},[cancelVoice]);
+  const closeChat=()=>{cancelVoice();setIsOpen(false);};
+  const toggleRecording=async()=>{
+    if(isHoldingRef.current){
+      isHoldingRef.current=false;setIsHolding(false);
+      if(capture.recordState==='permission'){autoSendRef.current=false;capture.discard();return;}
+      capture.stopRecording();return;
     }
-  }, [capture.captured, capture.file, send, capture.discard]);
+    if(busy||transcribing||transcribingRef.current||capture.recordingBusy)return;
+    setError("");setTranscriptReview("");isHoldingRef.current=true;autoSendRef.current=true;setIsHolding(true);
+    await capture.startRecording();
+  };
+  // A failed permission request must not leave the microphone button showing recording.
+  useEffect(()=>{
+    if(capture.error){isHoldingRef.current=false;autoSendRef.current=false;queueMicrotask(()=>setIsHolding(false));}
+  },[capture.error]);
+  useEffect(()=>{
+    if(!autoSendRef.current||!capture.captured||!capture.file||transcribingRef.current)return;
+    autoSendRef.current=false;isHoldingRef.current=false;
+    const controller=new AbortController();transcriptionAbort.current=controller;
+    const ticket=epoch.current;transcribingRef.current=true;
+    const targetSession=client.current?.session||getClientSessionId();
+    let timedOut=false;
+    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},45000);
+    queueMicrotask(()=>{if(!controller.signal.aborted){setIsHolding(false);setTranscribing(true);setError("");}});
+    (async()=>{
+      try {
+        const result=await transcribeRecording(capture.file!,targetSession,controller.signal);
+        if(controller.signal.aborted||ticket!==epoch.current)return;
+        const transcript=result.transcript.trim();
+        if(!transcript){setError('No speech was detected. Try recording again.');return;}
+        setTranscriptReview(transcript); // Reviewable user text; backend proposes but never auto-executes.
+        void sendRef.current(transcript);
+      } catch(error) {
+        if(ticket===epoch.current && (!controller.signal.aborted||timedOut)) setError(timedOut?'Transcription timed out. No action was executed; record again.':error instanceof Error?error.message:'Transcription failed.');
+      } finally {
+        clearTimeout(timeout);
+        if(transcriptionAbort.current===controller){transcriptionAbort.current=null;transcribingRef.current=false;transcribingRef.current=false;setTranscribing(false);capture.discard();}
+      }
+    })();
+    return()=>{clearTimeout(timeout);controller.abort();};
+  },[capture.captured,capture.file,capture.discard]);
+
+  const decide=async(actionId:string,cancel:boolean)=>{
+    const active=client.current;if(!active||sending.current)return;
+    sending.current=true;setBusy(true);setError("");const ticket=epoch.current;
+    try {await active.decide(actionId,cancel);if(ticket!==epoch.current)return;setMessages(active.conversation?.messages||[]);setUnread(!nearBottom.current);setTranscriptReview("");}
+    catch(error){if(ticket===epoch.current){setMessages(active.conversation?.messages||[]);setError(error instanceof Error?error.message:'The approval could not be confirmed. No retry was made.');}}
+    finally{if(ticket===epoch.current){sending.current=false;setBusy(false);}}
+  };
+  const latestPending=messages.at(-1)?.role==='assistant'?messages.at(-1)?.metadata?.pending_action:null;
 
   const disabled = busy || transcribing || !ready;
 
@@ -401,7 +381,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               duration: shouldReduceMotion ? 0.15 : 0.32,
               ease: [0.16, 1, 0.3, 1],
             }}
-            className="fixed top-3 right-3 bottom-3 sm:top-4 sm:right-4 sm:bottom-4 z-50 flex flex-col w-[calc(100vw-24px)] sm:w-[430px] lg:w-[450px] max-w-[calc(100vw-24px)] h-[calc(100vh-24px)] sm:h-[calc(100vh-32px)] rounded-2xl sm:rounded-3xl bg-[#FAF8F5] border border-[#D5D0C5] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.35)] overflow-hidden font-sans text-black dark:text-black [color-scheme:light]"
+            className="fixed top-3 right-3 bottom-3 sm:top-4 sm:right-4 sm:bottom-4 z-50 flex flex-col w-[calc(100vw-24px)] sm:w-[430px] lg:w-[450px] max-w-[calc(100vw-24px)] h-[calc(100dvh-24px)] sm:h-[calc(100dvh-32px)] rounded-2xl sm:rounded-3xl bg-[#FAF8F5] border border-[#D5D0C5] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.35)] overflow-hidden font-sans text-black dark:text-black [color-scheme:light]"
           >
             {/* Minimal Deskwright-style Top Bar */}
             <header className="flex items-center justify-between px-4 py-3.5 border-b border-[#E8E3D8] bg-[#FAF8F5] select-none shrink-0">
@@ -442,7 +422,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                 {/* Minimize / Close Button */}
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={closeChat}
                   title="Close chat"
                   aria-label="Minimize chat"
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-700 dark:text-zinc-700 hover:text-black dark:hover:text-black hover:bg-zinc-200/60 transition-colors text-xs cursor-pointer font-bold ml-0.5"
@@ -454,13 +434,14 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
 
             <div className="border-b border-[#e8e3d8] px-4 py-3 space-y-2">
               <label className="block text-[11px] font-medium">Active investigation
-                <select aria-label="Muse active incident" className="mt-1 w-full rounded-lg border border-[#d5d0c5] bg-white p-2 text-xs" value={selected} disabled={busy || transcribing} onChange={e => {
+                <select aria-label="Muse active incident" className="mt-1 w-full rounded-lg border border-[#d5d0c5] bg-white p-2 text-xs" value={selected} disabled={busy || transcribing || capture.recordingBusy} onChange={e => {
+                  cancelVoice();setTranscriptReview("");
                   const iid=e.target.value; epoch.current++; sending.current=false; setBusy(false); setPendingText("");
-                  selectedRef.current=iid; setSelected(iid); setContextIncident(iid || null); setMessages([]); setWorkflow(null); setError("");
+                  selectedRef.current=iid; setSelected(iid); setContextIncident(iid || null); setMessages([]); setWorkflow(null); setArtifactEdits({}); setError("");
                   client.current=new MuseConversationClient(getClientSessionId(),iid || null);
                 }}><option value="">Select an incident</option>{selected && !incidents.some(i=>i.incident_id===selected) && <option value={selected}>{selected}</option>}{incidents.map(i=><option key={i.incident_id} value={i.incident_id}>{i.suspect_filename || i.incident_id}</option>)}</select>
               </label>
-              <div className="flex flex-wrap gap-1.5">{[
+              <div className="flex flex-wrap gap-1.5"><button type="button" disabled={disabled || !selected} onClick={()=>setWorkflow("report")} className="rounded-full border border-[#d5d0c5] bg-white px-2 py-1 text-[10px] disabled:opacity-40">Document Studio</button>{[
                 ["Explain investigation","Explain what happened in this selected incident."],
                 ["Temporal analysis","Explain the temporal evidence and its inconsistencies for this incident."],
                 ["SAM findings","Explain the recorded SAM observations and any unavailable information."],
@@ -471,7 +452,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               ].map(([label,prompt])=><button key={label} type="button" disabled={disabled || !selected} onClick={()=>send(prompt)} className="rounded-full border border-[#d5d0c5] bg-white px-2 py-1 text-[10px] hover:bg-zinc-100 disabled:opacity-40">{label}</button>)}</div>
             </div>
             {/* Conversation Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 scrollbar-thin scrollbar-thumb-zinc-400/50 hover:scrollbar-thumb-zinc-500/70">
+            <div ref={scrollRef} onScroll={()=>{const el=scrollRef.current;if(el){nearBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<96;if(nearBottom.current)setUnread(false);}}} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-3.5 scrollbar-thin scrollbar-thumb-zinc-400/50 hover:scrollbar-thumb-zinc-500/70">
               {workflow && selected && <MuseDocumentWorkspace key={`${getClientSessionId()}:${selected}`} incidentId={selected} initial={workflow} onClose={()=>setWorkflow(null)} />}
               {/* Empty State: Matching the Deskwright Aesthetic in Screenshot */}
               {!messages.length && !busy && !workflow && (
@@ -545,12 +526,9 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                   : [{ text: message.text }];
 
                 return (
-                  <motion.div
+                  <div
                     key={message.message_id}
-                    initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.16 }}
-                    className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                    className={`min-w-0 shrink-0 flex flex-col ${isUser ? "items-end" : "items-start"}`}
                   >
                     <div
                       className={`max-w-[92%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
@@ -577,7 +555,9 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                         <p className="whitespace-pre-wrap text-black dark:text-black text-xs leading-relaxed font-normal">{message.text}</p>
                       )}
                     </div>
-                  </motion.div>
+                    {message.metadata?.pending_action && <MuseApprovalCard proposal={message.metadata.pending_action} active={latestPending?.action_id===message.metadata.pending_action.action_id && selected===message.metadata.pending_action.incident_id} busy={busy} onApprove={()=>decide(message.metadata!.pending_action!.action_id,false)} onCancel={()=>decide(message.metadata!.pending_action!.action_id,true)} />}
+                    {message.role === 'assistant' && message.metadata?.artifacts?.map(artifact=><MuseArtifactView key={artifact.artifact_id} artifact={artifact} edit={artifactEdits[artifact.artifact_id]} onEdit={value=>setArtifactEdits(old=>({...old,[artifact.artifact_id]:value}))} onSend={()=>send("Send the PDF report to my email.")} />)}
+                  </div>
                 );
               })}
 
@@ -596,7 +576,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                   <div className="rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs bg-[#F2ECE1] border border-[#DDD6C8] text-black dark:text-black shadow-2xs">
                     <AITextLoading
                       texts={[
-                        "Waiting for the grounded assistant response…",
+                        /\b(send|email me|mail me)\b/i.test(pendingText) ? "Processing the requested email action…" : /\b(report|pdf)\b/i.test(pendingText) ? "Preparing the report and PDF…" : /\b(notice|licensing|proposal|summary)\b/i.test(pendingText) ? "Preparing the requested document…" : "Waiting for the grounded assistant response…",
                       ]}
                       interval={1400}
                       className="text-black dark:text-black text-xs font-semibold"
@@ -625,22 +605,19 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               </div>
             )}
 
+            {unread && <button className="shrink-0 bg-teal-50 p-2 text-xs" onClick={()=>{nearBottom.current=true;setUnread(false);if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}}>New reply ↓</button>}
+            {transcriptReview && <div className="shrink-0 border-t border-[#e8e3d8] px-4 py-2 text-[11px]"><strong>Transcript for review:</strong><p className="max-h-16 overflow-auto whitespace-pre-wrap">{transcriptReview}</p><button disabled={busy} onClick={()=>{setDraft(transcriptReview);setTranscriptReview('');if(latestPending)void decide(latestPending.action_id,true);}} className="underline">Edit and resubmit as text</button></div>}
+            {(isHolding||transcribing||capture.recordingBusy) && <button className="shrink-0 p-1 text-xs text-red-800" onClick={cancelVoice}>Cancel recording / transcription</button>}
             {/* Bottom Composer Area: Deskwright Rounded White Card */}
             <div className="p-3.5 bg-[#FAF8F5] border-t border-[#E8E3D8] space-y-2 select-none shrink-0">
               {/* Push-to-Talk Voice Bubble with Animated Equalizer Bars */}
               <div className="flex justify-center">
                 <button
                   type="button"
-                  onMouseDown={handleHoldStart}
-                  onMouseUp={handleHoldEnd}
-                  onMouseLeave={handleHoldEnd}
-                  onTouchStart={handleHoldStart}
-                  onTouchEnd={handleHoldEnd}
-                  onPointerDown={handleHoldStart}
-                  onPointerUp={handleHoldEnd}
-                  onPointerCancel={handleHoldEnd}
+                  onClick={toggleRecording}
                   disabled={disabled && !isHolding}
-                  aria-label="Hold to speak to Muse"
+                  aria-label={isHolding ? "Stop recording and transcribe" : "Start voice recording"}
+                  aria-pressed={isHolding}
                   className={`relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-xs transition-all select-none cursor-pointer shadow-xs ${
                     isHolding
                       ? "bg-rose-50 border-2 border-rose-500 text-rose-950 shadow-rose-200 scale-105"
@@ -651,9 +628,9 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                 >
                   {isHolding ? (
                     <div className="flex items-center gap-2">
-                      <AudioEqualizerBars active={true} />
+                      <AudioEqualizerBars levels={capture.audioBars} />
                       <span className="font-bold text-rose-950">
-                        Listening… ({Math.floor(capture.seconds)}s) · Release to send
+                        {capture.recordState === "permission" ? "Allow microphone access…" : `Recording · ${Math.floor(capture.seconds)}s · Click to stop`}
                       </span>
                     </div>
                   ) : transcribing ? (
@@ -668,7 +645,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                         <line x1="12" y1="19" x2="12" y2="22" />
                       </svg>
-                      <span>Hold to speak</span>
+                      <span>Click to record</span>
                     </div>
                   )}
                 </button>
@@ -680,9 +657,9 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
               }`}>
                 {isHolding ? (
                   <div className="flex items-center gap-2 w-full px-2 py-0.5 select-none min-h-[28px]">
-                    <AudioEqualizerBars active={true} />
+                    <AudioEqualizerBars levels={capture.audioBars} />
                     <span className="text-xs font-semibold text-rose-950 truncate">
-                      Listening… ({Math.floor(capture.seconds)}s) · Release to send
+                      {capture.recordState === "permission" ? "Allow microphone access…" : `Recording · ${Math.floor(capture.seconds)}s · Click to stop`}
                     </span>
                   </div>
                 ) : (
@@ -701,35 +678,11 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                         }
                       }
                     }}
-                    placeholder="Ask Muse or hold voice bubble… (Enter to send)"
+                    placeholder="Ask Muse or click the microphone… (Enter to send)"
                     disabled={disabled}
                     className="w-full bg-transparent px-2 text-xs text-black dark:text-black placeholder:text-zinc-500 focus:outline-none font-normal"
                   />
                 )}
-
-                {/* Microphone Hold Icon */}
-                <button
-                  type="button"
-                  onMouseDown={handleHoldStart}
-                  onMouseUp={handleHoldEnd}
-                  onMouseLeave={handleHoldEnd}
-                  onTouchStart={handleHoldStart}
-                  onTouchEnd={handleHoldEnd}
-                  onPointerDown={handleHoldStart}
-                  onPointerUp={handleHoldEnd}
-                  onPointerCancel={handleHoldEnd}
-                  disabled={disabled && !isHolding}
-                  title="Hold to speak"
-                  className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors cursor-pointer shrink-0 ${
-                    isHolding ? "text-rose-700 bg-rose-100" : "text-zinc-600 dark:text-zinc-600 hover:text-black dark:hover:text-black hover:bg-zinc-100"
-                  }`}
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="22" />
-                  </svg>
-                </button>
 
                 {/* Deskwright Black Pill Send Button with Up-Arrow ↑ */}
                 <button

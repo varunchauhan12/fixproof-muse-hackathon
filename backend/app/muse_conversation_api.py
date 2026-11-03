@@ -9,7 +9,7 @@ from fastapi.routing import APIRoute
 
 from app.muse_conversations import (
     Conversation, ConversationError, ConversationManager, CreateConversationRequest, MessageRequest, MessageResponse,
-    validate_session,
+    validate_session, ActionDecision,
 )
 from app.muse_tools import MuseToolResult
 
@@ -79,3 +79,15 @@ def process_message(conversation_id: UUID, payload: MessageRequest, session: Ses
                     assistant=Depends(get_muse_assistant)):
     # Sync route uses FastAPI's worker pool; provider calls do not block its event loop.
     return assistant.respond(conversation_id, session, payload)
+
+
+@router.post("/{conversation_id}/actions/{action_id}/approve", response_model=MessageResponse)
+def approve_action(conversation_id: UUID, action_id: UUID, payload: ActionDecision, session: Session,
+                   assistant=Depends(get_muse_assistant)):
+    return assistant.decide_action(conversation_id,session,str(action_id),payload)
+
+
+@router.post("/{conversation_id}/actions/{action_id}/cancel", response_model=MessageResponse)
+def cancel_action(conversation_id: UUID, action_id: UUID, payload: ActionDecision, session: Session,
+                  assistant=Depends(get_muse_assistant)):
+    return assistant.decide_action(conversation_id,session,str(action_id),payload,cancel=True)

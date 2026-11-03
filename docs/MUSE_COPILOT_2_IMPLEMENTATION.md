@@ -142,3 +142,22 @@ Persistent conversations, Report Studio versioning, ActionService/approval
 tokens, case management, tasks/notifications, new auth, SAM mask decoding,
 object tracking/correspondence. See `docs/META_MIGRATION_INVESTIGATION.md`
 and the P4.0 blueprint discussion for the staged path.
+
+## Natural-language execution extension (2026-11-03)
+
+The initial UI-only routing described above is superseded by the bounded backend
+chat-action dispatcher. Report/PDF and document requests now execute existing
+services and return actual artifacts directly in chat. The optional manual Studio
+remains available. Fixed registered-recipient sending uses explicit chat intent;
+manual/third-party workflow confirmation guards remain unchanged.
+
+See [MUSE_NATURAL_LANGUAGE_ACTIONS_IMPLEMENTATION.md](MUSE_NATURAL_LANGUAGE_ACTIONS_IMPLEMENTATION.md)
+for current execution, configured-recipient handling, exact tests, live Muse/PDF
+verification, changed files and limits. Initial JSON-object report synthesis was
+repaired with the existing structured schema helper and reasoning budget; final
+live Muse Wonder synthesis and actual PDF download succeeded. No real email was
+sent during validation.
+
+An external process committed the earlier checkpoint as `59b7c7d` while this work
+was in progress. The current extension remains uncommitted; this task did not
+perform staging, commit, push, branch changes or deployment.

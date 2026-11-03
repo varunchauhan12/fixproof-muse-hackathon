@@ -176,7 +176,7 @@ function recorderFixture(getMedia) {
     start() { this.state = "recording"; }
     stop() { this.state = "inactive"; this.ondataavailable?.({ data: new Blob(["recorded audio fixture"]) }); this.onstop?.(); }
   }
-  const context = { exports: {}, Error, require: name => name === "react" ? hooks : { VOICE_MAX_BYTES: 25*1024*1024, VOICE_MAX_SECONDS: 600,
+  const context = { exports: {}, Error, require: name => name === "react" ? hooks : name === "@/lib/voice-meter" ? {VOICE_METER_BARS:10,startVoiceMeter:()=>()=>{}} : { VOICE_MAX_BYTES: 25*1024*1024, VOICE_MAX_SECONDS: 600,
       recordingToWav: async () => new File(["converted WAV fixture"], "recording.wav", { type: "audio/wav" }) },
     navigator: { mediaDevices: { getUserMedia: (...args) => { captures++; return getMedia(...args); } } },
     MediaRecorder: Recorder, OfflineAudioContext: class {}, Blob, File, DOMException,

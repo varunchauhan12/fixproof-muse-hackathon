@@ -42,11 +42,29 @@ class ToolResult(Contract):
     error_code: Label | None = None
 
 
+from app.muse_actions import MuseArtifact
+
+
+class PendingAction(Contract):
+    action_id: Reference
+    action: Label
+    summary: Text
+    expires_at: datetime
+    incident_id: Reference
+    report_id: Reference | None = None
+    recipient_email: str | None = Field(default=None, max_length=254)
+    subject: str | None = Field(default=None, max_length=200)
+    body_preview: str | None = Field(default=None, max_length=20000)
+    attachment_name: str | None = Field(default=None, max_length=200)
+
+
 class MessageMetadata(Contract):
+    pending_action: PendingAction | None = None
+    artifacts: list[MuseArtifact] = Field(default_factory=list, max_length=4)
     client_message_id: Reference | None = None
     provider: Label | None = None
     model_id: Label | None = None
-    status: Literal["completed", "needs_clarification", "failed"] | None = None
+    status: Literal["completed", "needs_clarification", "awaiting_confirmation", "failed"] | None = None
     citations: list[Citation] = Field(default_factory=list, max_length=20)
     tool_results: list[ToolResult] = Field(default_factory=list, max_length=3)
 
@@ -69,7 +87,19 @@ class Conversation(Contract):
     selected_incident_id: Reference | None = None
 
 
+class EmailDraft(Contract):
+    report_id: Reference
+    subject: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200, pattern=r"^[^\r\n]+$")]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)]
+
+
+class ActionDecision(Contract):
+    expected_revision: Revision
+    selected_incident_id: Reference
+
+
 class MessageRequest(Contract):
+    email_draft: EmailDraft | None = None
     """Natural-language message input with optimistic revision checking."""
     client_message_id: Reference
     text: Text
@@ -77,14 +107,10 @@ class MessageRequest(Contract):
     selected_incident_id: Reference | None = None
 
 
-class PendingAction(Contract):
-    action_id: Reference
-    action: Label
-    summary: Text
-    expires_at: datetime
 
 
 class MessageResponse(Contract):
+    artifacts: list[MuseArtifact] = Field(default_factory=list, max_length=4)
     """Turn result; provenance is null when no model request was attempted."""
     conversation_id: UUID
     revision: Revision
@@ -128,6 +154,7 @@ class ConversationManager:
         self._items: dict[UUID, tuple[Conversation, float]] = {}
         self._active_turns: dict[UUID, UUID] = {}
         self._grounding: dict[UUID, list[dict]] = {}
+        self._pending: dict[UUID, dict] = {}
         self._lock = threading.Lock()
 
     @classmethod
@@ -139,6 +166,7 @@ class ConversationManager:
             del self._items[key]
             self._active_turns.pop(key, None)
             self._grounding.pop(key, None)
+            self._pending.pop(key, None)
 
     def _find(self, conversation_id, session_id, now):
         validate_session(session_id)
@@ -196,6 +224,7 @@ class ConversationManager:
                 raise ConversationError(409, "TURN_IN_PROGRESS", "A message is already being processed.")
             del self._items[conversation_id]
             self._grounding.pop(conversation_id, None)
+            self._pending.pop(conversation_id, None)
 
     def begin_turn(self, conversation_id: UUID, session_id: str, request: MessageRequest):
         """Atomically reserve one turn and append its user message before any inference."""
@@ -210,6 +239,7 @@ class ConversationManager:
                 raise ConversationError(409, "REVISION_CONFLICT", "Conversation changed. Retrieve it before retrying.")
             if any(m.metadata.client_message_id == request.client_message_id for m in conversation.messages):
                 raise ConversationError(409, "DUPLICATE_MESSAGE", "This client message ID was already used.")
+            self._pending.pop(conversation_id, None)
             token = uuid4()
             self._active_turns[conversation_id] = token
             conversation.messages = (conversation.messages + [message])[-self.max_messages:]
@@ -235,6 +265,36 @@ class ConversationManager:
             self._items[conversation_id] = (conversation, now)
             del self._active_turns[conversation_id]
             return conversation.model_copy(deep=True)
+
+    def propose_action(self, conversation_id, session, token, card, payload):
+        with self._lock:
+            self._find(conversation_id, session, self._clock())
+            if self._active_turns.get(conversation_id) != token:
+                raise ConversationError(409, "REVISION_CONFLICT", "The conversation changed.")
+            self._pending[conversation_id] = {"card": card.model_copy(deep=True),
+                "payload": deepcopy(payload), "created": self._clock(), "consumed": False}
+
+    def claim_action(self, conversation_id, session, action_id, expected_revision, incident_id, *, cancel=False):
+        with self._lock:
+            now = self._clock()
+            conversation = self._find(conversation_id, session, now)
+            pending = self._pending.get(conversation_id)
+            if not pending or pending["card"].action_id != str(action_id) or pending["consumed"]:
+                raise ConversationError(409, "ACTION_UNAVAILABLE", "This proposal is no longer available or has already been handled.")
+            if now - pending["created"] >= 600:
+                raise ConversationError(410, "ACTION_EXPIRED", "This proposal expired. Ask for a new proposal.")
+            if conversation_id in self._active_turns or conversation.revision != expected_revision:
+                raise ConversationError(409, "REVISION_CONFLICT", "Retrieve the conversation before acting on this proposal.")
+            if conversation.selected_incident_id != pending["card"].incident_id or incident_id != pending["card"].incident_id:
+                raise ConversationError(409, "ACTION_CONTEXT_CHANGED", "The selected incident changed. Ask for a new proposal.")
+            pending["consumed"] = True # Claim before external I/O; no repeated/uncertain sends.
+            token = uuid4()
+            self._active_turns[conversation_id] = token
+            message = ConversationMessage(role="user", text="Cancelled proposed action." if cancel else "Approved proposed action.")
+            conversation.messages = (conversation.messages + [message])[-self.max_messages:]
+            conversation.revision += 1
+            self._items[conversation_id] = (conversation, now)
+            return token, conversation.model_copy(deep=True), deepcopy(pending["payload"]), deepcopy(self._grounding.get(conversation_id, []))
 
     def release_turn(self, conversation_id: UUID, token: UUID):
         """Cleanup on unexpected failure; never release another turn's reservation."""

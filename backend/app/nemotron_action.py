@@ -382,7 +382,7 @@ PROPOSED COMMERCIAL PARTNERSHIP TERMS:
 3. Additional Commercial Scope:
    {commercial_terms or "[Commercial scope and reporting terms — to be proposed]"}
 4. Discussion Window:
-   - This preliminary licensing framework is open for review until {(datetime.now(timezone.utc)).strftime('%B %d, %Y')} (open for {response_deadline_days if response_deadline_days is not None else "[To be proposed]"} days).
+   - Discussion window: {str(response_deadline_days) + ' days (proposed, not agreed)' if response_deadline_days is not None else '[To be proposed]' }.
 
 IMPORTANT NOTICE:
 This communication represents a commercial invitation to negotiate and does not constitute a formal licensing contract, a waiver of any statutory rights, or an admission of liability. Heuristic similarity scores are not calibrated probabilities of copyright infringement. If you are interested in legalizing this broadcast and sharing ongoing revenue, please reply directly to {contact_email or '[email]'} to finalize terms.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { startVoiceMeter, VOICE_METER_BARS } from "@/lib/voice-meter";
 import { recordingToWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "@/lib/voice-audio";
 
 /** Shared push-to-talk recorder. Recording/conversion never submits audio or chat. */
@@ -11,6 +12,8 @@ export function useVoiceRecorder(busy = false) {
   const [seconds, setSeconds] = useState(0);
   const [playback, setPlayback] = useState("");
   const [captured, setCaptured] = useState(false);
+  const [audioBars, setAudioBars] = useState<number[]>(Array(VOICE_METER_BARS).fill(0));
+  const meter = useRef<(() => void) | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -23,6 +26,8 @@ export function useVoiceRecorder(busy = false) {
     setRecordingFile(value); setPlayback(playbackUrl.current);
   }, []);
   const release = useCallback(() => {
+    meter.current?.(); meter.current = null;
+    setAudioBars(Array(VOICE_METER_BARS).fill(0));
     stream.current?.getTracks().forEach(track => track.stop()); stream.current = null;
     if (timer.current) clearInterval(timer.current); timer.current = null;
   }, []);
@@ -85,7 +90,11 @@ export function useVoiceRecorder(busy = false) {
           if (ticket === generation.current) { activeCapture.current = false; setRecordState("idle"); }
         }
       };
-      active.start(1000); setFile(null); setCaptured(false); setRecordState("recording");
+      active.start(1000);
+      meter.current = startVoiceMeter(input, ({bars}) => {
+        if (ticket === generation.current && active.state === "recording") setAudioBars(previous => previous.every((value, index) => value === bars[index]) ? previous : bars);
+      });
+      setFile(null); setCaptured(false); setRecordState("recording");
       const began = performance.now();
       timer.current = setInterval(() => {
         const elapsed = (performance.now() - began) / 1000; setSeconds(Math.min(VOICE_MAX_SECONDS, elapsed));
@@ -100,6 +109,6 @@ export function useVoiceRecorder(busy = false) {
         : "Unable to start the microphone. Check that it is available and try again.");
     }
   }, [busy, cancelCapture, release, stopRecording, setFile]);
-  return { file, setFile, error, setError, recordState, recordingBusy: recordState !== "idle", seconds,
+  return { audioBars, file, setFile, error, setError, recordState, recordingBusy: recordState !== "idle", seconds,
     playback, captured, setCaptured, startRecording, stopRecording, discard };
 }

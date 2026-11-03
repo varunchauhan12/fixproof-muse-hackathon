@@ -27,6 +27,17 @@ from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
 from PIL import Image as PILImage, ImageDraw, ImageFont
+from pydantic import BaseModel, Field, ConfigDict
+
+
+class DetailedSynthesis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    executive_summary: str = Field(min_length=1)
+    methodology_scope: str = Field(min_length=1)
+    temporal_continuity_analysis: str = Field(min_length=1)
+    model_assessment_and_alternatives: str = Field(min_length=1)
+    risk_limitations: str = Field(min_length=1)
+    recommended_actions: List[str]
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -587,6 +598,7 @@ def synthesize_detailed_report(
     report_content = None
     actual_model = model_to_use
     ai_synthesized = False
+    synthesis_failure = None if api_key else "NOT_CONFIGURED"
 
     if api_key:
         # Try primary model first, fallback to Lightning if primary encounters issues
@@ -596,15 +608,17 @@ def synthesize_detailed_report(
 
         for candidate_model in models_to_try:
             try:
+                from app.providers.meta import schema_format
+                response_format = schema_format("detailed_report", DetailedSynthesis.model_json_schema()) if is_muse else {"type": "json_object"}
                 resp = provider.create_text_completion(dict(
                     model=candidate_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    max_tokens=4000,
+                    max_tokens=min(16384, max(1500, int(os.getenv("MUSE_MAX_TOKENS", "16384")))) if is_muse else 4000,
                     temperature=0.15,
-                    response_format={"type": "json_object"},
+                    response_format=response_format,
                 ))
                 raw_json = resp.choices[0].message.content
                 if raw_json:
@@ -619,7 +633,13 @@ def synthesize_detailed_report(
                     ai_synthesized = True
                     break
             except Exception as e:
-                logger.warning(f"[DetailedReport] Model {candidate_model} failed: {e}. Trying next fallback.")
+                allowed = {"API_TIMEOUT", "AUTHENTICATION_ERROR", "CLIENT_INITIALIZATION_ERROR", "CONNECTION_ERROR",
+                           "EMPTY_CHOICES", "EMPTY_CONTENT", "PROVIDER_API_ERROR", "RATE_LIMIT_EXCEEDED",
+                           "TOKEN_BUDGET_EXHAUSTED", "INVALID_MODEL_OVERRIDE", "INVALID_STRUCTURED_OUTPUT"}
+                synthesis_failure = getattr(e, "category", None)
+                if synthesis_failure not in allowed:
+                    synthesis_failure = "INVALID_REPORT_RESPONSE" if isinstance(e, (ValueError, TypeError)) else "PROVIDER_ERROR"
+                logger.warning("[DetailedReport] Synthesis unavailable: %s", synthesis_failure)
 
     # Deterministic fallback if API offline or models failed
     if not report_content:
@@ -635,7 +655,7 @@ def synthesize_detailed_report(
             model_eval = "Zero significant visual correlations observed. Suspect content does not display perceptual correspondence to active registered broadcast assets."
             risk_lim = "Negative result indicates absence of indexed match above heuristic threshold. Similarity measurements reflect algorithmic distance and do not constitute legal adjudications."
             recs = [
-                "Archive incident report as non-infringing observation.",
+                "Archive the sampled no-indexed-match result; legal status remains undetermined.",
                 "Conduct full video review only if external rights-holder complaints emerge.",
             ]
         else:
@@ -685,6 +705,7 @@ def synthesize_detailed_report(
         "generated_at": now_iso,
         "model_id": actual_model,
         "ai_synthesized": ai_synthesized,
+        "synthesis_failure_category": synthesis_failure if not ai_synthesized else None,
         "sections": {
             "executive_summary": report_content.get("executive_summary", ""),
             "methodology_scope": report_content.get("methodology_scope", ""),
@@ -966,7 +987,7 @@ def generate_detailed_report_pdf(
     elements.append(Spacer(1, 3))
     elements.append(
         Paragraph(
-            "<b>SAMPLING DENSITY & UNCALIBRATED METRIC NOTICE:</b> Analysis evaluated still keyframes sampled at discrete 5.0-second intervals "
+            "<b>SAMPLING DENSITY & UNCALIBRATED METRIC NOTICE:</b> Analysis evaluated still keyframes at recorded, discrete timestamps "
             "rather than continuous video. Unsampled intermediate intervals were not evaluated. Visual similarity scores represent uncalibrated "
             "heuristic distances and do not imply full-sequence continuous duplication or calibrated infringement probabilities.",
             disclaimer_style,

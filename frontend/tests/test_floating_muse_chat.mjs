@@ -24,7 +24,7 @@ const response = (data, status = 200) =>
   new Response(JSON.stringify(data), { status });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
-function fixture() {
+function fixture(messageReply) {
   const calls = [];
   let session = "session-floating-test";
   let revision = 0;
@@ -72,8 +72,12 @@ function fixture() {
       return response(history, 201);
     }
 
+    if (path.includes("/actions/")) {
+      revision+=2;return response({conversation_id:history.conversation_id,revision,message_id:`decision-${revision}`,status:"completed",text:path.endsWith("/cancel")?"Proposal cancelled. Nothing sent.":"Resend accepted the approved email.",citations:[],tool_results:[],pending_action:null});
+    }
     if (path.endsWith("/messages")) {
       revision += 2;
+      if(messageReply)return response(messageReply(body,revision));
       return response({
         conversation_id: history.conversation_id,
         message_id: `asst-${revision}`,
@@ -222,6 +226,8 @@ function mountWidget(f) {
       }
       if (name === "@/lib/api") return { getClientSessionId: f.getSession };
       if (name === "@/lib/muse-assistant") return f.api;
+      if (name === "./MuseApprovalCard") return {MuseApprovalCard:props=>({type:"approval-card",props})};
+      if (name === "./MuseArtifactView") return {MuseArtifactView: props=>({type:"artifact-view",props})};
       if (name === "./MuseDocumentWorkspace") return {MuseDocumentWorkspace: props => ({type:"document-studio",props})};
       if (name === "@/hooks/useVoiceRecorder") return { useVoiceRecorder: () => capture };
       if (name === "@/components/kokonutui/ai-voice") {
@@ -297,6 +303,7 @@ function mountWidget(f) {
     console,
     AbortController,
     File,
+    queueMicrotask,
     setTimeout: (fn) => {
       const id = globalThis.setTimeout?.(fn, 0) || 1;
       return id;
@@ -322,6 +329,7 @@ function mountWidget(f) {
   };
 
   function find(predicate, node = tree, seen = new Set()) {
+    if(Array.isArray(node)){for(const child of node){const match=find(predicate,child,seen);if(match)return match;}return null;}
     if (!node || seen.has(node)) return null;
     seen.add(node);
     if (predicate(node)) return node;
@@ -345,6 +353,7 @@ function mountWidget(f) {
   }
 
   function findAll(predicate, node = tree, results = [], seen = new Set()) {
+    if(Array.isArray(node)){for(const child of node)findAll(predicate,child,results,seen);return results;}
     if (!node || seen.has(node)) return results;
     seen.add(node);
     if (predicate(node)) results.push(node);
@@ -494,7 +503,7 @@ test("composer sends message and displays grounded assistant response with citat
   );
 });
 
-test("holding and releasing voice bubble automatically transcribes and sends to Muse", async () => {
+test("clicking to start/stop automatically transcribes and submits for review", async () => {
   const f = fixture();
   const widget = mountWidget(f);
   widget.render();
@@ -506,16 +515,16 @@ test("holding and releasing voice bubble automatically transcribes and sends to 
   widget.render();
 
   // Find hold-to-speak voice bubble
-  const voiceBtn = widget.find((n) => n.props?.["aria-label"] === "Hold to speak to Muse");
+  const voiceBtn = widget.find((n) => n.props?.["aria-label"] === "Start voice recording");
   assert.ok(voiceBtn, "Voice bubble button must exist");
 
   // Press and hold (start recording)
-  await voiceBtn.props.onMouseDown({ preventDefault: () => {} });
+  await voiceBtn.props.onClick();
   widget.render();
   assert.equal(widget.capture.recordState, "recording");
 
   // Release hold (stops recording, triggers auto-transcribe & auto-send)
-  voiceBtn.props.onMouseUp({ preventDefault: () => {} });
+  await widget.find(n=>n.props?.["aria-label"]==="Stop recording and transcribe").props.onClick();
   widget.render();
   await widget.triggerEffects();
   await tick();
@@ -529,4 +538,73 @@ test("holding and releasing voice bubble automatically transcribes and sends to 
   const msgCall = f.calls.find((c) => c.path.endsWith("/messages"));
   assert.ok(msgCall, "Transcribed text must be automatically sent to Muse");
   assert.equal(msgCall.body.text, "Voice question for Muse");
+});
+
+const proposed=(body,revision)=>({conversation_id:'conv-123',revision,message_id:`proposal-${revision}`,status:'awaiting_confirmation',text:'Review the proposed email.',citations:[],tool_results:[],pending_action:{action_id:'approval-a',action:'send_registered',summary:'Approval sends the exact PDF.',incident_id:'inc-sample2',report_id:'report-a',recipient_email:'student@example.test',subject:'Report',body_preview:'Review attached evidence.',expires_at:'2099-01-01T00:00:00Z'}});
+async function openWidget(f) {
+  const widget=mountWidget(f);widget.render();await widget.triggerEffects();widget.render();
+  widget.find(n=>n.props?.['aria-label']==='talk to the analyst').props.onClick();widget.render();return widget;
+}
+async function typeMessage(widget,text) {
+  const composer=widget.find(n=>n.props?.id==='floating-muse-composer');
+  composer.props.onChange({target:{value:text}});widget.render();
+  widget.find(n=>n.props?.id==='floating-muse-composer').props.onKeyDown({key:'Enter',shiftKey:false,preventDefault(){}});
+  await tick();widget.render();
+}
+test('email intent renders a proposal and only explicit approval calls the decision endpoint',async()=>{
+  const f=fixture(proposed),widget=await openWidget(f);
+  await typeMessage(widget,'I need a copy in my inbox.');
+  const card=widget.find(n=>n.type==='approval-card');assert.ok(card);assert.equal(card.props.active,true);
+  assert.equal(f.calls.filter(c=>c.path.includes('/actions/')).length,0);
+  const first=card.props.onApprove();card.props.onApprove();await first;widget.render();
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/approve')).length,1);
+  assert.equal(widget.find(n=>n.type==='approval-card').props.active,false);
+});
+test('cancelled proposals cannot send and scroll-up reading position is preserved',async()=>{
+  const f=fixture(proposed),widget=await openWidget(f);
+  const scroller=widget.find(n=>n.props?.onScroll);
+  const dom={scrollHeight:900,clientHeight:200,scrollTop:0};scroller.props.ref.current=dom;scroller.props.onScroll();
+  await typeMessage(widget,'Email me the findings.');await widget.triggerEffects();widget.render();
+  assert.equal(dom.scrollTop,0);
+  assert.ok(widget.text(widget.render()).includes('New reply'));
+  await widget.find(n=>n.type==='approval-card').props.onCancel();widget.render();
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/approve')).length,0);
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/cancel')).length,1);
+});
+test('closing chat during transcription aborts late results and never submits a message',async()=>{
+  const f=fixture();let resolve;
+  f.api.transcribeRecording=()=>new Promise(r=>{resolve=r;});
+  const widget=await openWidget(f);
+  await widget.find(n=>n.props?.['aria-label']==='Start voice recording').props.onClick();widget.render();
+  await widget.find(n=>n.props?.['aria-label']==='Stop recording and transcribe').props.onClick();widget.render();await widget.triggerEffects();
+  widget.find(n=>n.props?.['aria-label']==='Minimize chat').props.onClick();widget.render();
+  resolve({transcript:'Send a report to my email.'});await tick();widget.render();
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/messages')).length,0);
+  assert.equal(widget.capture.recordState,'idle');
+});
+test('permission failure returns microphone to idle without transcription',async()=>{
+  const f=fixture(),widget=await openWidget(f);
+  widget.capture.startRecording=async()=>{widget.capture.error='Microphone permission was denied.';};
+  await widget.find(n=>n.props?.['aria-label']==='Start voice recording').props.onClick();widget.render();await widget.triggerEffects();widget.render();
+  assert.ok(widget.find(n=>n.props?.['aria-label']==='Start voice recording'));
+  assert.equal(f.calls.filter(c=>c.path==='/api/voice/transcribe').length,0);
+});
+
+test('empty transcription reports no speech and makes no classification request',async()=>{
+  const f=fixture();f.api.transcribeRecording=async()=>({transcript:''});
+  const widget=await openWidget(f);
+  await widget.find(n=>n.props?.['aria-label']==='Start voice recording').props.onClick();widget.render();
+  await widget.find(n=>n.props?.['aria-label']==='Stop recording and transcribe').props.onClick();widget.render();await widget.triggerEffects();widget.render();
+  assert.ok(widget.text(widget.render()).includes('No speech was detected'));
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/messages')).length,0);
+});
+test('incident switch suppresses an old asynchronous response and its artifacts',async()=>{
+  const f=fixture();let complete;
+  f.api.MuseConversationClient.prototype.send=function(){return new Promise(resolve=>{complete=()=>{this.conversation={messages:[{message_id:'old',role:'assistant',text:'OLD RESPONSE',metadata:{artifacts:[{artifact_id:'old-artifact',kind:'report',body:'OLD ARTIFACT'}]}}]};resolve({citations:[]});};});};
+  const widget=await openWidget(f);
+  await typeMessage(widget,'Explain this investigation.');
+  widget.events.get('fixproof_muse_select_incident')({detail:'different-incident'});widget.render();
+  complete();await tick();widget.render();
+  const rendered=widget.text(widget.render());
+  assert.ok(!rendered.includes('OLD RESPONSE'));assert.ok(!rendered.includes('OLD ARTIFACT'));
 });
