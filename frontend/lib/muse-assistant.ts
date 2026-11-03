@@ -32,10 +32,11 @@ export async function listMuseIncidents(session: string, signal?: AbortSignal): 
   return result.data.incidents;
 }
 
-export async function transcribeRecording(file: File, session: string, signal?: AbortSignal) {
+export type VoiceLanguage = "auto" | "en" | "hi" | "en-hi";
+export async function transcribeRecording(file: File, session: string, signal?: AbortSignal, language:VoiceLanguage="auto") {
   if (!file.name.toLowerCase().endsWith(".wav") || !file.size || file.size > 25 * 1024 * 1024)
     throw new MuseApiError("Choose a nonempty PCM WAV file no larger than 25 MiB.");
-  const body = new FormData(); body.append("file", file);
+  const body = new FormData(); body.append("file", file); if(language!=="auto")body.append("language",language);
   const response = await fetch(`${API_BASE}/api/voice/transcribe`, { method: "POST", body, signal, headers: { "X-Client-Session-ID": session } });
   const data = await response.json().catch(() => null);
   if (!response.ok || data?.success !== true) throw new MuseApiError(typeof data?.detail === "string" ? data.detail : "Transcription failed.");

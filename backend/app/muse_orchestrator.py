@@ -256,11 +256,12 @@ not suspicious frames or missing evidence. Keep NO_MATCH, SUSPECT_MATCH and CONF
 distinct. observation_counts refer to the returned bounded sample. Missing vision annotations
 do not describe what an image shows. No new image analysis is performed by these tools.
 If a selected_incident_hint exists, treat it as the active incident currently open on the user's screen.
-Prioritize that incident ID for any question about 'this video', 'this incident', 'the current scan', 'what happened', 'evidence', or 'detailed report'.
-When selected_incident_hint is present and the user asks about 'this incident', 'what happened', 'detailed report', or 'explain', immediately inspect that incident using get_incident_details and get_evidence_bundle with incident_id=selected_incident_hint.
+Prioritize that incident ID for any question about 'this video', 'this incident', 'the current scan', 'what happened', 'evidence', 'tampering', 'manipulation', 'alterations', 'counterfeit broadcast', or 'detailed report'.
+When selected_incident_hint is present and the user asks about 'this incident', 'what happened', 'detailed report', 'tampering', 'manipulation', or 'explain', immediately inspect that incident using get_incident_details and get_evidence_bundle with incident_id=selected_incident_hint.
 Only call get_investigation_reports if has_investigation_reports is true in get_incident_details. If has_investigation_reports is false, do not call get_investigation_reports; provide the comprehensive forensic report and evidence analysis directly from get_incident_details and get_evidence_bundle. Never ask for clarification of which incident when selected_incident_hint is present.
 Do NOT call get_latest_incident or list_recent_incidents when a valid selected_incident_hint is present unless the user explicitly requests other incidents or the latest scan.
 If no selected_incident_hint exists, do not assume an arbitrary incident is active; use list_recent_incidents or clarify.
+For inquiries regarding video tampering, manipulation, stream alterations, or broadcast integrity, inspect get_evidence_bundle and get_incident_details. Analyze whether recorded timestamps show chronological inversions, large offset deviations, gap anomalies, unconfirmed/confirmed candidate disparities, or bounding-box / segment mask deviations that point to stream modifications, inserted segments, or altered playback. Clearly explain the forensic findings grounded in the data without stating subjective legal conclusions.
 For questions about objects or SAM, retrieve get_evidence_bundle and inspect sam_context. Explain its availability and cache limitations.
 Only describe returned validated labels for their exact candidate and target. PARTIAL observations are incomplete.
 Missing/expired cache does not mean SAM never ran. Never infer tracking, object correspondence or decoded masks.
@@ -511,17 +512,28 @@ class MuseAssistant:
             if re.search(r'\bsam\b', request.text, re.I): requested.append('sam')
             if re.search(r'\btemporal\b', request.text, re.I): requested.append('temporal')
             if requested and re.search(r'\b(summary|summarize|report|investigation|show|give|download|results|evidence|observations|findings|analysis|explain)\b', request.text, re.I) and not re.search(r'\b(email|mail|send|share)\b', request.text, re.I):
-                from app.evidence_summary_api import get_summaries
+                from app.evidence_summary_api import get_summaries, authorized
+                from app.security import is_demo_mode
                 from app.muse_actions import MuseArtifact
                 artifacts = []
+                demo = is_demo_mode()
                 if selected:
                     try:
                         incident = self.tools._incident(session_id, selected)
-                    except ToolFailure:
+                    except ToolFailure as error:
                         incident = None
-                        selected = None
+                        if error.code == 'ACCESS_DENIED':
+                            # Match the incident workspace policy only for reading briefs.
+                            # Other tools and document/email actions retain their own gates.
+                            from fastapi import HTTPException
+                            try:
+                                incident = authorized(selected, session_id, self.tools.store.get_incident, allow_demo=demo)
+                            except HTTPException:
+                                pass
+                        if incident is None:
+                            selected = None
                     for kind in requested if incident else []:
-                        summary = get_summaries().read(incident, session_id, kind)
+                        summary = get_summaries().read(incident, session_id, kind, allow_demo=demo)
                         if summary:
                             artifacts.append(MuseArtifact(artifact_id=summary['summary_id'], incident_id=selected,
                                 kind='evidence_summary', summary_kind=kind, title=f"{kind.upper()} investigation summary",

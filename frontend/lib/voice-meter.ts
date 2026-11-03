@@ -1,6 +1,6 @@
 /** Local-only microphone metering. No recording, upload, inference or playback. */
 export const VOICE_METER_BARS = 10;
-export const VOICE_NOISE_FLOOR = 0.015;
+export const VOICE_NOISE_FLOOR = 0.0015;
 
 export function measureVoiceAudio(samples: Float32Array, spectrum: Uint8Array, sampleRate: number) {
   if (!samples.length) return {level: 0, bars: Array<number>(VOICE_METER_BARS).fill(0)};
@@ -10,7 +10,7 @@ export function measureVoiceAudio(samples: Float32Array, spectrum: Uint8Array, s
   if (!Number.isFinite(rms) || rms < VOICE_NOISE_FLOOR) {
     return {level: 0, bars: Array<number>(VOICE_METER_BARS).fill(0)};
   }
-  const level = Math.min(1, (rms - VOICE_NOISE_FLOOR) / 0.15);
+  const level = Math.min(1, Math.max(0, Math.log10(rms / VOICE_NOISE_FLOOR) / 2));
   // Log-spaced frequency bands, constrained to the actual available spectrum.
   const bars = Array.from({length: VOICE_METER_BARS}, (_, i) => {
     const low = 100 * (40 ** (i / VOICE_METER_BARS));
@@ -25,7 +25,7 @@ export function measureVoiceAudio(samples: Float32Array, spectrum: Uint8Array, s
 }
 
 /** Meter the existing stream; failures never prevent recording or invent activity. */
-export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnType<typeof measureVoiceAudio>) => void): () => void {
+export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnType<typeof measureVoiceAudio>) => void, onAvailability: (available:boolean)=>void = ()=>{}, existingContext?:AudioContext): () => void {
   let context: AudioContext | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let analyser: AnalyserNode | null = null;
@@ -33,15 +33,15 @@ export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnTyp
   let stopped = false;
   const stop = () => {
     if (stopped) return;
-    stopped = true;
+    stopped = true; onAvailability(false);
     if (frame !== null) cancelAnimationFrame(frame);
     source?.disconnect(); analyser?.disconnect();
     if (context && context.state !== 'closed') void context.close().catch(() => {});
   };
   try {
     const Audio = window.AudioContext || (window as Window & {webkitAudioContext?: typeof AudioContext}).webkitAudioContext;
-    if (!Audio) return stop;
-    context = new Audio();
+    if (!Audio && !existingContext) {onAvailability(false);return stop;}
+    context = existingContext || new Audio();
     source = context.createMediaStreamSource(stream);
     analyser = context.createAnalyser();
     analyser.fftSize = 1024;
@@ -61,7 +61,8 @@ export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnTyp
       frame = requestAnimationFrame(sample);
     };
     // Resume may be needed after the microphone permission prompt in Safari.
-    void context.resume().catch(() => stop());
+    onAvailability(context.state==='running');
+    void context.resume().then(()=>{if(!stopped)onAvailability(context?.state==='running');}).catch(() => stop());
     frame = requestAnimationFrame(sample);
   } catch { stop(); }
   return stop;

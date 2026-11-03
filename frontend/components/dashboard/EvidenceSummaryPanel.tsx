@@ -16,21 +16,23 @@ function SessionSummary({incidentId,kind,ready,version,session}:{incidentId:stri
   const [downloading,setDownloading]=useState(false);
   const attempted=useRef('');
   useEffect(()=>{
-    if(ready)return;
-    const controller=new AbortController();
-    evidenceSummary(incidentId,kind,session,false,controller.signal).then(value=>{if(!controller.signal.aborted)setSummary(value);}).catch(()=>{/* Generation below supplies actionable errors. */});
-    return()=>controller.abort();
-  },[incidentId,kind,session,ready]);
-  useEffect(()=>{
-    const key=`${version}:${attempt}`;
-    if(!ready){attempted.current='';return;}
+    const key=`${ready}:${version}:${attempt}`;
     if(attempted.current===key)return;
     // Delay dispatch one microtask so Strict Mode's cleanup cannot duplicate inference.
     const controller=new AbortController();
     void Promise.resolve().then(async()=>{
       if(controller.signal.aborted)return;
-      attempted.current=key;setBusy(true);setError('');
-      try {const value=await evidenceSummary(incidentId,kind,session,true,controller.signal);if(!controller.signal.aborted)setSummary(value);}
+      attempted.current=key;setBusy(ready);setError('');
+      try {
+        // Restore a saved brief first; a failed refresh must not hide its PDF.
+        const saved=await evidenceSummary(incidentId,kind,session,false,controller.signal);
+        if(controller.signal.aborted)return;
+        setSummary(saved);
+        if(ready){
+          const value=await evidenceSummary(incidentId,kind,session,true,controller.signal);
+          if(!controller.signal.aborted)setSummary(value);
+        }
+      }
       catch(reason){if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'Summary generation failed.');}
       finally{if(!controller.signal.aborted)setBusy(false);}
     });

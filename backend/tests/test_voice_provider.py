@@ -56,7 +56,7 @@ class TestVoiceProvider(unittest.TestCase):
         self.assertEqual(req.headers["accept"], "application/json")
         msg = BytesParser(policy=default).parsebytes(b"Content-Type: " + req.headers["content-type"].encode() + b"\r\n\r\n" + req.content)
         parts = {p.get_param("name", header="content-disposition"): p for p in msg.iter_parts()}
-        self.assertEqual(json.loads(parts["request"].get_payload(decode=True)), {"model": result.model_id, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"})
+        self.assertEqual(json.loads(parts["request"].get_payload(decode=True)), {"model": result.model_id, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK", "keywords": ["FixProof","Muse","SAM","Supabase","timestamps"]})
         self.assertIsNone(parts["request"].get_filename())
         self.assertEqual(parts["audio"].get_payload(decode=True), audio)
         self.assertEqual(parts["audio"].get_content_type(), "audio/wav")
@@ -127,3 +127,16 @@ class TestVoiceProvider(unittest.TestCase):
         with patch.dict(os.environ, {"FIXPROOF_AI_PROVIDER": "nemotron"}):
             with self.assertRaises(ValueError): factory.get_voice_provider()
             self.assertEqual(factory.get_vision_provider().provider_name, "nemotron")
+
+    def test_language_bias_uses_documented_multipart_field(self):
+        MetaVoiceProvider().transcribe(wav(rate=24000),language_bias=['Hindi','English'])
+        req=self.calls[0]
+        msg=BytesParser(policy=default).parsebytes(b'Content-Type: '+req.headers['content-type'].encode()+b'\r\n\r\n'+req.content)
+        part=next(p for p in msg.iter_parts() if p.get_param('name',header='content-disposition')=='request')
+        self.assertEqual(json.loads(part.get_payload(decode=True))['languageBias'],['Hindi','English'])
+        self.assertEqual(len(self.calls),1)
+
+    def test_invalid_language_hint_never_initializes_transport(self):
+        for hint in (['Invented'],[],['English','Hindi','English'],'English'):
+            with self.subTest(hint=hint),self.assertRaises(meta_client.MetaAPIError):MetaVoiceProvider().transcribe(wav(),language_bias=hint)
+        self.getter.assert_not_called()

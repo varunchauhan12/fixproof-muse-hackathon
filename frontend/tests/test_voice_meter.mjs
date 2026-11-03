@@ -11,7 +11,7 @@ const signal=amplitude=>Float32Array.from({length:1024},(_,i)=>Math.sin(2*Math.P
 
 test('silence, constant DC offset and quiet background noise leave all bars still',()=>{
   const {measureVoiceAudio}=load();
-  for(const samples of [new Float32Array(1024),new Float32Array(1024).fill(.2),signal(.005)]){
+  for(const samples of [new Float32Array(1024),new Float32Array(1024).fill(.2),signal(.0005)]){
     const result=measureVoiceAudio(samples,new Uint8Array(512).fill(200),48000);
     assert.equal(result.level,0);assert.ok(result.bars.every(value=>value===0));
   }
@@ -57,4 +57,10 @@ test('chat bars have no autonomous animation and heights follow measured levels'
   const audible=exports.AudioEqualizerBars({levels:[.8,...Array(9).fill(0)]});
   assert.ok(audible.props.children[0].props.style.height>4);
   assert.equal(audible.props.children[1].props.style.height,4);
+});
+
+test('quiet microphone speech remains visible without animating zero input',()=>{
+ const {measureVoiceAudio}=load();const spectrum=new Uint8Array(512).fill(100);
+ assert.ok(measureVoiceAudio(signal(.005),spectrum,48000).level>0);
+ assert.ok(measureVoiceAudio(signal(0),spectrum,48000).bars.every(v=>v===0));
 });

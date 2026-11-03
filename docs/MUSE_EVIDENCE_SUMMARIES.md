@@ -18,7 +18,7 @@ Explicit SAM/temporal findings/summary requests now read an authorized saved art
 
 Saved JSON lives under ignored `backend/storage/evidence_summaries/`, keyed by a hash of session/incident/kind. Files are written atomically after successful validation. No original incident, evidence, report, vault or database write occurs. Fingerprints invalidate a saved artifact when its incident record changes. Saved SAM briefs survive local process restarts/cache expiration but remain explicitly historical; current images are not revalidated merely by reading a summary.
 
-All endpoints require exact incident/session ownership, including downloads. GET and PDF never infer. Downloads include the expected summary fingerprint: an old chat card cannot silently download a replacement summary.
+All endpoints require a valid client session and the existing incident-workspace access policy, including downloads: ownership in normal mode, the existing demo-showcase convention, or explicitly configured demo access. Saved artifacts remain keyed by the viewing session. GET and PDF never infer. Downloads include the expected summary fingerprint: an old chat card cannot silently download a replacement summary.
 
 - `GET /api/incidents/{id}/evidence-summaries/{sam|temporal}`: saved artifact or 404.
 - `POST` on the same path: generate/reuse from existing canonical evidence; 409 if unavailable or Muse is not selected; sanitized 502 on provider/validation/storage failure.
@@ -61,3 +61,23 @@ Other initial working-tree changes and concurrently created P4 audit documents w
 - A fresh live SAM localization batch was **not** started during validation. SAM summary generation and retrieval are covered offline using isolated evidence fixtures; live SAM summary will be generated at the next completed SAM workspace batch.
 
 No email, new full report, video processing, database mutation, commit, push or deployment was initiated by this task. Local JSON summary artifacts and an ephemeral test conversation were created as part of the requested feature validation. Temporary PDF verification copy resides outside the repository.
+
+
+## Follow-up: partial SAM and incident-workspace summary repair (2026-11-03)
+
+Reproduced on the existing local server: a valid existing demo session could retrieve another demo incident's temporal evidence (HTTP 200), while the summary route returned HTTP 404, `Incident unavailable in this session.` Summary authorization was stricter than the incident/temporal/SAM workspace policy. Summary routes now use that existing policy; ordinary cross-session access remains rejected when demo mode is off, and missing/malformed sessions remain invalid. Read-only chat brief retrieval follows the same policy without changing other assistant tools or document/email action permissions.
+
+SAM input now excludes failed/unavailable/unknown statuses before fact construction, inference, fingerprinting and PDF appendix storage. Validated objects from partial frames remain usable. Valid negative observations (no objects/concepts) are retained as negative observations, not invented detections. If no usable frame remains, generation returns a clear 409 without calling Spark. The brief discloses partial coverage instead of listing failed frame details. Existing incident/frame records are not modified or deleted.
+
+Temporal fingerprints no longer include volatile `generated_at` metadata. Unchanged measurements reuse the same saved brief instead of regenerating every visit. Summary schema version 2 invalidates older cached briefs so previously included failed SAM observations are not served again. New briefs are saved only after successful model response validation. Spark selection uses the existing structured transport with a bounded 2,048-token budget; model errors remain errors, with no automatic retry or fabricated fallback.
+
+The UI restores a valid saved brief before attempting refresh, preserving its PDF if that refresh fails. Effect cancellation/replay is covered offline, and ordinary rerenders do not retry failed inference.
+
+Validation:
+- **236 backend tests passed**, including 34 summary tests covering mixed SAM outcomes, all-failed/partial/negative cases, stable temporal cache identity, demo generation/read/PDF/chat access and normal-mode session rejection.
+- **95 frontend tests passed**, including saved-brief preservation on refresh failure, cached reads while SAM is pending, and Strict Mode effect replay without duplicate dispatch.
+- TypeScript, targeted ESLint, production frontend build and diff whitespace validation passed.
+- Actual existing demo incident: temporal data returned six recorded raw candidates; real `muse-spark-1.3` summary generation succeeded in **3.54 seconds**; saved retrieval and PDF download returned HTTP 200.
+- No fresh live SAM localization batch was started. Mixed-success SAM summary generation and exclusion were verified with network-blocked offline tests.
+
+The pre-existing P4.2 browser inventory document was preserved. This repair was not committed, pushed or deployed; environment credentials and database schemas were not edited.

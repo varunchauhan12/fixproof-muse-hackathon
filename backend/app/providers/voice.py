@@ -19,7 +19,7 @@ class MetaVoiceProvider(BaseVoiceProvider):
     provider_name = property(lambda self: "muse")
     model_id = property(lambda self: os.getenv("MUSE_VOICE_MODEL", DEFAULT_VOICE_MODEL))
 
-    def transcribe(self, audio_bytes: bytes) -> TranscriptionResult:
+    def transcribe(self, audio_bytes: bytes, *, language_bias: list[str] | None = None) -> TranscriptionResult:
         if not isinstance(audio_bytes, bytes) or not audio_bytes:
             raise MetaAPIError("EMPTY_AUDIO")
         if len(audio_bytes) > MAX_AUDIO_BYTES:
@@ -42,14 +42,20 @@ class MetaVoiceProvider(BaseVoiceProvider):
         except (wave.Error, EOFError, ValueError, struct.error):
             raise MetaAPIError("UNSUPPORTED_AUDIO_FORMAT") from None
 
+        if language_bias is not None and (not isinstance(language_bias,list) or not language_bias or len(language_bias)>2
+                or any(language not in ('English','Hindi') for language in language_bias)):
+            raise MetaAPIError('INVALID_LANGUAGE_HINT')
         model = self.model_id.strip()
         if not model:
             raise MetaAPIError("INVALID_VOICE_MODEL")
         try:
             # Use the shared SDK's generic HTTP operation, NOT audio.transcriptions.
-            client = get_meta_sdk_client().with_options(timeout=configured_timeout(90), max_retries=0)
+            client = get_meta_sdk_client().with_options(timeout=min(configured_timeout(45),45), max_retries=0)
+            settings={"model":model,"audioEncoding":"WAV","mode":"PUSH_TO_TALK",
+                      "keywords":["FixProof","Muse","SAM","Supabase","timestamps"]}
+            if language_bias:settings['languageBias']=language_bias
             result = client.post("/asr/transcribe", cast_to=dict, body={}, files=[
-                ("request", (None, json.dumps({"model": model, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"}), "application/json")),
+                ("request", (None, json.dumps(settings), "application/json")),
                 ("audio", ("recording.wav", audio_bytes, "audio/wav")),
             ], options={"headers": {"Content-Type": "multipart/form-data", "Accept": "application/json"}})
             if not isinstance(result, dict) or not isinstance(result.get("transcript"), str):

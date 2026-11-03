@@ -1,5 +1,6 @@
 """Bounded recording upload API. Meta request construction remains in the provider."""
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, UploadFile, Form
+from typing import Annotated, Literal
 from fastapi.responses import JSONResponse
 
 from app.providers.factory import get_voice_provider
@@ -9,6 +10,7 @@ from app.providers.voice import MAX_AUDIO_BYTES
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 ERRORS = {
+    "INVALID_LANGUAGE_HINT": (400, "Choose automatic detection, English, Hindi, or Hindi + English."),
     "EMPTY_AUDIO": (400, "Supply a nonempty WAV recording."),
     "UNSUPPORTED_AUDIO_FORMAT": (415, "Use mono, 16-bit PCM WAV at 16 or 24 kHz."),
     "INVALID_AUDIO": (400, "The WAV recording is malformed or truncated."),
@@ -27,7 +29,7 @@ ERRORS = {
 
 
 @router.post("/transcribe")
-def transcribe_audio(file: UploadFile = File(...)):
+def transcribe_audio(file: UploadFile = File(...), language: Annotated[Literal["auto","en","hi","en-hi"], Form()] = "auto"):
     """Runs in FastAPI's worker pool; always closes the multipart temporary file."""
     try:
         if not file.filename or not file.filename.lower().endswith(".wav"):
@@ -39,7 +41,8 @@ def transcribe_audio(file: UploadFile = File(...)):
             provider = get_voice_provider()
         except ValueError:
             raise MetaAPIError("VOICE_UNAVAILABLE") from None
-        result = provider.transcribe(audio)
+        hints={'en':['English'],'hi':['Hindi'],'en-hi':['Hindi','English']}
+        result = provider.transcribe(audio,language_bias=hints[language]) if language!='auto' else provider.transcribe(audio)
         return {"success": True, "transcript": result.text, "provider": result.provider,
                 "model_id": result.model_id, "language": result.language}
     except MetaAPIError as exc:

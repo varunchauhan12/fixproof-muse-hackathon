@@ -44,10 +44,10 @@ test("maximum 10-minute output fits the backend limit", () => {
 });
 test("conversion uses native target-rate decoding and produces a real WAV file", async () => {
   context.OfflineAudioContext = class {
-    constructor(channels, length, rate) { assert.deepEqual([channels,length,rate], [1,1,16000]); }
+    constructor(channels, length, rate) { assert.deepEqual([channels,length,rate], [1,1,24000]); }
     async decodeAudioData(bytes) {
       assert.ok(bytes instanceof ArrayBuffer);
-      return { sampleRate:16000, numberOfChannels:2, getChannelData: () => new Float32Array(16000) };
+      return { sampleRate:24000, numberOfChannels:2, getChannelData: () => Float32Array.from({length:24000},(_,i)=>.1*Math.sin(i/12)) };
     }
   };
   const file = await recordingToWav(new Blob(["mock browser compressed recording"]));
@@ -63,4 +63,21 @@ test("generated WAV passes the actual backend validator without a model call", (
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /WAV validation passed/);
+});
+
+test("native 24kHz encoder emits the supported rate without changing 16kHz compatibility",()=>{
+ const bytes=encodeVoiceWav([new Float32Array(24000)],24000),view=new DataView(bytes);
+ assert.equal(view.getUint32(24,true),24000);assert.equal(view.getUint32(28,true),48000);
+ assert.throws(()=>encodeVoiceWav([new Float32Array(100)],48000));
+});
+test("microphone conversion rejects silent or DC-only input before upload",async()=>{
+ for(const offset of [0,.1]){
+  context.OfflineAudioContext=class{async decodeAudioData(){return {sampleRate:24000,numberOfChannels:1,getChannelData:()=>new Float32Array(24000).fill(offset)};}};
+  await assert.rejects(recordingToWav(new Blob(['silent recording'])),/No microphone signal/);
+ }
+});
+test("quiet real signal is amplified within bounds, not normalized into clipping",()=>{
+ const bytes=encodeVoiceWav([Float32Array.from({length:1000},(_,i)=>.01*Math.sin(i/12))]);
+ const view=new DataView(bytes);const peak=Math.max(...Array.from({length:1000},(_,i)=>Math.abs(view.getInt16(44+i*2,true))));
+ assert.ok(peak>2000&&peak<32767);
 });

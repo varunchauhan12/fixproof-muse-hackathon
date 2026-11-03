@@ -6,7 +6,7 @@ from unittest.mock import Mock,patch
 from fastapi import FastAPI,HTTPException
 from fastapi.testclient import TestClient
 from app.evidence_summaries import EvidenceSummaries,facts_for,summary_pdf
-from app.evidence_summary_api import router,get_summaries,incident_reader
+from app.evidence_summary_api import router,get_summaries,incident_reader,demo_mode
 from app.providers.meta_client import DEFAULT_VISION_MODEL,MetaAPIError
 RECORD={'incident_id':'incident-one','session_id':'session-one'}
 SAM={'observations':[{'candidate_id':'candidate-one','target':'suspect','timestamp_sec':2.5,'status':'VALIDATED','labels':['player','ball'],'model_id':'sam-3.1','discovery_model':DEFAULT_VISION_MODEL}]}
@@ -19,10 +19,58 @@ class SummaryTests(unittest.TestCase):
         self.service=EvidenceSummaries(self.temp.name,self.client,model_check=lambda:None)
         guard=patch('socket.socket.connect',side_effect=AssertionError('No live requests'));guard.start();self.addCleanup(guard.stop)
         app=FastAPI();app.include_router(router)
+        self.app=app
+        app.dependency_overrides[demo_mode]=lambda:False
         app.dependency_overrides[get_summaries]=lambda:self.service
         app.dependency_overrides[incident_reader]=lambda:lambda iid:RECORD if iid=='incident-one' else None
         self.http=TestClient(app);self.headers={'X-Client-Session-ID':'session-one'};self.url='/api/incidents/incident-one/evidence-summaries/sam'
     def generate(self):return self.service.generate(RECORD,'session-one','sam',SAM)
+    def test_failed_sam_frames_are_omitted_from_prompt_brief_and_pdf_facts(self):
+        mixed=copy.deepcopy(SAM)
+        for status in ('FAILED_VALIDATION','UNAVAILABLE','ERROR'):
+            mixed['observations'].append({'candidate_id':'failed-frame-'+status,'status':status,'labels':['untrusted failed label']})
+        result=self.service.generate(RECORD,'session-one','sam',mixed)
+        prompt=self.client.complete.call_args.args[0]['messages'][1]['content']
+        for text in (prompt,result['body'],json.dumps(result['facts'])):
+            self.assertNotIn('failed-frame-',text);self.assertNotIn('untrusted failed label',text)
+        self.assertIn('1 usable frame',result['body'])
+        self.assertTrue(summary_pdf(result).startswith(b'%PDF-'))
+    def test_all_failed_frames_skip_inference(self):
+        with self.assertRaises(HTTPException) as raised:
+            self.service.generate(RECORD,'session-one','sam',{'observations':[{'status':'FAILED_VALIDATION'}]})
+        self.assertEqual(raised.exception.status_code,409);self.assertIn('No successful SAM',raised.exception.detail)
+        self.client.complete.assert_not_called()
+    def test_partial_frame_keeps_its_validated_labels(self):
+        partial=copy.deepcopy(SAM);partial['observations'][0]['status']='PARTIAL'
+        result=self.service.generate(RECORD,'session-one','sam',partial)
+        self.assertIn('ball',result['body'])
+    def test_partial_frame_without_valid_objects_is_not_evidence(self):
+        with self.assertRaises(HTTPException):
+            self.service.generate(RECORD,'session-one','sam',{'observations':[{'status':'PARTIAL','labels':[]}]})
+        self.client.complete.assert_not_called()
+    def test_negative_observation_is_retained_without_claiming_objects(self):
+        negative=copy.deepcopy(SAM);negative['observations'][0].update(status='NO_OBJECTS_DETECTED',labels=[])
+        result=self.service.generate(RECORD,'session-one','sam',negative)
+        self.assertIn('NO_OBJECTS_DETECTED',result['body']);self.assertNotIn('ball',result['body'])
+    def test_temporal_generation_time_does_not_invalidate_cache(self):
+        evidence={'generated_at':'first retrieval','candidates':[{}],'by_source':{'asset-one':{'all_eligible':{'valid_pairs':1,'missing_timestamps':0}}}}
+        first=self.service.generate(RECORD,'session-one','temporal',evidence)
+        second=self.service.generate(RECORD,'session-one','temporal',{**evidence,'generated_at':'later retrieval'})
+        self.assertEqual(first,second);self.client.complete.assert_called_once()
+    def test_demo_viewer_can_generate_read_and_download_like_workspace(self):
+        self.app.dependency_overrides[demo_mode]=lambda:True
+        viewer={'X-Client-Session-ID':'existing-demo-viewer'}
+        with patch('app.sam_workspace_api.read_cached_context',return_value=SAM):
+            self.assertEqual(self.http.post(self.url,headers=viewer).status_code,200)
+        self.assertEqual(self.http.get(self.url,headers=viewer).status_code,200)
+        self.assertEqual(self.http.get(self.url+'/pdf',headers=viewer).status_code,200)
+        self.assertEqual(self.http.get(self.url).status_code,400)
+        self.app.dependency_overrides[demo_mode]=lambda:False
+        self.assertEqual(self.http.get(self.url,headers=viewer).status_code,404)
+    def test_showcase_record_uses_existing_workspace_access_convention(self):
+        showcase={**RECORD,'session_id':'demo-showcase'}
+        result=self.service.generate(showcase,'session-one','sam',SAM)
+        self.assertEqual(self.service.read(showcase,'session-one','sam'),result)
     def test_spark_contract(self):
         result=self.generate();request=self.client.complete.call_args.args[0]
         self.assertEqual(request['model'],DEFAULT_VISION_MODEL);self.assertIn('response_format',request);self.assertIn('ball',result['body'])
@@ -80,6 +128,19 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(self.http.get(self.url.replace('/sam','/bad'),headers=self.headers).status_code,422)
         self.assertEqual(self.http.get(self.url.replace('incident-one','unknown'),headers=self.headers).status_code,404)
 class ChatTests(unittest.TestCase):
+    def test_demo_chat_reads_saved_brief_using_workspace_policy_only(self):
+        from app.muse_conversations import ConversationManager,CreateConversationRequest,MessageRequest
+        from app.muse_orchestrator import MuseAssistant
+        from app.muse_tools import ToolFailure
+        manager=ConversationManager();conv=manager.create('demo-viewer',CreateConversationRequest(selected_incident_id='incident-one'))
+        tools=Mock();tools._incident.side_effect=ToolFailure('ACCESS_DENIED');tools.store.get_incident.return_value=RECORD
+        store=Mock();store.read.return_value={'summary_id':'a'*64,'body':'Recorded SAM evidence.','model_id':DEFAULT_VISION_MODEL}
+        factory=Mock(side_effect=AssertionError('No inference'))
+        with patch('app.evidence_summary_api.get_summaries',return_value=store),patch('app.security.is_demo_mode',return_value=True):
+            result=MuseAssistant(manager,tools=tools,provider_factory=factory).respond(conv.conversation_id,'demo-viewer',MessageRequest(client_message_id='demo-summary-read',text='Give me the SAM summary',expected_revision=0))
+        self.assertEqual(result.status,'completed');store.read.assert_called_once_with(RECORD,'demo-viewer','sam',allow_demo=True)
+        factory.assert_not_called();self.assertIsNone(result.pending_action)
+
     def test_foreign_incident_hint_cannot_read_saved_brief(self):
         from app.muse_conversations import ConversationManager,CreateConversationRequest,MessageRequest
         from app.muse_orchestrator import MuseAssistant

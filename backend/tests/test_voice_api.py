@@ -71,5 +71,19 @@ class TestVoiceAPI(unittest.TestCase):
             else: provider.transcribe.return_value = outcome
             stream = io.BytesIO(wav())
             with patch.object(voice_api, "get_voice_provider", return_value=provider):
-                voice_api.transcribe_audio(UploadFile(filename="test.wav", file=stream))
+                result=voice_api.transcribe_audio(UploadFile(filename="test.wav", file=stream))
+                if isinstance(outcome,TranscriptionResult):
+                    self.assertTrue(result["success"]);provider.transcribe.assert_called_once_with(wav())
             self.assertTrue(stream.closed)
+
+    def test_supported_language_hint_forwarded_without_claiming_detected_language(self):
+        provider=Mock();provider.transcribe.return_value=TranscriptionResult('Review footage','muse','muse-voice-transcribe-1.0')
+        with patch.object(voice_api,'get_voice_provider',return_value=provider):
+            response=self.client.post('/api/voice/transcribe',files={'file':('test.wav',wav(),'audio/wav')},data={'language':'en-hi'})
+        self.assertEqual(response.status_code,200);self.assertIsNone(response.json()['language'])
+        provider.transcribe.assert_called_once_with(wav(),language_bias=['Hindi','English'])
+
+    def test_unknown_language_rejected_without_provider_call(self):
+        with patch.object(voice_api,'get_voice_provider') as factory:
+            response=self.client.post('/api/voice/transcribe',files={'file':('test.wav',wav(),'audio/wav')},data={'language':'invented'})
+        self.assertEqual(response.status_code,422);factory.assert_not_called()

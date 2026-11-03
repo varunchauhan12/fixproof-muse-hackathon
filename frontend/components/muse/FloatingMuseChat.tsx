@@ -12,6 +12,7 @@ import {
   transcribeRecording,
   type MuseIncident,
   type MuseMessage,
+  type VoiceLanguage,
 } from "@/lib/muse-assistant";
 import { MuseApprovalCard } from "./MuseApprovalCard";
 import { MuseArtifactView } from "./MuseArtifactView";
@@ -86,7 +87,8 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
   const transcriptionAbort = useRef<AbortController | null>(null);
 
   const shouldReduceMotion = useReducedMotion();
-  const capture = useVoiceRecorder(busy || transcribing);
+  const [voiceLanguage,setVoiceLanguage]=useState<VoiceLanguage>("auto");
+  const capture = useVoiceRecorder(busy || transcribing,60);
   const discardRef = useRef(capture.discard);
   useEffect(() => {discardRef.current = capture.discard;}, [capture.discard]);
 
@@ -291,25 +293,25 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
     const ticket=epoch.current;transcribingRef.current=true;
     const targetSession=client.current?.session||getClientSessionId();
     let timedOut=false;
-    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},45000);
+    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},50000);
     queueMicrotask(()=>{if(!controller.signal.aborted){setIsHolding(false);setTranscribing(true);setError("");}});
     (async()=>{
       try {
-        const result=await transcribeRecording(capture.file!,targetSession,controller.signal);
+        const result=await transcribeRecording(capture.file!,targetSession,controller.signal,voiceLanguage);
         if(controller.signal.aborted||ticket!==epoch.current)return;
         const transcript=result.transcript.trim();
-        if(!transcript){setError('No speech was detected. Try recording again.');return;}
+        if(!transcript){setError('No speech was detected. Please speak clearly into your microphone and try again.');return;}
         setTranscriptReview(transcript); // Reviewable user text; backend proposes but never auto-executes.
         void sendRef.current(transcript);
       } catch(error) {
         if(ticket===epoch.current && (!controller.signal.aborted||timedOut)) setError(timedOut?'Transcription timed out. No action was executed; record again.':error instanceof Error?error.message:'Transcription failed.');
       } finally {
         clearTimeout(timeout);
-        if(transcriptionAbort.current===controller){transcriptionAbort.current=null;transcribingRef.current=false;transcribingRef.current=false;setTranscribing(false);capture.discard();}
+        if(transcriptionAbort.current===controller){transcriptionAbort.current=null;transcribingRef.current=false;transcribingRef.current=false;setTranscribing(false);capture.setCaptured(false);}
       }
     })();
     return()=>{clearTimeout(timeout);controller.abort();};
-  },[capture.captured,capture.file,capture.discard]);
+  },[capture.captured,capture.file,capture.discard,capture.setCaptured,voiceLanguage]);
 
   const decide=async(actionId:string,cancel:boolean)=>{
     const active=client.current;if(!active||sending.current)return;
@@ -494,6 +496,15 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                       >
                         <span>Examine matches</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => send("Analyze this incident for video tampering, broadcast alterations, or temporal inconsistencies.")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white border border-[#D5D0C5] text-black dark:text-black hover:bg-zinc-100 hover:border-zinc-400 transition-all cursor-pointer shadow-xs"
+                      >
+                        <span>🔍</span>
+                        <span>Detect tampering</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -576,7 +587,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                   <div className="rounded-2xl rounded-tl-xs px-4 py-2.5 text-xs bg-[#F2ECE1] border border-[#DDD6C8] text-black dark:text-black shadow-2xs">
                     <AITextLoading
                       texts={[
-                        /\b(send|email me|mail me)\b/i.test(pendingText) ? "Processing the requested email action…" : /\b(report|pdf)\b/i.test(pendingText) ? "Preparing the report and PDF…" : /\b(notice|licensing|proposal|summary)\b/i.test(pendingText) ? "Preparing the requested document…" : "Waiting for the grounded assistant response…",
+                        /\b(send|email me|mail me)\b/i.test(pendingText) ? "Processing the requested email action…" : /\b(tamper|manipulat|alter)\b/i.test(pendingText) ? "Analyzing incident for tampering and anomalies…" : /\b(report|pdf)\b/i.test(pendingText) ? "Preparing the report and PDF…" : /\b(notice|licensing|proposal|summary)\b/i.test(pendingText) ? "Preparing the requested document…" : "Waiting for the grounded assistant response…",
                       ]}
                       interval={1400}
                       className="text-black dark:text-black text-xs font-semibold"
@@ -610,12 +621,23 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
             {(isHolding||transcribing||capture.recordingBusy) && <button className="shrink-0 p-1 text-xs text-red-800" onClick={cancelVoice}>Cancel recording / transcription</button>}
             {/* Bottom Composer Area: Deskwright Rounded White Card */}
             <div className="p-3.5 bg-[#FAF8F5] border-t border-[#E8E3D8] space-y-2 select-none shrink-0">
-              {/* Push-to-Talk Voice Bubble with Animated Equalizer Bars */}
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-700">
+                <label>Microphone<select aria-label="Voice microphone" value={capture.selectedMic||''} disabled={capture.recordingBusy||transcribing} onChange={event=>capture.setSelectedMic(event.target.value)} className="mt-1 w-full min-w-0 rounded-lg border border-[#D5D0C5] bg-white p-2 text-black"><option value="">System default microphone</option>{capture.microphones?.filter(device=>device.deviceId!=='default').map((device,index)=><option key={device.deviceId} value={device.deviceId}>{device.label||`Microphone ${index+1}`}</option>)}</select></label>
+                <label>Speech language hint<select aria-label="Voice language hint" value={voiceLanguage} disabled={capture.recordingBusy||transcribing} onChange={event=>setVoiceLanguage(event.target.value as VoiceLanguage)} className="mt-1 w-full rounded-lg border border-[#D5D0C5] bg-white p-2 text-black"><option value="auto">Auto detect</option><option value="en">English</option><option value="hi">Hindi</option><option value="en-hi">Hindi + English</option></select></label>
+              </div>
+              <p className="text-center text-[10px] text-zinc-600">Click record, allow access, then speak into your computer or headset microphone. Click again to finish. Up to 60 seconds.</p>
+              {capture.recordState==='permission'&&<p role="status" className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-950">Click Allow in your browser’s microphone prompt. If no prompt appears, open this page in Chrome or Safari and allow Microphone in its site settings.</p>}
+              {capture.recordState==='recording'&&<div role="status" aria-live="polite" className="rounded-lg bg-rose-50 p-2 text-[11px] text-rose-950">
+                <p className="truncate">Recording from: {capture.inputLabel||'Default microphone'}</p>
+                <p>{capture.inputMuted?'Microphone is muted. Unmute it to capture sound.':!capture.meterAvailable?'Level meter unavailable; recording continues. Stop and check your microphone if transcription is empty.':(capture.signalLevel||0)>0?'Sound is reaching the microphone. Speak normally.':capture.seconds>2?'No input detected yet. Check the selected mic, its mute switch and system input volume.':'Speak now — watching the microphone level.'}</p>
+              </div>}
+              {capture.playback&&!capture.recordingBusy&&<label className="block text-[10px] text-zinc-600">Review your microphone recording<audio aria-label="Review microphone recording" controls preload="none" src={capture.playback} className="mt-1 h-8 w-full"/></label>}
+              {/* Click-to-record with measured input levels. */}
               <div className="flex justify-center">
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  disabled={disabled && !isHolding}
+                  disabled={(disabled || capture.recordingBusy) && !isHolding}
                   aria-label={isHolding ? "Stop recording and transcribe" : "Start voice recording"}
                   aria-pressed={isHolding}
                   className={`relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-xs transition-all select-none cursor-pointer shadow-xs ${
@@ -633,7 +655,7 @@ export function FloatingMuseChat({ activeIncidentId: propIncidentId }: FloatingM
                         {capture.recordState === "permission" ? "Allow microphone access…" : `Recording · ${Math.floor(capture.seconds)}s · Click to stop`}
                       </span>
                     </div>
-                  ) : transcribing ? (
+                  ) : capture.recordState === "converting" ? <span>Preparing audio…</span> : transcribing ? (
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
                       <span className="font-semibold text-teal-950">Transcribing voice…</span>

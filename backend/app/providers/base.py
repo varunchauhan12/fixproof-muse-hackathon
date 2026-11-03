@@ -29,7 +29,7 @@ class BaseVoiceProvider(ABC):
         pass
 
     @abstractmethod
-    def transcribe(self, audio_bytes: bytes) -> TranscriptionResult:
+    def transcribe(self, audio_bytes: bytes, *, language_bias: Optional[List[str]] = None) -> TranscriptionResult:
         pass
 
 
