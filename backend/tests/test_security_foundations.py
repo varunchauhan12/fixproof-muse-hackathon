@@ -59,6 +59,35 @@ class TestSecurityRoutes(unittest.TestCase):
             self.assertEqual(r.headers.get("access-control-allow-origin"), origin if expected else None)
             self.assertNotIn("access-control-allow-credentials", r.headers)
 
+    def test_cors_allows_production_frontend_preflight_across_core_routes(self):
+        prod_origin = "https://fixproof-frontend-1097663016023.europe-west1.run.app"
+        headers = {
+            "Origin": prod_origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type,x-client-session-id",
+        }
+        for path in ("/health", "/api/muse/status", "/api/muse/incidents", "/api/vault/status"):
+            r = self.client.options(path, headers=headers)
+            self.assertEqual(r.status_code, 200, f"Preflight failed for {path}: {r.text}")
+            self.assertEqual(r.headers.get("access-control-allow-origin"), prod_origin)
+            allow_methods = r.headers.get("access-control-allow-methods", "")
+            self.assertIn("GET", allow_methods)
+            self.assertIn("OPTIONS", allow_methods)
+            allow_headers = r.headers.get("access-control-allow-headers", "").lower()
+            self.assertIn("authorization", allow_headers)
+            self.assertIn("content-type", allow_headers)
+            self.assertNotIn("access-control-allow-credentials", r.headers)
+
+    def test_cors_trailing_slash_normalization(self):
+        prod_origin_with_slash = "https://fixproof-frontend-1097663016023.europe-west1.run.app/"
+        headers = {
+            "Origin": prod_origin_with_slash,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        }
+        r = self.client.options("/api/muse/status", headers=headers)
+        self.assertEqual(r.status_code, 200)
+
     def test_session_owned_incident_requires_matching_header(self):
         from app import main
         with patch.object(main, "get_incident_by_id", return_value={"incident_id": "private-incident", "session_id": "owner-session"}):

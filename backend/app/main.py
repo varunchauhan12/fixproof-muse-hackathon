@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Header, Q
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, RedirectResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.security import RequestProtectionMiddleware, cors_origins, is_demo_mode
+from app.security import RequestProtectionMiddleware, cors_origins, is_demo_mode, DynamicAllowedOrigins
 import logging
 from pydantic import BaseModel, Field
 
@@ -37,9 +37,9 @@ app.add_middleware(RequestProtectionMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins(),
+    allow_origins=DynamicAllowedOrigins(cors_origins),
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
 )
 

@@ -10,14 +10,67 @@ from urllib.parse import urlsplit
 from starlette.responses import JSONResponse
 
 
-def cors_origins():
-    raw = os.getenv("FIXPROOF_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001")
-    origins = [value.strip() for value in raw.split(",") if value.strip()]
-    for origin in origins:
-        parsed = urlsplit(origin)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
-            raise ValueError("FIXPROOF_CORS_ORIGINS requires exact HTTP(S) origins without paths or wildcard")
+PRODUCTION_FRONTEND_ORIGIN = "https://fixproof-frontend-1097663016023.europe-west1.run.app"
+
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000,"
+    "http://127.0.0.1:3000,"
+    "http://localhost:3001,"
+    "http://127.0.0.1:3001,"
+    f"{PRODUCTION_FRONTEND_ORIGIN}"
+)
+
+
+def _normalize_origin_entry(raw_entry: str) -> str:
+    cleaned = raw_entry.strip().strip("\"'").strip()
+    if not cleaned:
+        return ""
+    if cleaned == "*":
+        raise ValueError("FIXPROOF_CORS_ORIGINS requires exact HTTP(S) origins without paths or wildcard")
+    normalized = cleaned.rstrip("/")
+    parsed = urlsplit(normalized)
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("FIXPROOF_CORS_ORIGINS requires exact HTTP(S) origins without paths or wildcard")
+    port_str = f":{parsed.port}" if parsed.port else ""
+    return f"{parsed.scheme}://{parsed.hostname}{port_str}"
+
+
+def cors_origins() -> list[str]:
+    raw = os.getenv("FIXPROOF_CORS_ORIGINS")
+    origins: list[str] = [PRODUCTION_FRONTEND_ORIGIN]
+    raw_entries = (
+        re.split(r"[,;\s]+", raw.strip())
+        if raw and raw.strip()
+        else DEFAULT_CORS_ORIGINS.split(",")
+    )
+    for entry in raw_entries:
+        canonical = _normalize_origin_entry(entry)
+        if canonical and canonical not in origins:
+            origins.append(canonical)
     return origins
+
+
+class DynamicAllowedOrigins(list):
+    """List of allowed CORS origins with dynamic lookup and trailing slash tolerance."""
+
+    def __init__(self, resolver=cors_origins):
+        self.resolver = resolver
+        super().__init__(resolver())
+
+    def __contains__(self, item: object) -> bool:
+        if not isinstance(item, str):
+            return False
+        clean = item.strip().strip("\"'").strip().rstrip("/")
+        current = self.resolver()
+        return clean in current or item in current
 
 
 def is_demo_mode() -> bool:
