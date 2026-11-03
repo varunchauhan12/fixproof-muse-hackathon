@@ -182,7 +182,7 @@ function recorderFixture(getMedia) {
   const context = { exports: {}, Error, window:{}, require: name => name === "react" ? hooks : name === "@/lib/voice-input" ? inputExports : name === "@/lib/voice-meter" ? {VOICE_METER_BARS:10,startVoiceMeter:()=>()=>{}} : { VOICE_MAX_BYTES: 25*1024*1024, VOICE_MAX_SECONDS: 600,
       recordingToWav: async () => new File(["converted WAV fixture"], "recording.wav", { type: "audio/wav" }) },
     navigator: { mediaDevices: { getUserMedia: (...args) => { captures++; return getMedia(...args); } } },
-    MediaRecorder: Recorder, OfflineAudioContext: class {}, Blob, File, DOMException,
+    MediaRecorder: Recorder, OfflineAudioContext: class {}, Blob, File, DOMException, AbortController,
     URL: { createObjectURL: () => "blob:offline-preview", revokeObjectURL: value => revoked.push(value) },
     performance: { now: () => 0 }, setInterval: () => 1, clearInterval() {}, setTimeout(fn){permissionTimeouts.push(fn);return permissionTimeouts.length;},clearTimeout(){},
     fetch: () => { throw new Error("Recorder must not upload anything"); },
@@ -208,7 +208,7 @@ test("shared recorder captures, converts, previews and releases tracks without a
 test("shared recorder blocks duplicate permission requests and cleans late permission after unmount", async () => {
   let resolve; let stopped = 0;
   const f = recorderFixture(() => new Promise(done => { resolve = done; }));
-  const capture = f.render(); const pending = capture.startRecording(); await capture.startRecording();
+  const capture = f.render(); const pending = capture.startRecording(); await capture.startRecording(); await tick();
   assert.equal(f.captures(), 1); f.cleanup();
   resolve({ getTracks: () => [{ stop: () => { stopped++; } }] }); await pending;
   assert.equal(stopped, 1); assert.equal(f.render().file, null);
@@ -224,7 +224,7 @@ test('recorder flushes final data before releasing microphone tracks',async()=>{
 test('permission denial is actionable and never prompts a second time',async()=>{
  const f=recorderFixture(async()=>{throw new DOMException('denied','NotAllowedError');});
  await f.render().startRecording();assert.equal(f.captures(),1);
- assert.equal(f.render().recordState,'idle');assert.match(f.render().error,/browser settings/);f.cleanup();
+ assert.equal(f.render().recordState,'idle');assert.match(f.render().error,/Privacy & Security/);f.cleanup();
 });
 test('late stop callback cannot release a newer microphone capture',async()=>{
  const stopped=[0,0];let index=0;
@@ -244,7 +244,7 @@ test('ASR sends the selected language hint once and leaves automatic mode unforc
 
 test('unanswered permission times out clearly and a late stream is stopped',async()=>{
  let resolve,stopped=0;const f=recorderFixture(()=>new Promise(done=>{resolve=done;}));
- const pending=f.render().startRecording();assert.equal(f.render().recordState,'permission');
+ const pending=f.render().startRecording();await tick();assert.equal(f.render().recordState,'permission');
  f.permissionTimeouts[0]();assert.equal(f.render().recordState,'idle');assert.match(f.render().error,/Still waiting for microphone permission/);
  resolve({getTracks:()=>[{stop(){stopped++;}}]});await pending;
  assert.equal(stopped,1);assert.equal(f.render().file,null);f.cleanup();

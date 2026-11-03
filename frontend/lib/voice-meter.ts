@@ -29,13 +29,15 @@ export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnTyp
   let context: AudioContext | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let analyser: AnalyserNode | null = null;
+  let silentOutput: GainNode | null = null;
   let frame: number | null = null;
   let stopped = false;
   const stop = () => {
     if (stopped) return;
     stopped = true; onAvailability(false);
     if (frame !== null) cancelAnimationFrame(frame);
-    source?.disconnect(); analyser?.disconnect();
+    if (context) context.onstatechange = null;
+    source?.disconnect(); analyser?.disconnect(); silentOutput?.disconnect();
     if (context && context.state !== 'closed') void context.close().catch(() => {});
   };
   try {
@@ -46,7 +48,10 @@ export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnTyp
     analyser = context.createAnalyser();
     analyser.fftSize = 1024;
     analyser.smoothingTimeConstant = 0.25;
-    source.connect(analyser); // Deliberately no connection to speakers.
+    source.connect(analyser);
+    // Keep the audio graph pulled on WebKit; zero gain prevents mic monitoring/echo.
+    silentOutput=context.createGain();silentOutput.gain.value=0;
+    analyser.connect(silentOutput);silentOutput.connect(context.destination);
     const samples = new Float32Array(analyser.fftSize);
     const spectrum = new Uint8Array(analyser.frequencyBinCount);
     let last = -Infinity;
@@ -59,6 +64,16 @@ export function startVoiceMeter(stream: MediaStream, onChange: (value: ReturnTyp
         onChange(measureVoiceAudio(samples, spectrum, context.sampleRate));
       }
       frame = requestAnimationFrame(sample);
+    };
+    // An input change or permission prompt can suspend/interrupt Safari's context.
+    // Report unavailable honestly and resume once per state transition, never per frame.
+    context.onstatechange = () => {
+      if (stopped || !context) return;
+      onAvailability(context.state === 'running');
+      if (context.state === 'suspended' || (context.state as string) === 'interrupted') {
+        onChange({level:0,bars:Array<number>(VOICE_METER_BARS).fill(0)});
+        void context.resume().catch(() => {if (!stopped) onAvailability(false);});
+      }
     };
     // Resume may be needed after the microphone permission prompt in Safari.
     onAvailability(context.state==='running');

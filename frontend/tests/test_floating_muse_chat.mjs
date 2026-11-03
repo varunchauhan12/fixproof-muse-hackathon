@@ -503,7 +503,7 @@ test("composer sends message and displays grounded assistant response with citat
   );
 });
 
-test("clicking to start/stop automatically transcribes and submits for review", async () => {
+test("stopping recording puts the transcript in the message box until explicitly sent", async () => {
   const f = fixture();
   const widget = mountWidget(f);
   widget.render();
@@ -514,16 +514,19 @@ test("clicking to start/stop automatically transcribes and submits for review", 
   widget.find((n) => n.props?.["aria-label"] === "talk to the analyst").props.onClick();
   widget.render();
 
-  // Find hold-to-speak voice bubble
+  // Find click-to-record voice bubble.
   const voiceBtn = widget.find((n) => n.props?.["aria-label"] === "Start voice recording");
   assert.ok(voiceBtn, "Voice bubble button must exist");
 
-  // Press and hold (start recording)
+  // Click once to start recording.
   await voiceBtn.props.onClick();
   widget.render();
   assert.equal(widget.capture.recordState, "recording");
+  const recordingText=widget.text(widget.render());
+  for(const oldLabel of ['Recording from:', 'Sound is reaching', 'No sound yet', 'Listen to recording', 'Transcript for review:'])assert.ok(!recordingText.includes(oldLabel));
+  assert.equal(widget.find(n=>n.type==='audio'),null);
 
-  // Release hold (stops recording, triggers auto-transcribe & auto-send)
+  // Click again to stop and transcribe, without sending a chat message.
   await widget.find(n=>n.props?.["aria-label"]==="Stop recording and transcribe").props.onClick();
   widget.render();
   await widget.triggerEffects();
@@ -534,9 +537,15 @@ test("clicking to start/stop automatically transcribes and submits for review", 
   const transcribeCall = f.calls.find((c) => c.path === "/api/voice/transcribe");
   assert.ok(transcribeCall, "Audio should be automatically submitted for transcription");
 
-  // Verify message was automatically sent without requiring manual command
+  assert.equal(f.calls.filter(c=>c.path.endsWith('/messages')).length,0);
+  const composer=widget.find(n=>n.props?.id==='floating-muse-composer');
+  assert.equal(composer.props.value,'Voice question for Muse');
+  assert.ok(!widget.text(widget.render()).includes('Transcript for review:'));
+  assert.equal(widget.find(n=>n.type==='audio'),null);
+  widget.find(n=>n.props?.['aria-label']==='Send').props.onClick();
+  await tick();widget.render();
   const msgCall = f.calls.find((c) => c.path.endsWith("/messages"));
-  assert.ok(msgCall, "Transcribed text must be automatically sent to Muse");
+  assert.ok(msgCall, "Only the explicit Send action submits transcribed text to Muse");
   assert.equal(msgCall.body.text, "Voice question for Muse");
 });
 
@@ -607,4 +616,21 @@ test('incident switch suppresses an old asynchronous response and its artifacts'
   complete();await tick();widget.render();
   const rendered=widget.text(widget.render());
   assert.ok(!rendered.includes('OLD RESPONSE'));assert.ok(!rendered.includes('OLD ARTIFACT'));
+});
+
+test('voice composer stays simple with one capture button and no mic or language selectors',async()=>{
+ const widget=await openWidget(fixture());
+ assert.ok(widget.find(n=>n.props?.['aria-label']==='Start voice recording'));
+ assert.equal(widget.find(n=>n.props?.['aria-label']==='Voice microphone'),null);
+ assert.equal(widget.find(n=>n.props?.['aria-label']==='Voice language hint'),null);
+});
+
+test('voice transcription preserves an existing unsent message draft',async()=>{
+ const f=fixture(),widget=await openWidget(f);
+ widget.find(n=>n.props?.id==='floating-muse-composer').props.onChange({target:{value:'Please explain:'}});widget.render();
+ await widget.find(n=>n.props?.['aria-label']==='Start voice recording').props.onClick();widget.render();
+ assert.equal(widget.find(n=>n.props?.['aria-label']==='Send').props.disabled,true);
+ await widget.find(n=>n.props?.['aria-label']==='Stop recording and transcribe').props.onClick();widget.render();await widget.triggerEffects();await tick();widget.render();
+ assert.equal(widget.find(n=>n.props?.id==='floating-muse-composer').props.value,'Please explain: Voice question for Muse');
+ assert.equal(f.calls.filter(c=>c.path.endsWith('/messages')).length,0);
 });

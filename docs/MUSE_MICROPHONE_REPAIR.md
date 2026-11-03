@@ -1,5 +1,21 @@
 # Chat microphone capture and transcription repair
 
+## Safari follow-up: simple automatic capture (2026-11-03)
+
+This follow-up supersedes the microphone/language selector behavior described in the historical implementation below. The user reported Safari displaying Recording with flat bars; this is distinct from an unanswered permission prompt. Physical Safari capture has not been reproduced through automation, so the exact device/OS cause is not established.
+
+- Chat has one start/stop recording button and automatic language detection. There are no microphone or language selectors. While recording, only measured voice bars appear in the button. Routine recording-status text and the playback/review panels have been removed.
+- Stopping automatically transcribes the clip into the normal message box, preserving any existing draft. The user can edit and explicitly Send; transcription no longer automatically submits a Muse conversation message. Real permission/capture/transcription errors remain visible in the existing error banner.
+- Capture prefers a permission-visible, labelled built-in Mac microphone, bypassing a bad default headset where possible. If permission first reveals device labels, the initial headset stream is released before opening the built-in input. Unknown inputs are not guessed. Device labels/IDs remain local.
+- Browser noise suppression and echo cancellation are disabled for this speech-command capture, retaining automatic gain control where supported. This avoids requesting a browser noise gate for quiet speech; it does not guarantee transcription accuracy.
+- The analyser is connected to a zero-gain destination for WebKit compatibility, without audible monitoring. Suspended/interrupted contexts report unavailable, clear stale activity, and attempt resumption on state transitions. Silence still does not animate bars.
+- Cancel/timeout stops an initial stream even during device enumeration, and releases any late-arriving replacement stream. Permission denial is never automatically retried. A failed default headset may recover to a newly visible built-in Mac input.
+- The model and server/API behavior are unchanged. No live inference or room-audio upload was performed for this follow-up. Safari native-app inspection timed out; offline tests cannot prove that the physical Mac microphone delivers samples.
+
+User check: refresh the dashboard in Safari, open Muse, and click Record. Speak, click the bars to stop, and wait for the transcript in the message box. Edit if needed, then Send. If bars remain flat and no speech is transcribed, check Mac System Settings → Sound → Input for actual input activity; changing the transcription model cannot repair a silent recording.
+
+Verification: 119 explicitly selected offline frontend tests passed; TypeScript, targeted ESLint and production frontend build passed. Regression checks cover transcript placement, explicit sending, preserving existing drafts and removal of the old review/playback UI. The prior proof image below reflects the older UI, not this simplified follow-up.
+
 Implemented locally on 2026-11-03. Existing summary repairs, untracked P4.2 audit, unrelated chat edits and prior uncommitted recording improvements were preserved. No dependency installation, environment edit, provider migration, commit, push or deployment was performed.
 
 ## Findings and changes
