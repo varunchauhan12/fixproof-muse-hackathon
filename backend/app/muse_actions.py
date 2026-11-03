@@ -12,7 +12,7 @@ import threading
 import time
 from uuid import uuid4
 from pydantic import BaseModel, ConfigDict
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import StringConstraints
 Reference = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
 class Contract(BaseModel):
@@ -25,6 +25,7 @@ class MuseArtifact(Contract):
     incident_id: Reference
     kind: str = Field(max_length=40)
     report_id: Reference | None = None
+    summary_kind: Literal['sam', 'temporal'] | None = None
     title: str = Field(max_length=200)
     body: str = Field(max_length=20000)
     model_id: str | None = Field(default=None, max_length=128)
@@ -95,13 +96,15 @@ class MuseActions:
             raise ActionFailure('Chat email approval supports only the investigation PDF to the configured registered recipient. No third-party destination or rights document was selected.')
         destination=registered_email() if action=='send_registered' else None
         reports,documents=self.services()
+        if action=='send_registered' and not documents.get_email_config()[0]:
+            raise ActionFailure('Resend is not configured on this server. Nothing was sent. You can still prepare or download the report.')
         items=reports.list_detailed_reports_for_incident(iid)
         report=None
         for item in items:
             value=reports.get_detailed_report_record(item['report_id'])
             if value and value.get('incident_id')==iid:
                 pdf=reports.get_detailed_report_pdf_bytes(value['report_id'])
-                if pdf:
+                if pdf and pdf.startswith(b'%PDF-'):
                     report=value;break
         if not report:
             payload['action']='generate_for_email'
@@ -149,10 +152,12 @@ class MuseActions:
         key=(session,incident['incident_id'],payload['report_id'],payload['recipient'])
         with _send_lock:
             previous=_sends.get(key)
-            if previous and self.clock()-previous[0]<=600:
+            if previous and (self.clock()-previous[0]<=600 or previous[1]=='PENDING'):
                 raise ActionFailure('A send attempt for this report already exists. No duplicate or uncertain send was retried; inspect the audit before another attempt.')
+            for old in list(_sends):
+                if self.clock()-_sends[old][0]>600 and _sends[old][1]!='PENDING':del _sends[old]
+            if len(_sends)>=128:raise ActionFailure('Email attempt capacity reached. No email was sent.')
             _sends[key]=(self.clock(),'PENDING')
-            while len(_sends)>128:_sends.popitem(last=False)
         try:
             result=reports.send_detailed_report_email(incident['incident_id'],payload['report_id'],payload['recipient'],pdf,
                 client_session_id=session,subject_override=payload['subject'],body_override=payload['body'])
@@ -165,6 +170,7 @@ class MuseActions:
                 'Resend accepted the approved email. Recipient delivery is not verified.' if accepted else 'Resend did not accept the email. No retry was made. Check account restrictions and the existing audit log; the saved PDF remains available.',[saved_artifact],None)
 
     def execute(self, action, *, incident, session, text, conversation, email_draft=None):
+        if action=='send_registered':raise ActionFailure('Email sending requires a claimed, exact approval proposal.')
         reports,documents=self.services()
         iid=incident['incident_id']
         artifact=None
@@ -227,16 +233,6 @@ class MuseActions:
             value=function(incident,{},use_ai_synthesis=False)
             artifact=make(action,value['subject'],value['body'],model_id=value['model_id'])
             return 'completed','Your evidence-based draft is ready to review and edit. Unknown parties and terms remain placeholders; nothing was sent.',[artifact]
-        if action=='send_registered':
-            recent = next((a for m in reversed(conversation.messages) for a in reversed(m.metadata.artifacts) if a.incident_id==iid), None)
-            if re.search(r'copyright|licens|licenc|proposal|notice',text,re.I) or (not re.search(r'pdf|report|summary',text,re.I) and recent is not None and not recent.report_id):
-                raise ActionFailure('Registered chat sending supports the saved investigation PDF, not a rights notice or licensing draft. Export the editable draft, or explicitly request the investigation PDF.')
-            # Sending authority comes only from this literal user instruction, never a model plan.
-            if '@' in text or not re.search(r'\b(my (?:student )?email|registered|to me|email me|mail me)\b',text,re.I):
-                raise ActionFailure('Chat sending is restricted to the configured registered student email. No third-party destination was used. Say “Send the PDF report to my email” for that fixed destination.')
-            destination=registered_email() # Fail before report generation if configuration is missing.
-            configured,_,_=documents.get_email_config()
-            if not configured:raise ActionFailure('Resend is not configured on this server. No email was sent. Prepare or download the report instead.')
         report,created=saved_report()
         rid=report['report_id']
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',rid):raise ActionFailure('The report identifier is invalid.')
@@ -244,38 +240,9 @@ class MuseActions:
         if report.get('synthesis_failure_category'):
             preview += '\nSynthesis diagnostic category: ' + report['synthesis_failure_category']
         artifact=make('summary' if action=='summary' else 'report','Investigation report',preview,report_id=rid,model_id=report.get('model_id'))
-        if action in ('prepare_email','send_registered'):
+        if action=='prepare_email':
             subject=f'FixProof investigation report — {iid[:8]}'
-            body=f"Please review the attached investigation report.\n\nIncident: {iid}\nReport: {rid}\n\n{(report.get('sections') or {}).get('executive_summary') or 'See the attached measured evidence.'}\n\nFindings concern sampled evidence only and require human review. No legal conclusion is established."
+            body=f"Please review the attached investigation report.\n\nIncident: {iid}\nReport: {rid}\n\n{(report.get('sections') or {}).get('executive_summary') or 'See the attached measured evidence.'}\n\nSampled evidence requires human review; no legal conclusion is established."
             mail=make('email',subject,body,report_id=rid,status='DRAFT')
-            if action=='prepare_email':
-                return 'completed','Your editable email draft and saved PDF are ready. Nothing was sent. The registered recipient is resolved only on a clear send request.',[mail,artifact]
-            if email_draft:
-                if email_draft.report_id != rid:
-                    raise ActionFailure('The edited cover note refers to a different report. Prepare the email again for this incident.')
-                subject,body=email_draft.subject,email_draft.body
-                mail.title=subject
-                mail.body=body
-            key=(session,iid,rid,destination)
-            with _send_lock:
-                # Do not evict an in-flight/uncertain entry to admit another send.
-                for k in list(_sends):
-                    if self.clock()-_sends[k][0]>600:del _sends[k]
-                if key in _sends:
-                    previous=_sends[key][1]
-                    message='Resend already accepted this report for the registered recipient. No duplicate email was sent.' if previous=='ACCEPTED' else 'A send attempt for this report is in progress or its outcome is uncertain. No automatic retry was made; inspect the email audit before retrying.'
-                    return 'completed' if previous=='ACCEPTED' else 'failed',message,[artifact]
-                if len(_sends)>=128:raise ActionFailure('Email attempt capacity reached. No additional email was sent.')
-                _sends[key]=(self.clock(),'PENDING')
-            try:
-                result=reports.send_detailed_report_email(iid,rid,destination,reports.get_detailed_report_pdf_bytes(rid),
-                    client_session_id=session,subject_override=subject,body_override=body)
-            except Exception:
-                with _send_lock:_sends[key]=(self.clock(),'UNCERTAIN')
-                return 'failed','The send outcome could not be confirmed. The PDF is preserved. No retry was made; check the audit before another attempt.',[artifact]
-            accepted=bool(result.get('success') and result.get('status')=='ACCEPTED')
-            with _send_lock:_sends[key]=(self.clock(),'ACCEPTED' if accepted else 'FAILED')
-            mail.status='ACCEPTED' if accepted else 'FAILED'
-            return ('completed' if accepted else 'failed',
-                    'Resend accepted the report email for your registered student address. Recipient delivery is not verified.' if accepted else 'Resend did not accept the report email. The PDF remains available. Check sender verification, account recipient restrictions and the audit log. No automatic retry was made.',[mail,artifact])
+            return 'completed','Your editable email draft and saved PDF are ready. Nothing was sent.',[mail,artifact]
         return 'completed',('Your investigation report and actual PDF were generated.' if created else 'Your existing investigation report and saved PDF are ready.') + (' The report is explicitly labelled as deterministic; no live-model synthesis is claimed.' if not report.get('ai_synthesized') else ''),[artifact]

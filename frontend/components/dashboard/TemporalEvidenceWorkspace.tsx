@@ -1,4 +1,5 @@
 "use client";
+import {EvidenceSummaryPanel} from "./EvidenceSummaryPanel";
 
 import React, { useEffect, useId, useState } from "react";
 import { getTemporalEvidence, type TemporalCandidate, type TemporalEvidenceResult } from "@/lib/temporal-evidence";
@@ -13,7 +14,7 @@ const number = (value: number | null | undefined, unit = '') => value == null ? 
 const panel = 'rounded-xl border border-white/10 bg-[#171615] p-4 sm:p-5';
 const control = 'rounded-lg border border-white/15 bg-[#121110] px-3 py-2 text-xs text-[#f4efe6] focus-visible:outline-2 focus-visible:outline-teal-400';
 
-/** Lazy, abortable read only view. Opening this tab never starts SAM or inference. */
+/** Canonical statistics load read-only; the separate summary panel generates a saved Spark brief. */
 export function TemporalEvidenceWorkspace({ incidentId, active, onSelectCandidate }: Props) {
   const [data, setData] = useState<TemporalEvidenceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export function TemporalEvidenceWorkspace({ incidentId, active, onSelectCandidat
   ];
 
   return <section aria-label="Temporal evidence workspace" className="space-y-5 text-[#f4efe6]">
+    <EvidenceSummaryPanel key={incidentId} incidentId={incidentId} kind="temporal" ready={active}/>
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs uppercase tracking-widest text-teal-300">Recorded correspondence</p><h3 className="mt-1 text-xl font-medium">Temporal Evidence</h3><p className="mt-2 max-w-xl text-xs text-[#aba497]">Compare sampled timestamps, ordering and offset dispersion. Gaps cannot establish missing footage or infringement.</p></div>
       <div className="flex flex-wrap gap-2">

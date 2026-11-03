@@ -30,6 +30,8 @@ from app.muse_conversation_api import router as muse_conversation_router, incide
 app.include_router(muse_conversation_router)
 from app.sam_workspace_api import router as sam_workspace_router
 app.include_router(sam_workspace_router)
+from app.evidence_summary_api import router as evidence_summary_router
+app.include_router(evidence_summary_router)
 app.include_router(muse_incident_router)
 app.add_middleware(RequestProtectionMiddleware)
 

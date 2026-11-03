@@ -1,7 +1,7 @@
 import { API_BASE, getClientSessionId } from "./api";
 
 export type MusePendingAction = {action_id:string;action:string;summary:string;expires_at:string;incident_id:string;report_id?:string|null;recipient_email?:string|null;subject?:string|null;body_preview?:string|null;attachment_name?:string|null};
-export type MuseArtifact = {artifact_id:string;incident_id:string;kind:string;report_id?:string|null;title:string;body:string;model_id?:string|null;status:string;truncated:boolean};
+export type MuseArtifact = {artifact_id:string;incident_id:string;kind:string;report_id?:string|null;summary_kind?:'sam'|'temporal'|null;title:string;body:string;model_id?:string|null;status:string;truncated:boolean};
 export type MuseEmailDraft = {report_id:string;subject:string;body:string};
 export type MuseCitation = { incident_id: string; evidence_id?: string | null; report_id?: string | null; timestamp_sec?: number | null };
 export type MuseMessage = { message_id: string; role: "user" | "assistant"; text: string; metadata?: { pending_action?:MusePendingAction|null; artifacts?: MuseArtifact[]; status?: string | null; citations?: MuseCitation[]; provider?: string | null; model_id?: string | null } };
@@ -71,6 +71,7 @@ export class MuseConversationClient {
     try {
       const reply=await request<MuseReply>(this.session,`/api/muse/conversations/${this.conversation.conversation_id}/actions/${encodeURIComponent(actionId)}/${cancel?'cancel':'approve'}`,
         {expected_revision:this.conversation.revision,selected_incident_id:this.selectedIncident});
+      if(typeof reply.text!=='string'||!Number.isInteger(reply.revision)||typeof reply.message_id!=='string'||!['completed','needs_clarification','awaiting_confirmation','failed'].includes(reply.status)) throw new MuseApiError('Muse returned an invalid approval response. No retry was made.');
       this.conversation={...this.conversation,revision:reply.revision,messages:[...this.conversation.messages,
         {message_id:crypto.randomUUID(),role:'user' as const,text:cancel?'Cancelled proposed action.':'Approved proposed action.'},
         {message_id:reply.message_id,role:'assistant' as const,text:reply.text,metadata:{status:reply.status,artifacts:reply.artifacts||[],pending_action:reply.pending_action||null,citations:reply.citations}}].slice(-40)};

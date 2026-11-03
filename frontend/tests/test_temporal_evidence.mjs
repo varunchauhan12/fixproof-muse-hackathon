@@ -187,6 +187,7 @@ function loadTemporal(state) {
     require: mod => {
       if (mod === 'react') return { useState: () => [state[index++], () => {}], useEffect: () => {}, useId: () => 'test-clip' };
       if (mod === 'react/jsx-runtime') return { jsx: (type, props) => ({type, props}), jsxs: (type, props) => ({type, props}) };
+      if (mod === './EvidenceSummaryPanel') return {EvidenceSummaryPanel: 'EvidenceSummaryPanel'};
       if (mod === '@/lib/temporal-evidence') return {getTemporalEvidence: () => {throw Error('Network forbidden');}};
       throw Error(mod);
     },
@@ -237,7 +238,7 @@ test('empty selected population cannot inherit global statistics or invented pla
   assert.equal(nodes(tree).filter(n=>n.type==='g'&&n.props.role==='button').length,0);
 });
 
-test('workspace handles loading, unavailable and real empty states without starting inference', () => {
+test('workspace handles loading, unavailable and real empty states before summary generation', () => {
   assert.ok(JSON.stringify(loadTemporal([null,null,0,'all_eligible','',null])({incidentId:'incident-a',active:true})).includes('Loading recorded'));
   assert.ok(JSON.stringify(loadTemporal([null,'Offline',0,'all_eligible','',null])({incidentId:'incident-a',active:true})).includes('Offline'));
   assert.equal(loadTemporal([null,null,0,'all_eligible','',null])({incidentId:'incident-a',active:false}),null);

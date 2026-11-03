@@ -106,3 +106,32 @@ class ApprovalTests(unittest.TestCase):
         self.assertEqual(client.post(path,json={**value,'recipient_email':'third@example.test'},headers={'X-Client-Session-Id':'session-a'}).status_code,422)
         self.assertEqual(client.post(path,json=value,headers={'X-Client-Session-Id':'wrong-session'}).status_code,403)
         self.f.reports.send_detailed_report_email.assert_not_called()
+    def test_concurrent_approval_is_claimed_before_provider_call(self):
+        import threading
+        pending=self.propose();started=threading.Event();release=threading.Event();out=[]
+        def sending(*args,**kwargs):
+            started.set();release.wait(2)
+            return {'success':True,'status':'ACCEPTED'}
+        self.f.reports.send_detailed_report_email.side_effect=sending
+        def approve():
+            try:out.append(self.decide(pending))
+            except Exception as error:out.append(error)
+        worker=threading.Thread(target=approve);worker.start()
+        try:
+            self.assertTrue(started.wait(2))
+            with self.assertRaises(ConversationError):self.decide(pending)
+        finally:release.set();worker.join(2)
+        self.assertEqual(out[0].status,'completed')
+        self.f.reports.send_detailed_report_email.assert_called_once()
+    def test_missing_resend_configuration_is_reported_before_proposal(self):
+        self.f.documents.get_email_config.return_value=(False,None,None)
+        result=self.propose()
+        self.assertEqual(result.status,'failed')
+        self.assertIn('not configured',result.text)
+        self.f.reports.send_detailed_report_email.assert_not_called()
+    def test_corrupt_saved_pdf_is_not_presented_as_sendable(self):
+        self.f.reports.get_detailed_report_pdf_bytes.return_value=b'not-a-pdf'
+        pending=self.propose()
+        self.assertEqual(pending.pending_action.action,'generate_for_email')
+        self.f.reports.send_detailed_report_email.assert_not_called()
+        self.f.reports.synthesize_detailed_report.assert_not_called()

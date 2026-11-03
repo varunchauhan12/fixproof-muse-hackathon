@@ -1,5 +1,7 @@
 # Muse Copilot 2.0 — Demo-Ready Intelligence & Document Workflows
 
+> Current workflow: [Muse voice-first reliability](MUSE_VOICE_FIRST_RELIABILITY.md) supersedes the earlier direct-send behavior below. Voice is click-to-start/stop with transcript review; document actions require approval, and email requires a separate exact **Approve and Send** card.
+
 Implemented 2026-11-03. No commits, pushes, deployments, branch changes, new
 dependencies, database tables, or migrations. Protected repositories untouched.
 P3 temporal work (uncommitted) preserved.

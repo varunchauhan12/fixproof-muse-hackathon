@@ -1,5 +1,7 @@
 # Muse natural-language actions
 
+> Current workflow: [Muse voice-first reliability](MUSE_VOICE_FIRST_RELIABILITY.md) supersedes the earlier direct-send behavior below. Voice is click-to-start/stop with transcript review; document actions require approval, and email requires a separate exact **Approve and Send** card.
+
 Implemented and validated on 2026-11-03. This extends the existing Copilot 2.0 implementation; it replaces UI-only intent navigation with actual backend execution through the existing conversation API.
 
 ## Root causes

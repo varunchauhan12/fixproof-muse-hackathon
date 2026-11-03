@@ -504,6 +504,39 @@ class MuseAssistant:
         correlation_id = uuid4()  # Independent diagnostic ID, never a client/session/conversation ID.
         try:
             from app.muse_actions import action_for_text, MuseActions, ActionFailure
+            # Evidence briefs are already generated in their workspace. Read the exact
+            # saved artifact rather than repeatedly asking a planner to reconstruct it.
+            import re
+            requested = []
+            if re.search(r'\bsam\b', request.text, re.I): requested.append('sam')
+            if re.search(r'\btemporal\b', request.text, re.I): requested.append('temporal')
+            if requested and re.search(r'\b(summary|summarize|report|investigation|show|give|download|results|evidence|observations|findings|analysis|explain)\b', request.text, re.I) and not re.search(r'\b(email|mail|send|share)\b', request.text, re.I):
+                from app.evidence_summary_api import get_summaries
+                from app.muse_actions import MuseArtifact
+                artifacts = []
+                if selected:
+                    try:
+                        incident = self.tools._incident(session_id, selected)
+                    except ToolFailure:
+                        incident = None
+                        selected = None
+                    for kind in requested if incident else []:
+                        summary = get_summaries().read(incident, session_id, kind)
+                        if summary:
+                            artifacts.append(MuseArtifact(artifact_id=summary['summary_id'], incident_id=selected,
+                                kind='evidence_summary', summary_kind=kind, title=f"{kind.upper()} investigation summary",
+                                body=summary['body'], model_id=summary['model_id']))
+                missing = [kind.upper() for kind in requested if not any(a.summary_kind == kind for a in artifacts)]
+                answer = 'Here is the saved Spark evidence summary. The PDF contains its recorded facts and limitations.' if artifacts else ''
+                if missing:
+                    answer += (' ' if answer else '') + 'No saved ' + ', '.join(missing) + ' summary is available for the selected incident. Open its evidence tab to complete analysis and generate the summary.'
+                status = 'completed' if artifacts else 'needs_clarification'
+                saved = self.manager.finish_turn(conversation_id, session_id, token,
+                    expected_revision=conversation.revision, text=answer,
+                    metadata=MessageMetadata(client_message_id=request.client_message_id, status=status, artifacts=artifacts),
+                    grounding=sources, selected_incident_id=selected)
+                return MessageResponse(conversation_id=conversation_id, revision=saved.revision,
+                    message_id=saved.messages[-1].message_id, status=status, text=answer, artifacts=artifacts)
             action = action_for_text(request.text)
             # Email wording requires semantic classification; a keyword is not authorization.
             if request.text.strip().lower() in ('email','mail','send','share'):

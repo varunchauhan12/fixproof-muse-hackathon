@@ -61,3 +61,15 @@ test('conversation client preserves real artifact metadata and sends edited cove
   await client.send('Send the report to my email.','incident-a',{report_id:'report-a',subject:'Edited subject',body:'Edited body'});
   assert.deepEqual(calls[2].email_draft,{report_id:'report-a',subject:'Edited subject',body:'Edited body'});
 });
+
+test('approval card shows immutable exact email details inside its message container',()=>{
+  const exports={};let approved=0,cancelled=0;
+  vm.runInNewContext(compile('../components/muse/MuseApprovalCard.tsx'),{exports,require:name=>name==='react'?{useState:()=>[false,()=>{}],useEffect:()=>{}}:require('react/jsx-runtime')});
+  const proposal={action_id:'approval-a',action:'send_registered',incident_id:'incident-a',report_id:'report-a',recipient_email:'student@example.test',subject:'Prepared subject',body_preview:'Prepared body',attachment_name:'report-a.pdf',summary:'Approval sends this email.',expires_at:'2099-01-01T00:00:00Z'};
+  const card=exports.MuseApprovalCard({proposal,active:true,busy:false,onApprove:()=>approved++,onCancel:()=>cancelled++});
+  assert.ok(text(card).includes('student@example.test'));assert.ok(text(card).includes('report-a.pdf'));
+  assert.ok(card.props.className.includes('overflow-hidden'));assert.equal(all(card).some(n=>n.type==='input'||n.type==='textarea'),false);
+  button(card,'Approve and Send').props.onClick();button(card,'Cancel').props.onClick();assert.equal(approved,1);assert.equal(cancelled,1);
+  const inactive=exports.MuseApprovalCard({proposal,active:false,busy:false,onApprove(){throw Error('Inactive');},onCancel(){}});
+  assert.equal(button(inactive,'Approve and Send'),undefined);
+});

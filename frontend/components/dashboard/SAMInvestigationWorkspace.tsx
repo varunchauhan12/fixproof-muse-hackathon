@@ -1,4 +1,5 @@
 'use client';
+import {EvidenceSummaryPanel} from './EvidenceSummaryPanel';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getClientSessionId } from '@/lib/api';
@@ -120,6 +121,7 @@ function SAMSessionWorkspace({incidentId,session,active}: {incidentId:string;ses
   const running=Object.values(statuses).filter(status=>status==='running').length;
   return <section className="space-y-5 rounded-2xl border border-white/10 bg-[#171615] p-5" aria-label="SAM investigation workspace">
     <header><h3 className="text-xl font-semibold">Automatic object investigation</h3><p className="mt-1 text-sm text-[#aba497]">All confirmed CV matches are prepared automatically. Browse any pair while the batch runs.</p><p className="mt-2 text-xs text-[#8e887d]">Up to four salient categories per image. Results are reused; this is not an exhaustive detector of everything in the scene.</p></header>
+    <EvidenceSummaryPanel incidentId={incidentId} kind="sam" version={JSON.stringify(Object.entries(results).map(([id,r])=>[id,...Object.values(r.targets).map(t=>[t.status,t.image_sha256,t.objects.map(o=>o.label)])]))} ready={!!queue?.length && finished===queue.length && running===0}/>
     {queueError?<div role="alert" className="text-amber-200">{queueError}<button className="ml-3 underline" onClick={()=>{setQueueError('');setRefresh(count=>count+1);}}>Retry candidate queue</button></div>:!queue?<p role="status">Loading eligible CV candidates…</p>:!queue.length?<p className="rounded border border-dashed border-white/20 p-8 text-center">No CV candidate pairs are available for SAM investigation.</p>:selected&&<>
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-xs text-[#aba497]">CV-discovered candidate<select aria-label="SAM candidate" value={selected.candidate_id} onChange={event=>setSelectedId(event.target.value)} className="mt-2 w-full rounded border border-white/15 bg-[#121211] p-3 text-[#f4efe6]">{queue.map((candidate,index)=><option key={candidate.candidate_id} value={candidate.candidate_id}>#{index+1} · S {evidenceTime(candidate.suspect.timestamp_sec)} / R {evidenceTime(candidate.reference.timestamp_sec)} · L2 {candidate.l2_distance.toFixed(4)} · {candidate.status} · SAM {statuses[candidate.candidate_id] || 'queued'}</option>)}</select></label>

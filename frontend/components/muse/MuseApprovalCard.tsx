@@ -5,7 +5,7 @@ import type {MusePendingAction} from '@/lib/muse-assistant';
 export function MuseApprovalCard({proposal,active,busy,onApprove,onCancel}:{proposal:MusePendingAction;active:boolean;busy:boolean;onApprove:()=>void;onCancel:()=>void}) {
   const sending=proposal.action==='send_registered';
   const [expired,setExpired]=useState(false);
-  useEffect(()=>{const timer=setTimeout(()=>setExpired(true),Math.max(0,Date.parse(proposal.expires_at)-Date.now()));return()=>clearTimeout(timer);},[proposal.expires_at]);
+  useEffect(()=>{if(!active)return;const timer=setTimeout(()=>setExpired(true),Math.max(0,Date.parse(proposal.expires_at)-Date.now()));return()=>clearTimeout(timer);},[proposal.expires_at,active]);
   return <article aria-label="Muse action approval" className="my-3 min-w-0 w-full max-w-full shrink-0 overflow-hidden rounded-xl border border-teal-700/40 bg-teal-50 p-3 text-black">
     <h4 className="text-sm font-semibold">{sending?'Review email before sending':'Review proposed action'}</h4>
     <p className="my-2 text-xs">{proposal.summary}</p>
