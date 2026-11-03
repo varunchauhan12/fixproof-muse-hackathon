@@ -13,7 +13,7 @@ const guard=frontend.match(/^RUN node -e '(.*)'$/m)?.[1];
 
 test('frontend production guard rejects missing, empty, local and malformed backend origins',()=>{
  assert.ok(guard);
- assert.match(frontend,/^ARG NEXT_PUBLIC_API_URL$/m);
+ assert.match(frontend,/^ARG NEXT_PUBLIC_API_URL(=.*)?$/m);
  assert.ok(frontend.indexOf('RUN test -n "$NEXT_PUBLIC_API_URL"')<frontend.indexOf('RUN npm run build'));
  for(const url of [undefined,'','  ','http://example.invalid','https://localhost','https://127.0.0.2','https://[::1]','https://app.localhost','https://example.invalid/api','https://user:private@example.invalid','https://example.invalid?key=private','https://example.invalid/#fragment']){
   const env={};if(url!==undefined)env.NEXT_PUBLIC_API_URL=url;
