@@ -1,7 +1,7 @@
-> Current Muse-only deployment requirements and verification: [Muse-only release readiness](docs/MUSE_ONLY_RELEASE_READINESS.md). Older milestone results below are historical.
 
 # FixProof
-<img width="2048" height="1152" alt="COVERIMAGENVIDIA" src="https://github.com/user-attachments/assets/e4fef6a2-49f7-404d-bd67-257868f1f28b" />
+<img width="1672" height="941" alt="fixproof-cover-meta-blue" src="https://github.com/user-attachments/assets/13e3b85f-263a-4304-bdce-6eb7fd635f81" />
+
 
 ### AI-Powered Sports Media Verification & Digital Evidence
 
@@ -9,15 +9,16 @@
 
 FixProof is an AI-powered platform designed to help sports rights holders and media investigators identify potential unauthorized reuse of video content, analyze candidate matches, and organize investigation findings into integrity-checkable evidence packages.
 
-It combines computer vision, vector similarity search, NVIDIA Nemotron models through Nebius Token Factory, and cryptographic integrity checks in a single investigation workflow.
+It combines computer vision, vector similarity search, Meta Muse models through the Meta Model API, and cryptographic integrity checks in a single investigation workflow.
 
-**Live Demo:** [Open FixProof](https://fixproof-frontend-214713402646.europe-west1.run.app)  
-**Source Code:** [GitHub Repository](https://github.com/varunchauhan12/FIXPROOF)
+**Live Demo:** [Open FixProof](https://fixproof-frontend-1097663016023.europe-west1.run.app)  
+**Source Code:** [GitHub Repository](https://github.com/varunchauhan12/fixproof-muse-hackathon)
 
 ---
 <img width="1461" height="776" alt="Screenshot 2026-10-29 at 4 43 09 PM" src="https://github.com/user-attachments/assets/5d6f21bc-dc85-458e-94ce-7beac60c1fa0" />
-<img width="1464" height="777" alt="image" src="https://github.com/user-attachments/assets/b7080daa-9148-4bd4-90ef-c5b5601c79bf" />
-<img width="1450" height="772" alt="Screenshot 2026-10-29 at 16 46 23" src="https://github.com/user-attachments/assets/42cf6f2f-cc69-4af2-b8ef-ee0a3d35040c" />
+<img width="1463" height="770" alt="Screenshot 2026-11-04 at 20 08 28" src="https://github.com/user-attachments/assets/83f3d981-7eea-473d-ba43-ee63bf302f91" />
+<img width="1447" height="787" alt="Screenshot 2026-11-04 at 20 09 11" src="https://github.com/user-attachments/assets/b67fe8f4-8508-46b4-b657-3dfe84efba08" />
+
 
 
 
@@ -43,7 +44,7 @@ FixProof is designed to **support human investigation, not automatically determi
 - **Computer vision:** Extract video keyframes and generate visual embeddings.
 - **Similarity search:** Use FAISS to retrieve candidate visual matches.
 - **Visual filtering:** Apply entropy-based filtering and perceptual hashing to refine candidate comparisons.
-- **AI-assisted verification:** Integrate NVIDIA Nemotron models through Nebius Token Factory for supported investigation and visual-analysis workflows.
+- **AI-assisted verification:** Integrate Meta Muse models through the Meta Model API for supported investigation and visual-analysis workflows.
 - **Investigation reports:** Generate structured findings and PDF reports.
 - **Evidence integrity:** Use cryptographic hashes and Ed25519 signatures for supported evidence-verification workflows.
 - **Evidence packaging:** Assemble investigation artifacts into downloadable ZIP packages.
@@ -57,7 +58,7 @@ Feature availability and outputs depend on the media supplied and the applicable
 1. **Ingest reference media.** Process supported footage and create a searchable visual representation.
 2. **Extract and represent frames.** OpenCV extracts keyframes, and MobileNetV3-Small generates visual embeddings.
 3. **Find candidate matches.** FAISS searches the visual index; entropy filtering and perceptual hashing help refine comparisons.
-4. **Analyze candidates with AI.** Supported workflows send relevant inputs to NVIDIA Nemotron models through Nebius Token Factory.
+4. **Analyze candidates with AI.** Supported workflows send relevant inputs to Meta Muse models through the Meta Model API.
 5. **Review findings.** Investigators inspect candidate frames and AI-generated analysis.
 6. **Generate evidence artifacts.** Produce reports and package the available investigation materials.
 7. **Verify integrity.** Check the applicable signatures and file hashes, then review the verification result.
@@ -71,15 +72,18 @@ FixProof uses a web frontend, a Python API backend, computer-vision components, 
 
 **Architecture diagram**
 
-<img width="3200" height="1800" alt="fixproof-architecture" src="https://github.com/user-attachments/assets/bc47048f-72c7-439e-b575-0f71ecf7cfe8" />
+<img width="3200" height="1800" alt="FixProofSystemArchitechture1" src="https://github.com/user-attachments/assets/2cc085db-d480-49a6-866b-924c717a7306" />
+
 
 **Visual Verification Flow Diagram**
 
-<img width="1672" height="941" alt="FixProof Visual Verification Workflow" src="https://github.com/user-attachments/assets/b02a80a3-d113-4396-bb65-bd0dd092c2f6" />
+<img width="1672" height="941" alt="fixProof_visual_verification_diagram" src="https://github.com/user-attachments/assets/650ff421-d0dc-4f25-9275-f59aee1a36f8" />
+
 
 **Evidence Lifecycle Diagram**
 
-<img width="3400" height="2140" alt="fixproof-evidence-lifecycle" src="https://github.com/user-attachments/assets/69862727-0676-47f7-9f35-010b8d8582b8" />
+<img width="1581" height="995" alt="fixproof_evidence_lifecycle" src="https://github.com/user-attachments/assets/299ab707-697f-42f7-bf04-639d29a2b032" />
+
 
 
 
@@ -93,7 +97,7 @@ FixProof uses a web frontend, a Python API backend, computer-vision components, 
 | Visual embeddings | MobileNetV3-Small | Visual feature representation |
 | Similarity search | FAISS | Candidate retrieval from vector representations |
 | Visual filtering | Shannon entropy and pHash | Frame filtering and perceptual comparison |
-| AI inference | NVIDIA Nemotron via Nebius Token Factory | Supported visual verification and investigation analysis |
+| AI inference | Meta Muse via the Meta Model API | Supported visual verification and investigation analysis |
 | Database | Supabase PostgreSQL | Persistent application data |
 | Object storage | Supabase Storage | Supported media and artifact storage |
 | Reports | ReportLab | PDF generation |
@@ -102,15 +106,14 @@ FixProof uses a web frontend, a Python API backend, computer-vision components, 
 
 ### Model Usage
 
-FixProof integrates NVIDIA Nemotron models through Nebius Token Factory for distinct investigation tasks:
+FixProof integrates Meta Muse through the Meta Model API for distinct investigation tasks. The defaults below can be overridden in the deployment configuration:
 
 | Model | Role in FixProof |
 |---|---|
-| `nvidia/Nemotron-3_5-Lightning` | Structured investigation reports and document drafting |
-| `nvidia/Nemotron-3.5-Super-VL` | Pairwise visual verification of shortlisted reference and suspect frames |
-| `nvidia/nemotron-3-super-120b-a12b` | Detailed investigation report generation, with a documented fallback to the primary reasoning model |
+| `muse-wonder-1.0` | Structured investigation reasoning and detailed report synthesis |
+| `muse-spark-1.3` | Visual assessment of shortlisted reference and suspect frames |
 
-The computer-vision pipeline retrieves candidate matches; the Nemotron models provide additional analysis within the relevant workflows. These are separate stages.
+The computer-vision pipeline retrieves candidate matches; Muse provides additional analysis within supported workflows. Muse Center and Muse Copilot give investigators access to these capabilities.
 
 AI-generated findings are intended to assist investigators. They do not independently determine whether copyright infringement has occurred.
 
@@ -132,7 +135,7 @@ These mechanisms help establish whether covered files match their expected crypt
 **Backend:** Python, FastAPI  
 **Computer vision:** OpenCV, MobileNetV3-Small  
 **Vector retrieval:** FAISS  
-**AI inference:** NVIDIA Nemotron, Nebius Token Factory  
+**AI inference:** Meta Muse via the Meta Model API  
 **Persistence:** Supabase PostgreSQL, Supabase Storage  
 **Evidence generation:** ReportLab, ZIP packaging, SHA-256, Ed25519  
 **Email delivery:** Resend
@@ -143,13 +146,13 @@ These mechanisms help establish whether covered files match their expected crypt
 - Node.js and npm
 - Python 3
 - Supabase credentials for cloud persistence and object storage
-- Nebius Token Factory API access for AI-enabled workflows
+- A Meta Model API key for AI-enabled workflows (`MODEL_API_KEY`)
 
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/varunchauhan12/FIXPROOF.git
-cd FIXPROOF
+git clone https://github.com/varunchauhan12/fixproof-muse-hackathon.git
+cd fixproof-muse-hackathon
 ```
 
 ### Backend Setup
@@ -176,11 +179,11 @@ The frontend development server runs at `http://localhost:3000`.
 
 Configure the environment variables required by the frontend and backend before using features that depend on external services. Never commit API keys or service credentials.
 
-See `.env.example` for the available configuration variables and their documented defaults.
+Set `NEXT_PUBLIC_API_URL` to the backend URL when building the frontend. Configuration requirements vary by feature; consult the environment configuration below and the current source before deployment.
 
 ## Testing and Validation
 
-The following checks were executed during repository validation.
+The following checks were recorded for the earlier implementation on October 29, 2026. They have not been rerun for the current Muse version.
 
 ### Frontend Production Build
 
@@ -204,7 +207,7 @@ cd backend && .venv/bin/python -m unittest tests.test_cloud_runtime tests.test_v
 
 ### Validation Scope
 
-These results apply to the specific commands and test modules listed above. They do not establish that every test suite or every deployed workflow has passed end-to-end validation.
+These historical results apply to the specific commands and test modules listed above and do not establish current Muse readiness. They do not establish that every test suite or every deployed workflow has passed end-to-end validation.
 
 Visual similarity scores are heuristic signals, not calibrated probabilities of copyright infringement. AI-generated investigation findings require human review.
 
@@ -237,7 +240,7 @@ Required configuration depends on the selected persistence mode and enabled feat
 
 ## Project Status
 
-FixProof is a working project with a deployed web interface and backend. Refer to the live demo and repository for the current implementation.
+FixProof includes a web interface and backend. Deployment and external service availability should be verified using the live demo and repository.
 
 ## Contributing
 
