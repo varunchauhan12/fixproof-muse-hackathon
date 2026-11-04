@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ArrowRight, X, Cpu, ShieldCheck, Database, Layers } from "lucide-react";
+import { Sparkles, ArrowRight, X } from "lucide-react";
 
 interface NvidiaJudgePreloaderProps {
   isOpen: boolean;
@@ -11,10 +11,10 @@ interface NvidiaJudgePreloaderProps {
 }
 
 const TELEMETRY_STAGES = [
-  { threshold: 0, text: "Calibrating MobileNetV3 visual embeddings...", icon: Cpu },
-  { threshold: 28, text: "Hydrating FAISS IndexFlatL2 vector vault...", icon: Database },
-  { threshold: 62, text: "Preparing Muse reasoning workspace...", icon: Layers },
-  { threshold: 88, text: "Forensic verifier ready · Unlocking workspace", icon: ShieldCheck },
+  { threshold: 0, text: "Visual matching" },
+  { threshold: 28, text: "Evidence-led investigation" },
+  { threshold: 62, text: "Powered by Meta Muse" },
+  { threshold: 88, text: "Built for human review" },
 ];
 
 export function NvidiaJudgePreloader({
@@ -82,8 +82,9 @@ export function NvidiaJudgePreloader({
 
     if (prefersReducedMotion) {
       setProgress(100);
-      setStageText("Forensic verifier ready");
-      return;
+      setStageText("Built for human review");
+      const timer = setTimeout(handleFinish, 1400);
+      return () => clearTimeout(timer);
     }
 
     const startTime = performance.now();
@@ -149,12 +150,12 @@ export function NvidiaJudgePreloader({
         >
           {/* ─── Dual Shining Moving Radial Glows (Framer Web-Preload Style, Hardware-Accelerated) ─── */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {/* Glow 1: NVIDIA Signature Electric Green (#76B900) */}
+            {/* Meta-inspired blue glow */}
             <motion.div
               className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(118, 185, 0, 0.24) 0%, rgba(118, 185, 0, 0.08) 35%, transparent 68%)",
+                  "radial-gradient(circle, rgba(0, 102, 255, 0.28) 0%, rgba(0, 102, 255, 0.08) 35%, transparent 68%)",
                 left: "-10%",
                 top: "15%",
                 willChange: "transform",
@@ -176,12 +177,12 @@ export function NvidiaJudgePreloader({
               }}
             />
 
-            {/* Glow 2: Cyber Teal / Turquoise (#48C7B5 / #009E91) */}
+            {/* Glow 2: Cyber Teal / Turquoise (#52C7FF / #009E91) */}
             <motion.div
               className="absolute w-[500px] h-[500px] sm:w-[700px] sm:h-[700px] rounded-full pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(72, 199, 181, 0.20) 0%, rgba(0, 158, 145, 0.06) 40%, transparent 68%)",
+                  "radial-gradient(circle, rgba(82, 199, 255, 0.20) 0%, rgba(8, 102, 255, 0.06) 40%, transparent 68%)",
                 right: "-10%",
                 bottom: "10%",
                 willChange: "transform",
@@ -218,14 +219,14 @@ export function NvidiaJudgePreloader({
 
           {/* ─── Top Header Bar ─── */}
           <div className="relative z-10 flex items-center justify-between px-6 sm:px-10 pt-6 pb-4">
-            {/* Left: NVIDIA Hackathon Indicator */}
+            {/* Hackathon indicator */}
             <div className="flex items-center gap-2.5">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#76B900] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#76B900]" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0866FF] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0866FF]" />
               </span>
-              <span className="text-[11px] sm:text-xs font-mono uppercase tracking-widest text-[#76B900] font-semibold">
-                META HACKATHON 2026
+              <span className="text-[11px] sm:text-xs font-mono uppercase tracking-widest text-[#0866FF] font-semibold">
+                META MUSE HACKATHON 2026
               </span>
               <span className="hidden sm:inline-block text-[11px] font-mono text-[#8E887D]">
                 · EVALUATION PORTAL
@@ -253,10 +254,10 @@ export function NvidiaJudgePreloader({
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#76B900]/30 bg-[#76B900]/10 text-[#76B900] text-[11px] sm:text-xs font-medium tracking-wide shadow-[0_0_15px_rgba(118,185,0,0.15)]"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#0866FF]/30 bg-[#0866FF]/10 text-[#0866FF] text-[11px] sm:text-xs font-medium tracking-wide shadow-[0_0_15px_rgba(8,102,255,0.15)]"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#76B900]" />
-              <span>OFFICIAL JUDGE REVEAL</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#0866FF]" />
+              <span>META MUSE HACKATHON · JUDGE PREVIEW</span>
             </motion.div>
 
             {/* Primary Headline */}
@@ -267,7 +268,7 @@ export function NvidiaJudgePreloader({
               className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-white leading-none drop-shadow-[0_10px_35px_rgba(0,0,0,0.9)]"
             >
               WELCOME,{" "}
-              <span className="bg-gradient-to-r from-[#76B900] via-[#48C7B5] to-[#76B900] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#0866FF] via-[#52C7FF] to-[#0866FF] bg-clip-text text-transparent">
                 META JUDGES
               </span>
             </motion.h1>
@@ -281,7 +282,7 @@ export function NvidiaJudgePreloader({
             >
               Meet FixProof —{" "}
               <span className="font-semibold text-white">
-                AI-powered sports media verification
+                visual evidence and investigation, assisted by Meta Muse
               </span>
             </motion.p>
 
@@ -295,10 +296,10 @@ export function NvidiaJudgePreloader({
               {/* Progress Track */}
               <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-[#76B900] via-[#48C7B5] to-[#76B900] rounded-full transition-all duration-75 ease-out"
+                  className="h-full bg-gradient-to-r from-[#0866FF] via-[#52C7FF] to-[#0866FF] rounded-full transition-all duration-75 ease-out"
                   style={{
                     width: `${progress}%`,
-                    boxShadow: "0 0 12px rgba(118, 185, 0, 0.65)",
+                    boxShadow: "0 0 12px rgba(8, 102, 255, 0.65)",
                   }}
                 />
               </div>
@@ -307,14 +308,14 @@ export function NvidiaJudgePreloader({
               <div className="flex items-center justify-between text-xs font-mono text-[#A29B8F]">
                 <div className="flex items-center gap-2 truncate pr-2">
                   <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#48C7B5] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#48C7B5]" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#52C7FF] opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#52C7FF]" />
                   </span>
                   <span className="truncate text-[11px] sm:text-xs text-[#F1EBDD]/80">
                     {stageText}
                   </span>
                 </div>
-                <span className="font-bold text-[#76B900] shrink-0 font-mono">
+                <span className="font-bold text-[#0866FF] shrink-0 font-mono">
                   {progress}%
                 </span>
               </div>
@@ -324,7 +325,7 @@ export function NvidiaJudgePreloader({
           {/* ─── Bottom Actions Bar ─── */}
           <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 px-6 sm:px-10 pb-6 pt-3 border-t border-white/5 bg-[#090908]/60 backdrop-blur-md">
             <div className="text-[11px] font-mono text-[#8E887D] hidden sm:block">
-              MobileNetV3 (576-dim) · FAISS L2 · Dual-Layer Forensic Consensus
+              Computer vision · Meta Muse reasoning · Human review
             </div>
 
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
@@ -338,7 +339,7 @@ export function NvidiaJudgePreloader({
               <button
                 type="button"
                 onClick={handleLaunch}
-                className="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold text-[#0B0B0A] bg-gradient-to-r from-[#76B900] to-[#48C7B5] hover:opacity-95 transition-all shadow-[0_0_20px_rgba(118,185,0,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#0866FF] hover:bg-[#0056d6] transition-all shadow-[0_0_20px_rgba(8,102,255,0.35)] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Launch Console</span>
                 <ArrowRight className="w-3.5 h-3.5" />
