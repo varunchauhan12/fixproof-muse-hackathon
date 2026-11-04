@@ -265,11 +265,11 @@ export function NvidiaJudgePreloader({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-white leading-none drop-shadow-[0_10px_35px_rgba(0,0,0,0.9)]"
+              className="font-serif text-4xl sm:text-6xl md:text-7xl font-normal italic tracking-tight text-[#F1EBDD] leading-[1.08] drop-shadow-[0_10px_35px_rgba(0,0,0,0.9)]"
             >
-              WELCOME,{" "}
-              <span className="bg-gradient-to-r from-[#0866FF] via-[#52C7FF] to-[#0866FF] bg-clip-text text-transparent">
-                META JUDGES
+              Welcome,{" "}
+              <span className="bg-gradient-to-r from-[#E7E8EA] via-[#FAF3E5] to-[#AEB8C7] bg-clip-text text-transparent">
+                Meta judges
               </span>
             </motion.h1>
 
@@ -278,10 +278,10 @@ export function NvidiaJudgePreloader({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0.3 }}
-              className="text-base sm:text-xl md:text-2xl text-[#F1EBDD]/90 font-light max-w-2xl leading-relaxed"
+              className="text-base sm:text-xl md:text-2xl text-[#D8DADF] font-light max-w-2xl leading-relaxed"
             >
               Meet FixProof —{" "}
-              <span className="font-semibold text-white">
+              <span className="font-normal text-[#F1EBDD]">
                 visual evidence and investigation, assisted by Meta Muse
               </span>
             </motion.p>
